@@ -475,7 +475,7 @@ void WorkstationContainerComponent::setupSoundDesignerTemplate()
 
     nodeGraph.addConnection(1, 1, 2, 1); // osc -> ladder in~
     nodeGraph.addConnection(2, 0, 3, 0); // ladder -> drive in~
-    nodeGraph.addConnection(3, 0, 4, 0); // drive -> out~ in1~
+    nodeGraph.addConnection(3, 0, 4, 1); // drive -> out~ in1~
 
     nextNodeId = 5;
 }
@@ -503,7 +503,7 @@ void WorkstationContainerComponent::setupFilmSciFiTemplate()
 
     nodeGraph.addConnection(1, 1, 2, 1); // time.warp timeOut -> pluck timeIn
     nodeGraph.addConnection(2, 0, 3, 0); // pluck out~ -> drive in~
-    nodeGraph.addConnection(3, 0, 4, 0); // drive out~ -> out~ in1~
+    nodeGraph.addConnection(3, 0, 4, 1); // drive out~ -> out~ in1~
 
     nextNodeId = 5;
 }
@@ -531,7 +531,7 @@ void WorkstationContainerComponent::setupExperimentalistTemplate()
 
     nodeGraph.addConnection(1, 0, 2, 0); // osc -> ladder in~
     nodeGraph.addConnection(2, 0, 3, 0); // ladder -> drive in~
-    nodeGraph.addConnection(3, 0, 4, 0); // drive -> out~ in1~
+    nodeGraph.addConnection(3, 0, 4, 1); // drive -> out~ in1~
 
     // Feedback Loop: drive out~ (Outlet 0) back to ladder cutoff
     nodeGraph.addConnection(3, 0, 2, 2);

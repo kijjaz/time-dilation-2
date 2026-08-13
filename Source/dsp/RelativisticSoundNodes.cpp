@@ -699,9 +699,10 @@ void PluckNode::receiveMessage(const std::string& msg)
 OutNode::OutNode(int id)
     : RelativisticNode(id, "out~", "out~ master")
 {
-    addInlet("in1~", PortDataType::Audio); // Inlet 0: Audio Left Input (Cyan)
-    addInlet("in2~", PortDataType::Audio); // Inlet 1: Audio Right Input (Cyan)
-    addOutlet("out~", PortDataType::Audio); // Outlet 0: Audio Pass-Through (Cyan)
+    addInlet("msgIn", PortDataType::Message); // Inlet 0: Control / Message (Gold Accent)
+    addInlet("in1~", PortDataType::Audio);   // Inlet 1: Audio Left Input (Cyan)
+    addInlet("in2~", PortDataType::Audio);   // Inlet 2: Audio Right Input (Cyan)
+    addOutlet("out~", PortDataType::Audio);  // Outlet 0: Audio Pass-Through (Cyan)
 }
 
 void OutNode::prepare(double sampleRate, int samplesPerBlock)
@@ -715,8 +716,8 @@ void OutNode::prepare(double sampleRate, int samplesPerBlock)
 
 void OutNode::process(int numSamples)
 {
-    const auto& inL = getInletBuffer(0);
-    const auto& inR = getInletBuffer(1);
+    const auto& inL = getInletBuffer(1); // Inlet 1: Audio Left
+    const auto& inR = getInletBuffer(2); // Inlet 2: Audio Right
 
     float rawL = (inL.getNumChannels() > 0 && numSamples > 0) ? inL.getRMSLevel(0, 0, numSamples) : 0.0f;
     float rawR = (inR.getNumChannels() > 0 && numSamples > 0) ? inR.getRMSLevel(0, 0, numSamples) : 0.0f;
