@@ -232,20 +232,20 @@ void RelativisticCanvasComponent::paint(juce::Graphics& g)
         g.drawText("👁", toggleBtnRect, juce::Justification::centred, false);
 
         // Scope Mode Toggle Button
-        auto modeBtnRect = headerRect.removeFromRight(36.0f).reduced(2.0f);
+        auto modeBtnRect = headerRect.removeFromRight(46.0f).reduced(2.0f);
         g.setColour((node->displayType == RelativisticNode::ScopeDisplayType::AudioWaveform) ? CarbonGoldLookAndFeel::cyberCyan : CarbonGoldLookAndFeel::royalViolet);
         g.drawRoundedRectangle(modeBtnRect, 3.0f, 1.0f);
         g.setFont(9.0f);
         juce::String modeStr;
         if (node->displayType == RelativisticNode::ScopeDisplayType::AudioWaveform)
         {
-            modeStr = "AUD";
+            modeStr = "Audio";
         }
         else
         {
-            if (node->timeVarMode == RelativisticNode::TimeScopeVariable::SpeedGamma) modeStr = juce::String::fromUTF8("γ");
-            else if (node->timeVarMode == RelativisticNode::TimeScopeVariable::OffsetTau) modeStr = juce::String::fromUTF8("τ");
-            else modeStr = "C";
+            if (node->timeVarMode == RelativisticNode::TimeScopeVariable::SpeedGamma) modeStr = "Speed";
+            else if (node->timeVarMode == RelativisticNode::TimeScopeVariable::OffsetTau) modeStr = "Offset";
+            else modeStr = "Flex";
         }
         g.drawText(modeStr, modeBtnRect, juce::Justification::centred, false);
 
@@ -397,7 +397,7 @@ void RelativisticCanvasComponent::paint(juce::Graphics& g)
                         g.setColour(CarbonGoldLookAndFeel::royalViolet);
                         g.strokePath(wavePath, juce::PathStrokeType(1.4f));
 
-                        juce::String valStr = juce::String::fromUTF8("γ: ") + juce::String(currentGamma, 3) + "x  " + juce::String::fromUTF8("τ: ") + juce::String(currentTau, 2) + "s";
+                        juce::String valStr = "Speed: " + juce::String(currentGamma, 3) + "x  Offset: " + juce::String(currentTau, 2) + "s";
                         g.setColour(CarbonGoldLookAndFeel::goldAccent);
                         g.setFont(10.0f);
                         g.drawText(valStr, scopeBox.reduced(4.0f, 2.0f), juce::Justification::topRight, false);
@@ -429,7 +429,7 @@ void RelativisticCanvasComponent::paint(juce::Graphics& g)
                 g.setColour(CarbonGoldLookAndFeel::goldAccent);
                 g.strokePath(xyPath, juce::PathStrokeType(1.5f));
 
-                juce::String valStr = juce::String::fromUTF8("γ: ") + juce::String(currentGamma, 3) + "x  " + juce::String::fromUTF8("τ: ") + juce::String(currentTau, 2) + "s";
+                juce::String valStr = "Speed: " + juce::String(currentGamma, 3) + "x  Offset: " + juce::String(currentTau, 2) + "s";
                 g.setColour(CarbonGoldLookAndFeel::goldAccent);
                 g.setFont(10.0f);
                 g.drawText(valStr, scopeBox.reduced(4.0f, 2.0f), juce::Justification::topRight, false);
@@ -952,8 +952,8 @@ void RelativisticCanvasComponent::mouseDown(const juce::MouseEvent& e)
                 return;
             }
 
-            // Check if clicked Scope Mode Button [AUD / γ / τ / C]
-            auto modeBtnRect = headerRect.removeFromRight(36.0f).reduced(2.0f);
+            // Check if clicked Scope Mode Button [Audio / Speed / Offset / Flex]
+            auto modeBtnRect = headerRect.removeFromRight(46.0f).reduced(2.0f);
             if (modeBtnRect.contains(pos))
             {
                 if (node->displayType == RelativisticNode::ScopeDisplayType::TimeFrame)
