@@ -724,15 +724,6 @@ void OutNode::process(int numSamples)
     float rmsValL = rawL;
     float rmsValR = rawR;
 
-    if (rawL > 0.00001f && rawR <= 0.00001f)
-    {
-        rmsValR = rawL; // Mono L -> Stereo R fallback
-    }
-    else if (rawR > 0.00001f && rawL <= 0.00001f)
-    {
-        rmsValL = rawR; // Mono R -> Stereo L fallback
-    }
-
     float prevL = rmsL.load();
     float prevR = rmsR.load();
     rmsL.store(std::max(rmsValL, prevL * 0.82f));
