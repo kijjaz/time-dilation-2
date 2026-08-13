@@ -53,7 +53,7 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
     nodeGraph.setAudioPlayHead(&masterPlayHead);
 
     // BPM Slider
-    bpmSlider.setRange(20.0, 300.0, 1.0);
+    bpmSlider.setRange(-100000.0, 100000.0, 1.0);
     bpmSlider.setValue(120.0);
     bpmSlider.setSliderStyle(juce::Slider::IncDecButtons);
     bpmSlider.setTextBoxStyle(juce::Slider::TextBoxLeft, false, 45, 20);

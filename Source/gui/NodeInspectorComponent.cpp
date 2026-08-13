@@ -154,30 +154,30 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         return;
     }
 
-    // Bind Geometry
+    // Bind Geometry with Flexible Ranges
     posXLabel.setVisible(true); posXSlider.setVisible(true);
-    posXSlider.setRange(0.0, 5000.0, 1.0);
+    posXSlider.setRange(-100000.0, 100000.0, 1.0);
     posXSlider.setValue(selectedNode->xPos, juce::dontSendNotification);
     posXSlider.onValueChange = [this]() {
         if (selectedNode) { selectedNode->xPos = static_cast<float>(posXSlider.getValue()); if (getParentComponent()) getParentComponent()->repaint(); }
     };
 
     posYLabel.setVisible(true); posYSlider.setVisible(true);
-    posYSlider.setRange(0.0, 5000.0, 1.0);
+    posYSlider.setRange(-100000.0, 100000.0, 1.0);
     posYSlider.setValue(selectedNode->yPos, juce::dontSendNotification);
     posYSlider.onValueChange = [this]() {
         if (selectedNode) { selectedNode->yPos = static_cast<float>(posYSlider.getValue()); if (getParentComponent()) getParentComponent()->repaint(); }
     };
 
     widthLabel.setVisible(true); widthSlider.setVisible(true);
-    widthSlider.setRange(120.0, 800.0, 1.0);
+    widthSlider.setRange(10.0, 100000.0, 1.0);
     widthSlider.setValue(selectedNode->width, juce::dontSendNotification);
     widthSlider.onValueChange = [this]() {
         if (selectedNode) { selectedNode->width = static_cast<float>(widthSlider.getValue()); if (getParentComponent()) getParentComponent()->repaint(); }
     };
 
     heightLabel.setVisible(true); heightSlider.setVisible(true);
-    heightSlider.setRange(45.0, 600.0, 1.0);
+    heightSlider.setRange(10.0, 100000.0, 1.0);
     heightSlider.setValue(selectedNode->height, juce::dontSendNotification);
     heightSlider.onValueChange = [this]() {
         if (selectedNode) { selectedNode->height = static_cast<float>(heightSlider.getValue()); if (getParentComponent()) getParentComponent()->repaint(); }
@@ -229,7 +229,7 @@ void NodeInspectorComponent::updateUIForSelectedNode()
 
     volLabel.setVisible(true);
     volSlider.setVisible(true);
-    volSlider.setRange(-4.0, 4.0, 0.01);
+    volSlider.setRange(-1000.0, 1000.0, 0.01);
     volSlider.setValue(selectedNode->getOutputVolume(), juce::dontSendNotification);
     volSlider.onValueChange = [this]() {
         if (selectedNode) selectedNode->setOutputVolume(static_cast<float>(volSlider.getValue()));
@@ -248,7 +248,7 @@ void NodeInspectorComponent::updateUIForSelectedNode()
     {
         paramLabel1.setText("Cutoff Freq (Hz)", juce::dontSendNotification);
         paramLabel1.setVisible(true);
-        paramSlider1.setRange(-20000.0, 20000.0, 1.0);
+        paramSlider1.setRange(-1000000.0, 1000000.0, 1.0);
         paramSlider1.setValue(1000.0, juce::dontSendNotification);
         paramSlider1.setVisible(true);
         paramSlider1.onValueChange = [this]() {
@@ -257,7 +257,7 @@ void NodeInspectorComponent::updateUIForSelectedNode()
 
         paramLabel2.setText("Resonance Q", juce::dontSendNotification);
         paramLabel2.setVisible(true);
-        paramSlider2.setRange(-5.0, 5.0, 0.01);
+        paramSlider2.setRange(-1000.0, 1000.0, 0.01);
         paramSlider2.setValue(0.5, juce::dontSendNotification);
         paramSlider2.setVisible(true);
         paramSlider2.onValueChange = [this]() {
@@ -276,7 +276,7 @@ void NodeInspectorComponent::updateUIForSelectedNode()
     {
         paramLabel1.setText("LFO Rate (Hz)", juce::dontSendNotification);
         paramLabel1.setVisible(true);
-        paramSlider1.setRange(-50.0, 50.0, 0.01);
+        paramSlider1.setRange(-100000.0, 100000.0, 0.01);
         paramSlider1.setValue(0.5, juce::dontSendNotification);
         paramSlider1.setVisible(true);
         paramSlider1.onValueChange = [this]() {
@@ -285,7 +285,7 @@ void NodeInspectorComponent::updateUIForSelectedNode()
 
         paramLabel2.setText("LFO Depth (Gamma Mod)", juce::dontSendNotification);
         paramLabel2.setVisible(true);
-        paramSlider2.setRange(-10.0, 10.0, 0.01);
+        paramSlider2.setRange(-100000.0, 100000.0, 0.01);
         paramSlider2.setValue(0.85, juce::dontSendNotification);
         paramSlider2.setVisible(true);
         paramSlider2.onValueChange = [this]() {
@@ -304,7 +304,7 @@ void NodeInspectorComponent::updateUIForSelectedNode()
     {
         paramLabel1.setText("Frequency (Hz)", juce::dontSendNotification);
         paramLabel1.setVisible(true);
-        paramSlider1.setRange(-20000.0, 20000.0, 1.0);
+        paramSlider1.setRange(-1000000.0, 1000000.0, 1.0);
         paramSlider1.setValue(440.0, juce::dontSendNotification);
         paramSlider1.setVisible(true);
         paramSlider1.onValueChange = [this]() {
@@ -338,7 +338,7 @@ void NodeInspectorComponent::updateUIForSelectedNode()
     {
         paramLabel1.setText("Saturation Drive", juce::dontSendNotification);
         paramLabel1.setVisible(true);
-        paramSlider1.setRange(-20.0, 20.0, 0.1);
+        paramSlider1.setRange(-1000.0, 1000.0, 0.1);
         paramSlider1.setValue(2.0, juce::dontSendNotification);
         paramSlider1.setVisible(true);
         paramSlider1.onValueChange = [this]() {
@@ -359,7 +359,7 @@ void NodeInspectorComponent::updateUIForSelectedNode()
     {
         paramLabel1.setText("Time Warp Factor (\u03b3)", juce::dontSendNotification);
         paramLabel1.setVisible(true);
-        paramSlider1.setRange(-10.0, 10.0, 0.05);
+        paramSlider1.setRange(-100000.0, 100000.0, 0.05);
         paramSlider1.setValue(1.5, juce::dontSendNotification);
         paramSlider1.setVisible(true);
         paramSlider1.onValueChange = [this]() {
@@ -380,7 +380,7 @@ void NodeInspectorComponent::updateUIForSelectedNode()
     {
         paramLabel1.setText("Sequencer BPM", juce::dontSendNotification);
         paramLabel1.setVisible(true);
-        paramSlider1.setRange(-400.0, 400.0, 1.0);
+        paramSlider1.setRange(-100000.0, 100000.0, 1.0);
         paramSlider1.setValue(120.0, juce::dontSendNotification);
         paramSlider1.setVisible(true);
         paramSlider1.onValueChange = [this]() {
@@ -401,7 +401,7 @@ void NodeInspectorComponent::updateUIForSelectedNode()
     {
         paramLabel1.setText("Pitch Frequency (Hz)", juce::dontSendNotification);
         paramLabel1.setVisible(true);
-        paramSlider1.setRange(-2000.0, 2000.0, 1.0);
+        paramSlider1.setRange(-1000000.0, 1000000.0, 1.0);
         paramSlider1.setValue(220.0, juce::dontSendNotification);
         paramSlider1.setVisible(true);
         paramSlider1.onValueChange = [this]() {
