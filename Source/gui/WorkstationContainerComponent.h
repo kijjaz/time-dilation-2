@@ -174,6 +174,7 @@ private:
 
     bool keyPressed(const juce::KeyPress& key) override;
 
+public:
     void newPatch();
     void savePatch();
     void savePatchAs();

@@ -1,6 +1,7 @@
 #include <juce_gui_extra/juce_gui_extra.h>
 #include "gui/WorkstationContainerComponent.h"
 #include "utils/AgentTestRunner.h"
+#include "utils/TerminalCommandProcessor.h"
 #include <iostream>
 
 class TimeDilationApplication  : public juce::JUCEApplication
@@ -21,6 +22,37 @@ public:
         {
             int result = TimeDilationDAW::AgentTestRunner::runHeadlessTest(args);
             setApplicationReturnValue(result);
+            quit();
+            return;
+        }
+
+        // Headless Interactive CLI Terminal Mode
+        if (commandLine.contains("--cli") || commandLine.contains("--interactive"))
+        {
+            TimeDilationDAW::WorkstationContainerComponent workstation(false);
+            workstation.setSize(1280, 720);
+            TimeDilationDAW::TerminalCommandProcessor::runInteractiveLoop(workstation);
+            setApplicationReturnValue(0);
+            quit();
+            return;
+        }
+
+        // Single Command Execution Mode (e.g. --cmd="add osc~ sin 440")
+        if (commandLine.contains("--cmd="))
+        {
+            TimeDilationDAW::WorkstationContainerComponent workstation(false);
+            workstation.setSize(1280, 720);
+
+            for (const auto& arg : args)
+            {
+                if (arg.startsWith("--cmd="))
+                {
+                    juce::String cmdText = arg.substring(6);
+                    std::string res = TimeDilationDAW::TerminalCommandProcessor::processCommand(workstation, cmdText.toStdString());
+                    std::cout << res << std::endl;
+                }
+            }
+            setApplicationReturnValue(0);
             quit();
             return;
         }

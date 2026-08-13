@@ -47,6 +47,8 @@ target_sources(TimeDilationDAW
         Source/gui/WorkstationContainerComponent.cpp
         Source/utils/AgentTestRunner.h
         Source/utils/AgentTestRunner.cpp
+        Source/utils/TerminalCommandProcessor.h
+        Source/utils/TerminalCommandProcessor.cpp
 )
 
 target_compile_definitions(TimeDilationDAW
