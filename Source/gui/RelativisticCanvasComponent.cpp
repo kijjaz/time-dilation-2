@@ -1229,6 +1229,14 @@ void RelativisticCanvasComponent::mouseUp(const juce::MouseEvent& e)
 
     if (draggingPortNodeId != -1)
     {
+        auto isCompatible = [](PortDataType src, PortDataType dest) -> bool {
+            if (src == dest) return true;
+            if ((src == PortDataType::Time && dest == PortDataType::Audio) ||
+                (src == PortDataType::Audio && dest == PortDataType::Time)) return true;
+            if (src == PortDataType::Message && dest == PortDataType::Time) return true;
+            return false;
+        };
+
         for (const auto& node : currGraph.getNodes())
         {
             if (node->getId() == draggingPortNodeId) continue;
@@ -1241,7 +1249,16 @@ void RelativisticCanvasComponent::mouseUp(const juce::MouseEvent& e)
                     auto p = getPortPos(*node, false, i);
                     if (p.getDistanceFrom(pos) < 15.0f)
                     {
-                        currGraph.addConnection(draggingPortNodeId, draggingPortIdx, node->getId(), i);
+                        auto srcNode = currGraph.getNode(draggingPortNodeId);
+                        if (srcNode && draggingPortIdx < static_cast<int>(srcNode->getOutlets().size()))
+                        {
+                            auto srcType = srcNode->getOutlets()[static_cast<size_t>(draggingPortIdx)].dataType;
+                            auto destType = node->getInlets()[static_cast<size_t>(i)].dataType;
+                            if (isCompatible(srcType, destType))
+                            {
+                                currGraph.addConnection(draggingPortNodeId, draggingPortIdx, node->getId(), i);
+                            }
+                        }
                         break;
                     }
                 }
@@ -1254,7 +1271,16 @@ void RelativisticCanvasComponent::mouseUp(const juce::MouseEvent& e)
                     auto p = getPortPos(*node, true, o);
                     if (p.getDistanceFrom(pos) < 15.0f)
                     {
-                        currGraph.addConnection(node->getId(), o, draggingPortNodeId, draggingPortIdx);
+                        auto destNode = currGraph.getNode(draggingPortNodeId);
+                        if (destNode && draggingPortIdx < static_cast<int>(destNode->getInlets().size()))
+                        {
+                            auto srcType = node->getOutlets()[static_cast<size_t>(o)].dataType;
+                            auto destType = destNode->getInlets()[static_cast<size_t>(draggingPortIdx)].dataType;
+                            if (isCompatible(srcType, destType))
+                            {
+                                currGraph.addConnection(node->getId(), o, draggingPortNodeId, draggingPortIdx);
+                            }
+                        }
                         break;
                     }
                 }
