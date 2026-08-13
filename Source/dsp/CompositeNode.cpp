@@ -41,7 +41,8 @@ void CompositeNode::setupDefaultInternalPatch()
 
     subGraph->addConnection(1, 0, 2, 0);
     subGraph->addConnection(2, 0, 3, 0);
-    subGraph->addConnection(3, 0, 4, 0);
+    subGraph->addConnection(3, 0, 4, 0); // drive -> out~ in1~ (L)
+    subGraph->addConnection(3, 0, 4, 1); // drive -> out~ in2~ (R)
 }
 
 void CompositeNode::prepare(double sampleRate, int samplesPerBlock)

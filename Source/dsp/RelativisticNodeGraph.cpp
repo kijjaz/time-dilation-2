@@ -636,20 +636,25 @@ void RelativisticNodeGraph::process(juce::AudioBuffer<float>& masterOutBuffer, i
             }
         }
 
-        // Sum `out~` master inlets directly into masterOutBuffer (Inlet 0 -> Left, Inlet 1 -> Right)
+        // Sum `out~` master inlets into masterOutBuffer (Inlet 0 -> Left, Inlet 1 -> Right) with mono fallback
         if (node->getSymbol() == "out~")
         {
-            const auto& bufL = node->getInletBuffer(1); // in1~ (Audio L) - Inlet 1
-            const auto& bufR = node->getInletBuffer(2); // in2~ (Audio R) - Inlet 2
+            const auto& bufL = node->getInletBuffer(0); // in1~ (Audio L)
+            const auto& bufR = node->getInletBuffer(1); // in2~ (Audio R)
 
             int chans = masterOutBuffer.getNumChannels();
-            if (chans > 0 && bufL.getNumChannels() > 0)
+            bool hasL = (bufL.getNumChannels() > 0 && bufL.getMagnitude(0, numSamples) > 0.00001f);
+            bool hasR = (bufR.getNumChannels() > 0 && bufR.getMagnitude(0, numSamples) > 0.00001f);
+
+            if (chans > 0)
             {
-                masterOutBuffer.addFrom(0, 0, bufL, 0, 0, numSamples);
+                if (hasL) masterOutBuffer.addFrom(0, 0, bufL, 0, 0, numSamples);
+                else if (hasR) masterOutBuffer.addFrom(0, 0, bufR, 0, 0, numSamples);
             }
-            if (chans > 1 && bufR.getNumChannels() > 0)
+            if (chans > 1)
             {
-                masterOutBuffer.addFrom(1, 0, bufR, 0, 0, numSamples);
+                if (hasR) masterOutBuffer.addFrom(1, 0, bufR, 0, 0, numSamples);
+                else if (hasL) masterOutBuffer.addFrom(1, 0, bufL, 0, 0, numSamples);
             }
         }
     }
