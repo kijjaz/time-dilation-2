@@ -428,10 +428,29 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         optionLabel.setVisible(false);
 
         descLabel.setText("Pure Data-style relational node object.", juce::dontSendNotification);
-        inletOutletLabel.setText("In 0: Msg | Out 0: Msg", juce::dontSendNotification);
-
         templateMsgs = { "play", "stop", "reset" };
     }
+
+    // Dynamic Inlet & Outlet Description Format for ALL Node Types
+    std::ostringstream ioSs;
+    ioSs << "INLETS (" << selectedNode->getInlets().size() << "):\n";
+    for (size_t i = 0; i < selectedNode->getInlets().size(); ++i)
+    {
+        const auto& in = selectedNode->getInlets()[i];
+        std::string typeStr = (in.dataType == PortDataType::Audio) ? "Audio~ (Cyan)" :
+                              ((in.dataType == PortDataType::Time) ? "Time (Royal Violet)" : "Message (Gold)");
+        ioSs << "  In " << i << ": " << in.name << " \u2014 " << typeStr << "\n";
+    }
+    ioSs << "\nOUTLETS (" << selectedNode->getOutlets().size() << "):\n";
+    for (size_t o = 0; o < selectedNode->getOutlets().size(); ++o)
+    {
+        const auto& out = selectedNode->getOutlets()[o];
+        std::string typeStr = (out.dataType == PortDataType::Audio) ? "Audio~ (Cyan)" :
+                              ((out.dataType == PortDataType::Time) ? "Time (Royal Violet)" : "Message (Gold)");
+        ioSs << "  Out " << o << ": " << out.name << " \u2014 " << typeStr << "\n";
+    }
+
+    inletOutletLabel.setText(ioSs.str(), juce::dontSendNotification);
 
     // Generate One-Click Method Buttons
     for (const auto& msgStr : templateMsgs)
@@ -527,7 +546,10 @@ void NodeInspectorComponent::resized()
     {
         docTitleLabel.setBounds(10, y, w, 20); y += 22;
         descLabel.setBounds(10, y, w, 36); y += 38;
-        inletOutletLabel.setBounds(10, y, w, 20); y += 26;
+
+        int ioLines = selectedNode ? static_cast<int>(selectedNode->getInlets().size() + selectedNode->getOutlets().size() + 3) : 4;
+        int ioHeight = ioLines * 15;
+        inletOutletLabel.setBounds(10, y, w, ioHeight); y += ioHeight + 8;
 
         for (auto& btn : methodButtons)
         {
