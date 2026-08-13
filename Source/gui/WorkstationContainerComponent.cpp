@@ -49,17 +49,43 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
         repaint();
     };
 
-    // Master Dilation
-    masterDilationSlider.setRange(0.0, 4.0, 0.01);
-    masterDilationSlider.setValue(1.0);
-    masterDilationSlider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
-    masterDilationSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 20);
-    addAndMakeVisible(masterDilationSlider);
+    // Attach master JUCE AudioPlayHead to node graph
+    nodeGraph.setAudioPlayHead(&masterPlayHead);
 
-    masterDilationLabel.setText("Gamma (d\u03c4/dt)", juce::dontSendNotification);
-    masterDilationLabel.setFont(12.0f);
-    masterDilationLabel.setJustificationType(juce::Justification::centred);
-    addAndMakeVisible(masterDilationLabel);
+    // BPM Slider
+    bpmSlider.setRange(20.0, 300.0, 1.0);
+    bpmSlider.setValue(120.0);
+    bpmSlider.setSliderStyle(juce::Slider::IncDecButtons);
+    bpmSlider.setTextBoxStyle(juce::Slider::TextBoxLeft, false, 45, 20);
+    bpmSlider.onValueChange = [this]() {
+        masterPlayHead.setBpm(bpmSlider.getValue());
+    };
+    addAndMakeVisible(bpmSlider);
+
+    bpmLabel.setFont(juce::Font(11.0f, juce::Font::bold));
+    bpmLabel.setColour(juce::Label::textColourId, CarbonGoldLookAndFeel::goldAccent);
+    addAndMakeVisible(bpmLabel);
+
+    // Time Signature Combo
+    timeSigCombo.addItem("4/4", 1);
+    timeSigCombo.addItem("3/4", 2);
+    timeSigCombo.addItem("6/8", 3);
+    timeSigCombo.addItem("7/8", 4);
+    timeSigCombo.addItem("5/4", 5);
+    timeSigCombo.setSelectedId(1, juce::dontSendNotification);
+    timeSigCombo.onChange = [this]() {
+        int id = timeSigCombo.getSelectedId();
+        if (id == 1) masterPlayHead.setTimeSignature(4, 4);
+        else if (id == 2) masterPlayHead.setTimeSignature(3, 4);
+        else if (id == 3) masterPlayHead.setTimeSignature(6, 8);
+        else if (id == 4) masterPlayHead.setTimeSignature(7, 8);
+        else if (id == 5) masterPlayHead.setTimeSignature(5, 4);
+    };
+    addAndMakeVisible(timeSigCombo);
+
+    timeSigLabel.setFont(juce::Font(11.0f, juce::Font::bold));
+    timeSigLabel.setColour(juce::Label::textColourId, CarbonGoldLookAndFeel::goldAccent);
+    addAndMakeVisible(timeSigLabel);
 
     latencyLabel.setText("LATENCY: 5.3 ms (Real-Time)", juce::dontSendNotification);
     latencyLabel.setFont(juce::Font(11.0f, juce::Font::bold));
@@ -323,9 +349,13 @@ void WorkstationContainerComponent::resized()
     canvasViewButton.setBounds(menuX, menuY, 105, btnH); menuX += 109;
     dualViewButton.setBounds(menuX, menuY, 105, btnH); menuX += 115;
 
-    masterDilationSlider.setBounds(menuX, 5, 45, 45); menuX += 50;
-    masterDilationLabel.setBounds(menuX, 18, 95, 18); menuX += 100;
-    latencyLabel.setBounds(menuX, 18, 220, 18); menuX += 225;
+    bpmLabel.setBounds(menuX, menuY + 4, 32, 20); menuX += 34;
+    bpmSlider.setBounds(menuX, menuY, 95, btnH); menuX += 100;
+
+    timeSigLabel.setBounds(menuX, menuY + 4, 25, 20); menuX += 27;
+    timeSigCombo.setBounds(menuX, menuY, 60, btnH); menuX += 68;
+
+    latencyLabel.setBounds(menuX, 18, 190, 18); menuX += 195;
 
     oscilloscopeComponent.setBounds(menuX, 6, std::max(50, getWidth() - menuX - 15), 48);
 

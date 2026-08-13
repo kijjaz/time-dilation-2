@@ -480,6 +480,9 @@ public:
     int getLookAheadLatencySamples() const { return static_cast<int>(latencyEngine.getCurrentLatencySamples()); }
     double getAdaptiveLatencyMs() const { return latencyEngine.getCurrentLatencyMs(); }
 
+    void setAudioPlayHead(juce::AudioPlayHead* playHead) { audioPlayHead = playHead; }
+    juce::AudioPlayHead* getAudioPlayHead() const { return audioPlayHead; }
+
     void setManualLatencyDemand(double demandSec)
     {
         manualDemandSec = demandSec;
@@ -500,6 +503,7 @@ public:
 
 private:
     double manualDemandSec = -1.0;
+    juce::AudioPlayHead* audioPlayHead = nullptr;
 
 private:
     std::vector<std::shared_ptr<RelativisticNode>> nodes;

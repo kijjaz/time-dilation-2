@@ -102,14 +102,40 @@ void ArrangementTimelineComponent::timerCallback()
         }
     }
 
-    int currentBar = 1 + static_cast<int>(playheadTimeSec / 2.0);
-    int currentBeat = 1 + static_cast<int>(std::fmod(playheadTimeSec, 2.0) / 0.5);
+    // Query JUCE AudioPlayHead PositionInfo metrics
+    double bpm = 120.0;
+    int numBeats = 4;
+    int beatValue = 4;
+
+    if (auto* ph = nodeGraph.getAudioPlayHead())
+    {
+        if (auto posOpt = ph->getPosition())
+        {
+            auto pos = *posOpt;
+            if (pos.getBpm()) bpm = *pos.getBpm();
+            if (pos.getTimeSignature())
+            {
+                numBeats = pos.getTimeSignature()->numerator;
+                beatValue = pos.getTimeSignature()->denominator;
+            }
+        }
+    }
+
+    // Calculate PPQ (Pulses Per Quarter Note) and Bar.Beat position from JUCE PositionInfo metrics
+    double ppq = playheadTimeSec * (bpm / 60.0);
+    double quarterNotesPerBeat = 4.0 / static_cast<double>(beatValue);
+    double quarterNotesPerBar = static_cast<double>(numBeats) * quarterNotesPerBeat;
+
+    int currentBar = 1 + static_cast<int>(std::floor(ppq / std::max(0.1, quarterNotesPerBar)));
+    double ppqInBar = std::fmod(ppq, quarterNotesPerBar);
+    int currentBeat = 1 + static_cast<int>(std::floor(ppqInBar / std::max(0.1, quarterNotesPerBeat)));
+
     int mins = static_cast<int>(playheadTimeSec) / 60;
     int secs = static_cast<int>(playheadTimeSec) % 60;
     int ms = static_cast<int>((playheadTimeSec - std::floor(playheadTimeSec)) * 100.0);
 
-    char buf[64];
-    std::snprintf(buf, sizeof(buf), "Bar %d.%d — %02d:%02d.%02d", currentBar, currentBeat, mins, secs, ms);
+    char buf[80];
+    std::snprintf(buf, sizeof(buf), "Bar %d.%d (%d/%d) — %02d:%02d.%02d", currentBar, currentBeat, numBeats, beatValue, mins, secs, ms);
     timeDisplayLabel.setText(buf, juce::dontSendNotification);
 
     repaint();

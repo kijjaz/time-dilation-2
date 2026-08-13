@@ -72,6 +72,60 @@ public:
     }
 };
 
+// Master DAW AudioPlayHead implementation using JUCE built-in PositionInfo
+class WorkstationPlayHead : public juce::AudioPlayHead
+{
+public:
+    WorkstationPlayHead() = default;
+
+    void setBpm(double bpmVal) { bpm = bpmVal; }
+    double getBpm() const { return bpm; }
+    void setTimeSignature(int num, int den) { numBeats = num; beatValue = den; }
+    int getNumBeats() const { return numBeats; }
+    int getBeatValue() const { return beatValue; }
+    void setIsPlaying(bool playing) { isPlayingVal = playing; }
+    void setIsLooping(bool looping) { isLoopingVal = looping; }
+    void setLoopPoints(double startPpq, double endPpq) { loopStartPpqVal = startPpq; loopEndPpqVal = endPpq; }
+    void setPpqPosition(double ppq) { currentPpq = ppq; }
+    double getPpqPosition() const { return currentPpq; }
+
+    juce::Optional<PositionInfo> getPosition() const override
+    {
+        PositionInfo info;
+        info.setBpm(bpm);
+        juce::AudioPlayHead::TimeSignature ts;
+        ts.numerator = numBeats;
+        ts.denominator = beatValue;
+        info.setTimeSignature(ts);
+        info.setIsPlaying(isPlayingVal);
+        info.setIsLooping(isLoopingVal);
+        info.setPpqPosition(currentPpq);
+
+        double ppqPerBar = static_cast<double>(numBeats) * (4.0 / static_cast<double>(beatValue));
+        double lastBarPpq = std::floor(currentPpq / std::max(1.0, ppqPerBar)) * ppqPerBar;
+        info.setPpqPositionOfLastBarStart(lastBarPpq);
+
+        if (isLoopingVal)
+        {
+            juce::AudioPlayHead::LoopPoints lp;
+            lp.ppqStart = loopStartPpqVal;
+            lp.ppqEnd = loopEndPpqVal;
+            info.setLoopPoints(lp);
+        }
+        return info;
+    }
+
+private:
+    double bpm = 120.0;
+    int numBeats = 4;
+    int beatValue = 4;
+    bool isPlayingVal = false;
+    bool isLoopingVal = false;
+    double currentPpq = 0.0;
+    double loopStartPpqVal = 0.0;
+    double loopEndPpqVal = 32.0;
+};
+
     // View Mode Toggle Buttons
     juce::TextButton trackViewButton{ "Arrangement" };
     juce::TextButton canvasViewButton{ "Modular Canvas" };
@@ -80,10 +134,20 @@ public:
     // Top Header UI
     juce::TextButton playButton{ "DSP ON" };
     juce::TextButton stopButton{ "DSP OFF" };
+
+    // JUCE Tempo & Time Signature Controls
+    juce::Slider bpmSlider;
+    juce::Label bpmLabel{ "BPMLabel", "BPM" };
+
+    juce::ComboBox timeSigCombo;
+    juce::Label timeSigLabel{ "TimeSigLabel", "Sig" };
+
     juce::Slider masterDilationSlider;
     juce::Label masterDilationLabel;
     juce::Label latencyLabel;
     juce::Label titleLabel;
+
+    WorkstationPlayHead masterPlayHead;
 
     // Sleek Desktop Top Menu Bar
     FlatMenuButton fileMenuButton{ "File" };
