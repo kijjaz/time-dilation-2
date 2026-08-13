@@ -135,7 +135,24 @@ void RelativisticNode::receiveMessage(const std::string& message)
     tokens.addTokens(msgStr, " ", "");
     if (tokens.size() >= 2 && (tokens[0] == "vol" || tokens[0] == "volume"))
     {
-        setOutputVolume(tokens[1].getFloatValue());
+        juce::String valStr = tokens[1].toLowerCase();
+        if (valStr == "-inf" || valStr == "inf" || valStr == "mute")
+        {
+            setVolumeDb(-100.0f);
+        }
+        else
+        {
+            float val = valStr.getFloatValue();
+            // If negative or explicitly <= 6.0f, interpret as dBFS logarithmic scale
+            if (valStr.endsWith("db") || val <= 6.0f)
+            {
+                setVolumeDb(val);
+            }
+            else
+            {
+                setOutputVolume(val);
+            }
+        }
     }
 }
 

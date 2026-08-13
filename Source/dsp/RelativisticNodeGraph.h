@@ -188,10 +188,20 @@ public:
     float width = 130.0f;
     float height = 45.0f;
 
-    // Per-Node Output Gain Staging Volume
+    // Per-Node Output Gain Staging Volume (Linear gain with Logarithmic dBFS helpers)
     float outputVolume = 1.0f;
     float getOutputVolume() const { return outputVolume; }
     void setOutputVolume(float vol) { outputVolume = std::clamp(vol, 0.0f, 4.0f); }
+
+    float getVolumeDb() const
+    {
+        return (outputVolume <= 0.00001f) ? -100.0f : juce::Decibels::gainToDecibels(outputVolume, -100.0f);
+    }
+    void setVolumeDb(float db)
+    {
+        if (db <= -99.0f) setOutputVolume(0.0f);
+        else setOutputVolume(juce::Decibels::decibelsToGain(db, -100.0f));
+    }
 
     // Dual Real-Time Scope Display Buffers (Audio Output & Proper Time Telemetry)
     std::vector<float> audioScopeBuffer;

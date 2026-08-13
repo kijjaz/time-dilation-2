@@ -227,13 +227,14 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         if (getParentComponent()) getParentComponent()->repaint();
     };
 
-    volLabel.setText("Node Output Volume", juce::dontSendNotification);
+    volLabel.setText("Output Volume (dBFS)", juce::dontSendNotification);
     volLabel.setVisible(true);
     volSlider.setVisible(true);
-    volSlider.setRange(-1000.0, 1000.0, 0.01);
-    volSlider.setValue(selectedNode->getOutputVolume(), juce::dontSendNotification);
+    volSlider.setRange(-100.0, 6.0, 0.1);
+    volSlider.setValue(selectedNode->getVolumeDb(), juce::dontSendNotification);
+    volSlider.setTextValueSuffix(" dB");
     volSlider.onValueChange = [this]() {
-        if (selectedNode) selectedNode->setOutputVolume(static_cast<float>(volSlider.getValue()));
+        if (selectedNode) selectedNode->setVolumeDb(static_cast<float>(volSlider.getValue()));
     };
 
     docTitleLabel.setVisible(true);
@@ -423,6 +424,26 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         inletOutletLabel.setText("In 0: Msg/Pitch | Out 0: Audio~", juce::dontSendNotification);
 
         templateMsgs = { "play", "set 220", "set -220", "set 110" };
+    }
+    else if (sym == "out~")
+    {
+        paramLabel1.setText("Master Volume (dBFS)", juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setRange(-100.0, 6.0, 0.1);
+        paramSlider1.setValue(selectedNode->getVolumeDb(), juce::dontSendNotification);
+        paramSlider1.setTextValueSuffix(" dB");
+        paramSlider1.setVisible(true);
+        paramSlider1.onValueChange = [this]() {
+            if (selectedNode) selectedNode->setVolumeDb(static_cast<float>(paramSlider1.getValue()));
+        };
+
+        paramSlider2.setVisible(false);
+        paramLabel2.setVisible(false);
+        optionSelector.setVisible(false);
+        optionLabel.setVisible(false);
+
+        descLabel.setText("Master Stereo Output & Monitoring Node with log-scale (-\u221e to +6 dBFS) volume control.", juce::dontSendNotification);
+        templateMsgs = { "vol 0", "vol -6", "vol -12", "vol -24", "vol -inf", "play", "stop" };
     }
     else
     {
