@@ -150,7 +150,7 @@ public:
 
     virtual void prepare(double sampleRate, int samplesPerBlock);
     virtual void process(int numSamples) = 0;
-    virtual void receiveMessage(const std::string& message) {}
+    virtual void receiveMessage(const std::string& message);
 
     RelativisticAudioHistoryBuffer audioHistory;
     RelativisticControlPipe controlPipe;

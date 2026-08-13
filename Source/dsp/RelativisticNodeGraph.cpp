@@ -128,6 +128,17 @@ const juce::AudioBuffer<float>& RelativisticNode::getAudioInlet(const std::strin
     return getInletBuffer(idx >= 0 ? idx : 1);
 }
 
+void RelativisticNode::receiveMessage(const std::string& message)
+{
+    juce::String msgStr(message);
+    juce::StringArray tokens;
+    tokens.addTokens(msgStr, " ", "");
+    if (tokens.size() >= 2 && (tokens[0] == "vol" || tokens[0] == "volume"))
+    {
+        setOutputVolume(tokens[1].getFloatValue());
+    }
+}
+
 TimePolyFrame& RelativisticNode::getTimeOutlet(const std::string& name)
 {
     int idx = getOutletIndex(name);

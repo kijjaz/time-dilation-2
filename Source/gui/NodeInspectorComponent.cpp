@@ -227,6 +227,7 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         if (getParentComponent()) getParentComponent()->repaint();
     };
 
+    volLabel.setText("Node Output Volume", juce::dontSendNotification);
     volLabel.setVisible(true);
     volSlider.setVisible(true);
     volSlider.setRange(-1000.0, 1000.0, 0.01);
