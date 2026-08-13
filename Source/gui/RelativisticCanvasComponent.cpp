@@ -67,9 +67,14 @@ void RelativisticCanvasComponent::popSubGraphView()
 
 juce::Rectangle<float> RelativisticCanvasComponent::getNodeBounds(const RelativisticNode& node) const
 {
-    float defaultW = std::max(node.width, static_cast<float>(node.getLabel().length()) * 8.5f + 40.0f);
-    float defaultH = std::max(node.height, node.showRealtimeDisplay ? 85.0f : 45.0f);
-    return { node.xPos + viewOffsetX, node.yPos + viewOffsetY, defaultW, defaultH };
+    float fontWidth = juce::Font(12.0f, juce::Font::bold).getStringWidthFloat(node.getLabel());
+    float minWidthForPorts = static_cast<float>(std::max(node.getInlets().size(), node.getOutlets().size()) + 1) * 24.0f;
+    float calculatedW = std::max({ node.width, fontWidth + 85.0f, minWidthForPorts, 130.0f });
+
+    float baseHeight = node.showRealtimeDisplay ? 85.0f : 45.0f;
+    float calculatedH = std::max(node.height, baseHeight);
+
+    return { node.xPos + viewOffsetX, node.yPos + viewOffsetY, calculatedW, calculatedH };
 }
 
 juce::Point<float> RelativisticCanvasComponent::getPortPos(const RelativisticNode& node, bool isOutlet, int portIdx) const
@@ -218,21 +223,24 @@ void RelativisticCanvasComponent::paint(juce::Graphics& g)
         g.setColour(isSelected ? CarbonGoldLookAndFeel::goldAccent : CarbonGoldLookAndFeel::slatePanel.brighter(0.4f));
         g.drawRoundedRectangle(b, 5.0f, isSelected ? 2.5f : 1.0f);
 
-        // Header Title Label
+        // Header Title Label with Wrapping Support
         auto headerRect = b.removeFromTop(22.0f);
-        g.setColour(juce::Colours::white);
-        g.setFont(juce::Font(12.0f, juce::Font::bold));
-        g.drawText(node->getLabel(), headerRect.reduced(6.0f, 0.0f), juce::Justification::left, true);
 
         // Realtime Display Toggle Button [👁]
         auto toggleBtnRect = headerRect.removeFromRight(22.0f).reduced(2.0f);
+
+        // Scope Mode Toggle Button
+        auto modeBtnRect = headerRect.removeFromRight(46.0f).reduced(2.0f);
+
+        g.setColour(juce::Colours::white);
+        g.setFont(juce::Font(12.0f, juce::Font::bold));
+        g.drawFittedText(node->getLabel(), headerRect.reduced(6.0f, 0.0f).toNearestInt(), juce::Justification::left, 2, 0.9f);
+
         g.setColour(node->showRealtimeDisplay ? CarbonGoldLookAndFeel::goldAccent : juce::Colours::grey);
         g.drawRoundedRectangle(toggleBtnRect, 3.0f, 1.0f);
         g.setFont(10.0f);
         g.drawText("👁", toggleBtnRect, juce::Justification::centred, false);
 
-        // Scope Mode Toggle Button
-        auto modeBtnRect = headerRect.removeFromRight(46.0f).reduced(2.0f);
         g.setColour((node->displayType == RelativisticNode::ScopeDisplayType::AudioWaveform) ? CarbonGoldLookAndFeel::cyberCyan : CarbonGoldLookAndFeel::royalViolet);
         g.drawRoundedRectangle(modeBtnRect, 3.0f, 1.0f);
         g.setFont(9.0f);
@@ -245,7 +253,8 @@ void RelativisticCanvasComponent::paint(juce::Graphics& g)
         {
             if (node->timeVarMode == RelativisticNode::TimeScopeVariable::SpeedGamma) modeStr = "Speed";
             else if (node->timeVarMode == RelativisticNode::TimeScopeVariable::OffsetTau) modeStr = "Offset";
-            else modeStr = "Flex";
+            else if (node->timeVarMode == RelativisticNode::TimeScopeVariable::CouplingC) modeStr = "Flex";
+            else modeStr = "Multi";
         }
         g.drawText(modeStr, modeBtnRect, juce::Justification::centred, false);
 
@@ -396,6 +405,38 @@ void RelativisticCanvasComponent::paint(juce::Graphics& g)
                         }
                         g.setColour(CarbonGoldLookAndFeel::royalViolet);
                         g.strokePath(wavePath, juce::PathStrokeType(1.4f));
+
+                        if (node->timeVarMode == RelativisticNode::TimeScopeVariable::MultiTime)
+                        {
+                            juce::Path tauPath;
+                            const auto& tauBuf = node->timeTauScopeBuffer;
+                            size_t tauWriteIdx = node->timeTauScopeWriteIdx;
+                            size_t tauLen = tauBuf.size();
+
+                            if (tauLen >= 128)
+                            {
+                                int tauReadStart = (static_cast<int>(tauWriteIdx) + static_cast<int>(tauLen) - 128) % static_cast<int>(tauLen);
+                                float tauMean = 0.0f;
+                                for (int i = 0; i < 128; ++i) tauMean += tauBuf[(tauReadStart + i) % tauLen];
+                                tauMean /= 128.0f;
+
+                                float tauMaxDev = 0.001f;
+                                for (int i = 0; i < 128; ++i) tauMaxDev = std::max(tauMaxDev, std::abs(tauBuf[(tauReadStart + i) % tauLen] - tauMean));
+                                float tauScale = (tauMaxDev > 0.0001f) ? (1.0f / tauMaxDev) : 1.0f;
+
+                                for (int i = 0; i < 128; ++i)
+                                {
+                                    float sampleVal = tauBuf[(tauReadStart + i) % tauLen];
+                                    float normVal = (sampleVal - tauMean) * std::min(1.0f, tauScale * 0.8f);
+                                    float px = scopeBox.getX() + (i / 128.0f) * w;
+                                    float py = midY - normVal * h;
+                                    if (i == 0) tauPath.startNewSubPath(px, py);
+                                    else tauPath.lineTo(px, py);
+                                }
+                                g.setColour(CarbonGoldLookAndFeel::goldAccent);
+                                g.strokePath(tauPath, juce::PathStrokeType(1.4f));
+                            }
+                        }
 
                         juce::String valStr = "Speed: " + juce::String(currentGamma, 3) + "x  Offset: " + juce::String(currentTau, 2) + "s";
                         g.setColour(CarbonGoldLookAndFeel::goldAccent);

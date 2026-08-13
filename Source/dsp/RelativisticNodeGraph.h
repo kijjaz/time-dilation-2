@@ -200,6 +200,9 @@ public:
     std::vector<float> timeScopeBuffer;
     size_t timeScopeWriteIdx = 0;
 
+    std::vector<float> timeTauScopeBuffer;
+    size_t timeTauScopeWriteIdx = 0;
+
     // Legacy fallback accessor
     const std::vector<float>& getScopeHistoryBuffer() const { return (displayType == ScopeDisplayType::AudioWaveform) ? audioScopeBuffer : timeScopeBuffer; }
     size_t getScopeHistoryWriteIdx() const { return (displayType == ScopeDisplayType::AudioWaveform) ? audioScopeWriteIdx : timeScopeWriteIdx; }
@@ -218,6 +221,13 @@ public:
         timeScopeWriteIdx = (timeScopeWriteIdx + 1) % timeScopeBuffer.size();
     }
 
+    void pushTimeTauScopeSample(float sample)
+    {
+        if (timeTauScopeBuffer.size() < 256) timeTauScopeBuffer.assign(256, 0.0f);
+        timeTauScopeBuffer[timeTauScopeWriteIdx] = sample;
+        timeTauScopeWriteIdx = (timeTauScopeWriteIdx + 1) % timeTauScopeBuffer.size();
+    }
+
     void pushScopeSample(float sample)
     {
         pushTimeScopeSample(sample);
@@ -228,7 +238,7 @@ public:
     bool showRealtimeDisplay = true;
     enum class ScopeRenderMode { Waveform2D, ScopeXY, Scope3D };
     enum class ScopeDisplayType { AudioWaveform, TimeFrame };
-    enum class TimeScopeVariable { SpeedGamma, OffsetTau, CouplingC };
+    enum class TimeScopeVariable { SpeedGamma, OffsetTau, CouplingC, MultiTime };
 
     ScopeRenderMode scopeMode = ScopeRenderMode::Waveform2D;
     ScopeDisplayType displayType = ScopeDisplayType::AudioWaveform;
@@ -241,11 +251,53 @@ public:
         else if (scopeMode == ScopeRenderMode::ScopeXY) scopeMode = ScopeRenderMode::Scope3D;
         else scopeMode = ScopeRenderMode::Waveform2D;
     }
+
+    void cycleScopeDisplayMode()
+    {
+        bool hasAudioPorts = false;
+        for (const auto& out : outlets) {
+            if (out.dataType == PortDataType::Audio) { hasAudioPorts = true; break; }
+        }
+        if (!hasAudioPorts) {
+            for (const auto& in : inlets) {
+                if (in.dataType == PortDataType::Audio) { hasAudioPorts = true; break; }
+            }
+        }
+
+        if (hasAudioPorts)
+        {
+            if (displayType == ScopeDisplayType::AudioWaveform)
+            {
+                displayType = ScopeDisplayType::TimeFrame;
+                timeVarMode = TimeScopeVariable::SpeedGamma;
+            }
+            else if (timeVarMode == TimeScopeVariable::SpeedGamma)
+            {
+                timeVarMode = TimeScopeVariable::OffsetTau;
+            }
+            else if (timeVarMode == TimeScopeVariable::OffsetTau)
+            {
+                timeVarMode = TimeScopeVariable::CouplingC;
+            }
+            else
+            {
+                displayType = ScopeDisplayType::AudioWaveform;
+                timeVarMode = TimeScopeVariable::SpeedGamma;
+            }
+        }
+        else
+        {
+            displayType = ScopeDisplayType::TimeFrame;
+            if (timeVarMode == TimeScopeVariable::SpeedGamma) timeVarMode = TimeScopeVariable::OffsetTau;
+            else if (timeVarMode == TimeScopeVariable::OffsetTau) timeVarMode = TimeScopeVariable::CouplingC;
+            else if (timeVarMode == TimeScopeVariable::CouplingC) timeVarMode = TimeScopeVariable::MultiTime;
+            else timeVarMode = TimeScopeVariable::SpeedGamma;
+        }
+    }
+
     void cycleTimeVarMode()
     {
-        if (timeVarMode == TimeScopeVariable::SpeedGamma) timeVarMode = TimeScopeVariable::OffsetTau;
-        else if (timeVarMode == TimeScopeVariable::OffsetTau) timeVarMode = TimeScopeVariable::CouplingC;
-        else timeVarMode = TimeScopeVariable::SpeedGamma;
+        cycleScopeDisplayMode();
     }
 
 protected:

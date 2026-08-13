@@ -24,6 +24,28 @@ private:
     juce::Label titleLabel{ "Inspector", "INSPECTOR" };
     juce::Label nodeTypeLabel{ "NodeType", "No Node Selected" };
 
+    // Node Geometry (Position & Size) Controls
+    juce::Slider posXSlider;
+    juce::Label posXLabel{ "PosXLabel", "Position X (px)" };
+
+    juce::Slider posYSlider;
+    juce::Label posYLabel{ "PosYLabel", "Position Y (px)" };
+
+    juce::Slider widthSlider;
+    juce::Label widthLabel{ "WidthLabel", "Width (px)" };
+
+    juce::Slider heightSlider;
+    juce::Label heightLabel{ "HeightLabel", "Height (px)" };
+
+    // Realtime Scope Settings
+    juce::ToggleButton scopeVisibleToggle{ "Show Realtime Scope" };
+
+    juce::ComboBox scopeTypeCombo;
+    juce::Label scopeTypeLabel{ "ScopeTypeLabel", "Scope Display Variable" };
+
+    juce::ComboBox scopeEngineCombo;
+    juce::Label scopeEngineLabel{ "ScopeEngineLabel", "Scope Render Engine" };
+
     // Per-Node Volume Gain Staging Slider
     juce::Slider volSlider;
     juce::Label volLabel{ "VolLabel", "Output Volume (Gain)" };

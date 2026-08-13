@@ -593,18 +593,24 @@ void RelativisticNodeGraph::process(juce::AudioBuffer<float>& masterOutBuffer, i
             if (node->getOutlets()[i].dataType == PortDataType::Time)
             {
                 const auto& tf = node->getOutletTimeFrame(static_cast<int>(i));
-                float sampleVal = static_cast<float>(tf.masterGamma);
+                float gammaVal = static_cast<float>(tf.masterGamma);
+                float tauVal = static_cast<float>(!tf.streams.empty() ? tf.streams[0].tau : 0.0);
+                float cVal = static_cast<float>(!tf.streams.empty() ? tf.streams[0].offsetCoupling : 1.0);
+
+                float sampleVal = gammaVal;
                 if (node->timeVarMode == RelativisticNode::TimeScopeVariable::OffsetTau)
                 {
-                    sampleVal = static_cast<float>(!tf.streams.empty() ? tf.streams[0].tau : 0.0);
+                    sampleVal = tauVal;
                 }
                 else if (node->timeVarMode == RelativisticNode::TimeScopeVariable::CouplingC)
                 {
-                    sampleVal = static_cast<float>(!tf.streams.empty() ? tf.streams[0].offsetCoupling : 1.0);
+                    sampleVal = cVal;
                 }
+
                 for (int s = 0; s < numSamples; ++s)
                 {
                     node->pushTimeScopeSample(sampleVal);
+                    node->pushTimeTauScopeSample(tauVal);
                 }
                 break;
             }

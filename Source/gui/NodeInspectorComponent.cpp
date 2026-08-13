@@ -14,6 +14,57 @@ NodeInspectorComponent::NodeInspectorComponent()
     nodeTypeLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
     addAndMakeVisible(nodeTypeLabel);
 
+    // Geometry Controls
+    posXSlider.setSliderStyle(juce::Slider::LinearHorizontal);
+    posXSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 60, 20);
+    addAndMakeVisible(posXSlider);
+    posXLabel.setFont(11.0f);
+    posXLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
+    addAndMakeVisible(posXLabel);
+
+    posYSlider.setSliderStyle(juce::Slider::LinearHorizontal);
+    posYSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 60, 20);
+    addAndMakeVisible(posYSlider);
+    posYLabel.setFont(11.0f);
+    posYLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
+    addAndMakeVisible(posYLabel);
+
+    widthSlider.setSliderStyle(juce::Slider::LinearHorizontal);
+    widthSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 60, 20);
+    addAndMakeVisible(widthSlider);
+    widthLabel.setFont(11.0f);
+    widthLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
+    addAndMakeVisible(widthLabel);
+
+    heightSlider.setSliderStyle(juce::Slider::LinearHorizontal);
+    heightSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 60, 20);
+    addAndMakeVisible(heightSlider);
+    heightLabel.setFont(11.0f);
+    heightLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
+    addAndMakeVisible(heightLabel);
+
+    // Realtime Scope Controls
+    scopeVisibleToggle.setColour(juce::ToggleButton::textColourId, CarbonGoldLookAndFeel::goldAccent);
+    addAndMakeVisible(scopeVisibleToggle);
+
+    scopeTypeCombo.addItem("Audio Waveform", 1);
+    scopeTypeCombo.addItem("Time Speed (γ)", 2);
+    scopeTypeCombo.addItem("Time Offset (τ)", 3);
+    scopeTypeCombo.addItem("Time Elasticity (C)", 4);
+    scopeTypeCombo.addItem("Multi-Time (γ + τ)", 5);
+    addAndMakeVisible(scopeTypeCombo);
+    scopeTypeLabel.setFont(11.0f);
+    scopeTypeLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
+    addAndMakeVisible(scopeTypeLabel);
+
+    scopeEngineCombo.addItem("2D Waveform", 1);
+    scopeEngineCombo.addItem("XY Lissajous", 2);
+    scopeEngineCombo.addItem("3D Projection", 3);
+    addAndMakeVisible(scopeEngineCombo);
+    scopeEngineLabel.setFont(11.0f);
+    scopeEngineLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
+    addAndMakeVisible(scopeEngineLabel);
+
     // Per-Node Output Gain Staging Volume Slider
     volSlider.setSliderStyle(juce::Slider::LinearHorizontal);
     volSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 60, 20);
@@ -69,6 +120,14 @@ void NodeInspectorComponent::setSelectedNode(std::shared_ptr<RelativisticNode> n
 
 void NodeInspectorComponent::updateUIForSelectedNode()
 {
+    posXSlider.onValueChange = nullptr;
+    posYSlider.onValueChange = nullptr;
+    widthSlider.onValueChange = nullptr;
+    heightSlider.onValueChange = nullptr;
+    scopeVisibleToggle.onClick = nullptr;
+    scopeTypeCombo.onChange = nullptr;
+    scopeEngineCombo.onChange = nullptr;
+
     volSlider.onValueChange = nullptr;
     paramSlider1.onValueChange = nullptr;
     paramSlider2.onValueChange = nullptr;
@@ -79,19 +138,94 @@ void NodeInspectorComponent::updateUIForSelectedNode()
     if (!selectedNode)
     {
         nodeTypeLabel.setText("Select a node to inspect properties", juce::dontSendNotification);
-        volLabel.setVisible(false);
-        volSlider.setVisible(false);
-        paramSlider1.setVisible(false);
-        paramLabel1.setVisible(false);
-        paramSlider2.setVisible(false);
-        paramLabel2.setVisible(false);
-        optionSelector.setVisible(false);
-        optionLabel.setVisible(false);
-        docTitleLabel.setVisible(false);
-        descLabel.setVisible(false);
+        posXLabel.setVisible(false); posXSlider.setVisible(false);
+        posYLabel.setVisible(false); posYSlider.setVisible(false);
+        widthLabel.setVisible(false); widthSlider.setVisible(false);
+        heightLabel.setVisible(false); heightSlider.setVisible(false);
+        scopeVisibleToggle.setVisible(false);
+        scopeTypeLabel.setVisible(false); scopeTypeCombo.setVisible(false);
+        scopeEngineLabel.setVisible(false); scopeEngineCombo.setVisible(false);
+        volLabel.setVisible(false); volSlider.setVisible(false);
+        paramSlider1.setVisible(false); paramLabel1.setVisible(false);
+        paramSlider2.setVisible(false); paramLabel2.setVisible(false);
+        optionSelector.setVisible(false); optionLabel.setVisible(false);
+        docTitleLabel.setVisible(false); descLabel.setVisible(false);
         inletOutletLabel.setVisible(false);
         return;
     }
+
+    // Bind Geometry
+    posXLabel.setVisible(true); posXSlider.setVisible(true);
+    posXSlider.setRange(0.0, 5000.0, 1.0);
+    posXSlider.setValue(selectedNode->xPos, juce::dontSendNotification);
+    posXSlider.onValueChange = [this]() {
+        if (selectedNode) { selectedNode->xPos = static_cast<float>(posXSlider.getValue()); if (getParentComponent()) getParentComponent()->repaint(); }
+    };
+
+    posYLabel.setVisible(true); posYSlider.setVisible(true);
+    posYSlider.setRange(0.0, 5000.0, 1.0);
+    posYSlider.setValue(selectedNode->yPos, juce::dontSendNotification);
+    posYSlider.onValueChange = [this]() {
+        if (selectedNode) { selectedNode->yPos = static_cast<float>(posYSlider.getValue()); if (getParentComponent()) getParentComponent()->repaint(); }
+    };
+
+    widthLabel.setVisible(true); widthSlider.setVisible(true);
+    widthSlider.setRange(120.0, 800.0, 1.0);
+    widthSlider.setValue(selectedNode->width, juce::dontSendNotification);
+    widthSlider.onValueChange = [this]() {
+        if (selectedNode) { selectedNode->width = static_cast<float>(widthSlider.getValue()); if (getParentComponent()) getParentComponent()->repaint(); }
+    };
+
+    heightLabel.setVisible(true); heightSlider.setVisible(true);
+    heightSlider.setRange(45.0, 600.0, 1.0);
+    heightSlider.setValue(selectedNode->height, juce::dontSendNotification);
+    heightSlider.onValueChange = [this]() {
+        if (selectedNode) { selectedNode->height = static_cast<float>(heightSlider.getValue()); if (getParentComponent()) getParentComponent()->repaint(); }
+    };
+
+    // Bind Scope Controls
+    scopeVisibleToggle.setVisible(true);
+    scopeVisibleToggle.setToggleState(selectedNode->showRealtimeDisplay, juce::dontSendNotification);
+    scopeVisibleToggle.onClick = [this]() {
+        if (selectedNode) { selectedNode->showRealtimeDisplay = scopeVisibleToggle.getToggleState(); if (getParentComponent()) getParentComponent()->repaint(); }
+    };
+
+    scopeTypeLabel.setVisible(true); scopeTypeCombo.setVisible(true);
+    int typeIdx = 1;
+    if (selectedNode->displayType == RelativisticNode::ScopeDisplayType::AudioWaveform) typeIdx = 1;
+    else if (selectedNode->timeVarMode == RelativisticNode::TimeScopeVariable::SpeedGamma) typeIdx = 2;
+    else if (selectedNode->timeVarMode == RelativisticNode::TimeScopeVariable::OffsetTau) typeIdx = 3;
+    else if (selectedNode->timeVarMode == RelativisticNode::TimeScopeVariable::CouplingC) typeIdx = 4;
+    else if (selectedNode->timeVarMode == RelativisticNode::TimeScopeVariable::MultiTime) typeIdx = 5;
+    scopeTypeCombo.setSelectedId(typeIdx, juce::dontSendNotification);
+    scopeTypeCombo.onChange = [this]() {
+        if (!selectedNode) return;
+        int id = scopeTypeCombo.getSelectedId();
+        if (id == 1) { selectedNode->displayType = RelativisticNode::ScopeDisplayType::AudioWaveform; }
+        else {
+            selectedNode->displayType = RelativisticNode::ScopeDisplayType::TimeFrame;
+            if (id == 2) selectedNode->timeVarMode = RelativisticNode::TimeScopeVariable::SpeedGamma;
+            else if (id == 3) selectedNode->timeVarMode = RelativisticNode::TimeScopeVariable::OffsetTau;
+            else if (id == 4) selectedNode->timeVarMode = RelativisticNode::TimeScopeVariable::CouplingC;
+            else if (id == 5) selectedNode->timeVarMode = RelativisticNode::TimeScopeVariable::MultiTime;
+        }
+        if (getParentComponent()) getParentComponent()->repaint();
+    };
+
+    scopeEngineLabel.setVisible(true); scopeEngineCombo.setVisible(true);
+    int engIdx = 1;
+    if (selectedNode->scopeMode == RelativisticNode::ScopeRenderMode::Waveform2D) engIdx = 1;
+    else if (selectedNode->scopeMode == RelativisticNode::ScopeRenderMode::ScopeXY) engIdx = 2;
+    else if (selectedNode->scopeMode == RelativisticNode::ScopeRenderMode::Scope3D) engIdx = 3;
+    scopeEngineCombo.setSelectedId(engIdx, juce::dontSendNotification);
+    scopeEngineCombo.onChange = [this]() {
+        if (!selectedNode) return;
+        int id = scopeEngineCombo.getSelectedId();
+        if (id == 1) selectedNode->scopeMode = RelativisticNode::ScopeRenderMode::Waveform2D;
+        else if (id == 2) selectedNode->scopeMode = RelativisticNode::ScopeRenderMode::ScopeXY;
+        else if (id == 3) selectedNode->scopeMode = RelativisticNode::ScopeRenderMode::Scope3D;
+        if (getParentComponent()) getParentComponent()->repaint();
+    };
 
     volLabel.setVisible(true);
     volSlider.setVisible(true);
@@ -328,10 +462,41 @@ void NodeInspectorComponent::paint(juce::Graphics& g)
 void NodeInspectorComponent::resized()
 {
     titleLabel.setBounds(10, 5, getWidth() - 20, 22);
-    nodeTypeLabel.setBounds(10, 36, getWidth() - 20, 20);
+    nodeTypeLabel.setBounds(10, 32, getWidth() - 20, 20);
 
-    int y = 65;
+    int y = 58;
     int w = getWidth() - 20;
+    int halfW = (w - 10) / 2;
+
+    if (posXLabel.isVisible())
+    {
+        posXLabel.setBounds(10, y, halfW, 16);
+        posYLabel.setBounds(15 + halfW, y, halfW, 16);
+        y += 18;
+
+        posXSlider.setBounds(10, y, halfW, 22);
+        posYSlider.setBounds(15 + halfW, y, halfW, 22);
+        y += 26;
+
+        widthLabel.setBounds(10, y, halfW, 16);
+        heightLabel.setBounds(15 + halfW, y, halfW, 16);
+        y += 18;
+
+        widthSlider.setBounds(10, y, halfW, 22);
+        heightSlider.setBounds(15 + halfW, y, halfW, 22);
+        y += 28;
+    }
+
+    if (scopeVisibleToggle.isVisible())
+    {
+        scopeVisibleToggle.setBounds(10, y, w, 22); y += 24;
+
+        scopeTypeLabel.setBounds(10, y, w, 16); y += 18;
+        scopeTypeCombo.setBounds(10, y, w, 24); y += 28;
+
+        scopeEngineLabel.setBounds(10, y, w, 16); y += 18;
+        scopeEngineCombo.setBounds(10, y, w, 24); y += 28;
+    }
 
     if (volLabel.isVisible())
     {
