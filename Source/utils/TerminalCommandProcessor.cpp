@@ -216,6 +216,31 @@ std::string TerminalCommandProcessor::processCommand(WorkstationContainerCompone
             return "[SUCCESS] Sent 'bang' message to Node #" + std::to_string(id) + " (" + node->getSymbol() + ").";
         }
     }
+    else if (cmd == "rms" || cmd == "peak" || cmd == "telemetry")
+    {
+        if (tokens.size() < 2)
+        {
+            std::ostringstream ss;
+            ss << "--- REAL-TIME AUDIO TELEMETRY (RMS / PEAK) ---\n";
+            for (const auto& node : graph.getNodes())
+            {
+                ss << "  Node #" << node->getId() << " [" << node->getSymbol() << "]: "
+                   << "RMS=" << juce::String(node->getRmsLevel(), 4) << "  "
+                   << "Peak=" << juce::String(node->getPeakLevel(), 4) << "\n";
+            }
+            return ss.str();
+        }
+
+        int id = tokens[1].getIntValue();
+        auto node = graph.getNode(id);
+        if (!node) return "[ERROR] Node #" + std::to_string(id) + " not found.";
+
+        std::ostringstream ss;
+        ss << "[TELEMETRY] Node #" << id << " (" << node->getSymbol() << "): "
+           << "RMS Level = " << juce::String(node->getRmsLevel(), 4) << " | "
+           << "Peak Level = " << juce::String(node->getPeakLevel(), 4);
+        return ss.str();
+    }
     else if (cmd == "nodes" || cmd == "list")
     {
         std::ostringstream ss;
@@ -223,7 +248,8 @@ std::string TerminalCommandProcessor::processCommand(WorkstationContainerCompone
         for (const auto& node : graph.getNodes())
         {
             ss << "  Node #" << node->getId() << " [" << node->getSymbol() << "] label=\"" << node->getLabel() << "\" @ ("
-               << node->xPos << ", " << node->yPos << ")\n";
+               << node->xPos << ", " << node->yPos << ") "
+               << "[RMS: " << juce::String(node->getRmsLevel(), 3) << " | Peak: " << juce::String(node->getPeakLevel(), 3) << "]\n";
 
             ss << "    Inlets (" << node->getInlets().size() << "): ";
             for (size_t i = 0; i < node->getInlets().size(); ++i)

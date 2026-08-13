@@ -207,6 +207,29 @@ public:
     const std::vector<float>& getScopeHistoryBuffer() const { return (displayType == ScopeDisplayType::AudioWaveform) ? audioScopeBuffer : timeScopeBuffer; }
     size_t getScopeHistoryWriteIdx() const { return (displayType == ScopeDisplayType::AudioWaveform) ? audioScopeWriteIdx : timeScopeWriteIdx; }
 
+    // Real-Time Audio Telemetry (RMS & Peak) for Users & AI Terminal
+    std::atomic<float> rmsLevel{ 0.0f };
+    std::atomic<float> peakLevel{ 0.0f };
+
+    float getRmsLevel() const { return rmsLevel.load(); }
+    float getPeakLevel() const { return peakLevel.load(); }
+
+    void updateAudioTelemetry(const juce::AudioBuffer<float>& buf, int numSamples)
+    {
+        if (numSamples <= 0 || buf.getNumChannels() == 0) return;
+        float rms = buf.getRMSLevel(0, 0, numSamples);
+        float mag = buf.getMagnitude(0, numSamples);
+        if (buf.getNumChannels() > 1)
+        {
+            rms = std::max(rms, buf.getRMSLevel(1, 0, numSamples));
+            mag = std::max(mag, buf.getMagnitude(1, numSamples));
+        }
+        float prevRms = rmsLevel.load();
+        float prevPeak = peakLevel.load();
+        rmsLevel.store(std::max(rms, prevRms * 0.82f));
+        peakLevel.store(std::max(mag, prevPeak * 0.82f));
+    }
+
     void pushAudioScopeSample(float sample)
     {
         if (audioScopeBuffer.size() < 256) audioScopeBuffer.assign(256, 0.0f);

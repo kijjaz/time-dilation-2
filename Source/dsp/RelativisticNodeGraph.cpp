@@ -569,7 +569,7 @@ void RelativisticNodeGraph::process(juce::AudioBuffer<float>& masterOutBuffer, i
             node->audioHistory.writeBlock(node->getOutletBuffer(mainAudioOutlet), numSamples);
         }
 
-        // 1. Record Audio Scope History (actual output audio waveform)
+        // 1. Record Audio Scope History & Audio Telemetry (RMS & Peak)
         for (size_t i = 0; i < node->getOutlets().size(); ++i)
         {
             if (node->getOutlets()[i].dataType == PortDataType::Audio)
@@ -577,6 +577,7 @@ void RelativisticNodeGraph::process(juce::AudioBuffer<float>& masterOutBuffer, i
                 const auto& buf = node->getOutletBuffer(static_cast<int>(i));
                 if (buf.getNumChannels() > 0)
                 {
+                    node->updateAudioTelemetry(buf, numSamples);
                     const float* ptr = buf.getReadPointer(0);
                     for (int s = 0; s < numSamples; ++s)
                     {

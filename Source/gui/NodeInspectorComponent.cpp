@@ -240,7 +240,12 @@ void NodeInspectorComponent::updateUIForSelectedNode()
     inletOutletLabel.setVisible(true);
 
     std::string sym = selectedNode->getSymbol();
-    nodeTypeLabel.setText("[" + sym + "] — " + selectedNode->getLabel(), juce::dontSendNotification);
+    juce::String titleText = "[" + sym + "] \u2014 " + selectedNode->getLabel();
+    if (selectedNode->getRmsLevel() > 0.0001f || selectedNode->getPeakLevel() > 0.0001f)
+    {
+        titleText += "  [RMS: " + juce::String(selectedNode->getRmsLevel(), 3) + " Peak: " + juce::String(selectedNode->getPeakLevel(), 3) + "]";
+    }
+    nodeTypeLabel.setText(titleText, juce::dontSendNotification);
 
     std::vector<std::string> templateMsgs;
 
