@@ -232,7 +232,7 @@ void WorkstationContainerComponent::setupDefaultPatch()
 {
     nodeGraph.clearGraph();
 
-    auto lfoNode = RelativisticNodeFactory::createNode(1, "time.lfo~ 0.5 0.85");
+    auto lfoNode = RelativisticNodeFactory::createNode(1, "time.lfo 0.5 0.85");
     lfoNode->xPos = 50; lfoNode->yPos = 50;
 
     auto oscNode = RelativisticNodeFactory::createNode(2, "osc~ sin");

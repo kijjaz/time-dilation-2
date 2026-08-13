@@ -296,7 +296,7 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         optionLabel.setVisible(false);
 
         descLabel.setText("Relativistic Low Frequency Oscillator modulating local proper time velocity gamma(t).", juce::dontSendNotification);
-        inletOutletLabel.setText("In 0: Msg | In 1: Time | In 2: Rate~ | Out 0: Msg | Out 1: Time | Out 2: Audio~", juce::dontSendNotification);
+        inletOutletLabel.setText("In 0: Time | In 1: Rate (Msg) | Out 0: Time", juce::dontSendNotification);
 
         templateMsgs = { "rate 0.5", "rate -0.5", "depth 0.85", "depth -0.5" };
     }

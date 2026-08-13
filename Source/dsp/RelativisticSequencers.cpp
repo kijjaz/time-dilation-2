@@ -340,7 +340,7 @@ void TransportNode::receiveMessage(const std::string& message)
 // ============================================================================
 
 TimeLFONode::TimeLFONode(int id, double lfoRateHz, double lfoDepth)
-    : RelativisticNode(id, "time.lfo~", "time.lfo~"), rateHz(lfoRateHz), depth(lfoDepth)
+    : RelativisticNode(id, "time.lfo", "time.lfo"), rateHz(lfoRateHz), depth(lfoDepth)
 {
     addInlet("timeIn", PortDataType::Time);    // Inlet 0: Relativistic Time input (Royal Violet)
     addInlet("rate", PortDataType::Message);   // Inlet 1: Modulation Rate (Hz) (Gold Accent)
