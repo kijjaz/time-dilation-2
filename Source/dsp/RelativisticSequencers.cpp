@@ -342,10 +342,12 @@ void TransportNode::receiveMessage(const std::string& message)
 TimeLFONode::TimeLFONode(int id, double lfoRateHz, double lfoDepth)
     : RelativisticNode(id, "time.lfo~", "time.lfo~"), rateHz(lfoRateHz), depth(lfoDepth)
 {
-    addInlet("timeIn", PortDataType::Time);   // Inlet 1: Relativistic Time input
-    addInlet("rate", PortDataType::Audio);    // Inlet 2: Modulation Rate (Hz)
-    addOutlet("timeOut", PortDataType::Time);  // Outlet 1: Modulated Relativistic Time Output
-    addOutlet("mod~", PortDataType::Audio);   // Outlet 2: LFO Audio CV Output
+    addInlet("timeIn", PortDataType::Time);    // Inlet 0: Relativistic Time input (Royal Violet)
+    addInlet("rate", PortDataType::Message);   // Inlet 1: Modulation Rate (Hz) (Gold Accent)
+    addOutlet("timeOut", PortDataType::Time);  // Outlet 0: Modulated Relativistic Time Output (Royal Violet)
+    
+    displayType = ScopeDisplayType::TimeFrame;
+    timeVarMode = TimeScopeVariable::SpeedGamma;
 }
 
 void TimeLFONode::prepare(double sampleRate, int samplesPerBlock)
@@ -357,23 +359,11 @@ void TimeLFONode::prepare(double sampleRate, int samplesPerBlock)
 void TimeLFONode::process(int numSamples)
 {
     const auto& timeInFrame = getTimeInlet("timeIn");
-    const auto& rateBuf = getAudioInlet("rate");
-
     auto& timeOutFrame = getTimeOutlet("timeOut");
-    auto& modBuf = getAudioOutlet("mod~");
-    modBuf.clear();
 
     timeOutFrame = timeInFrame; // Base time frame copy
 
-    float* modL = modBuf.getWritePointer(0);
-    float* modR = modBuf.getWritePointer(1);
-
     double currentRate = rateHz;
-    if (rateBuf.getMagnitude(0, numSamples) > 0.0001f)
-    {
-        currentRate = static_cast<double>(rateBuf.getMagnitude(0, numSamples));
-    }
-
     double baseGamma = (timeInFrame.masterGamma != 0.0) ? timeInFrame.masterGamma : 1.0;
     double phaseInc = (2.0 * 3.14159265358979323846 * currentRate * std::abs(baseGamma)) / currentSampleRate;
     double lfoVal = 0.0;
@@ -385,12 +375,9 @@ void TimeLFONode::process(int numSamples)
         phase += phaseInc;
         if (phase >= 2.0 * 3.14159265358979323846) phase -= 2.0 * 3.14159265358979323846;
 
-        float cv = static_cast<float>(lfoVal);
-        modL[s] = cv;
-        modR[s] = cv;
-
         modulatedGamma = baseGamma * (1.0 + depth * lfoVal);
-        pushScopeSample(static_cast<float>(modulatedGamma));
+        pushTimeScopeSample(static_cast<float>(modulatedGamma));
+        pushTimeTauScopeSample(static_cast<float>(depth * lfoVal));
     }
 
     // Compound Modulate relativistic gamma: gamma(t) = baseGamma * (1.0 + depth * sin(wt))
