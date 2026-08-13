@@ -718,18 +718,32 @@ void OutNode::process(int numSamples)
     const auto& inL = getInletBuffer(0);
     const auto& inR = getInletBuffer(1);
 
-    float rmsValL = (inL.getNumChannels() > 0 && numSamples > 0) ? inL.getRMSLevel(0, 0, numSamples) : 0.0f;
-    float rmsValR = (inR.getNumChannels() > 0 && numSamples > 0) ? inR.getRMSLevel(0, 0, numSamples) : (
-                    (inL.getNumChannels() > 1 && numSamples > 0) ? inL.getRMSLevel(1, 0, numSamples) : rmsValL);
+    float rawL = (inL.getNumChannels() > 0 && numSamples > 0) ? inL.getRMSLevel(0, 0, numSamples) : 0.0f;
+    float rawR = (inR.getNumChannels() > 0 && numSamples > 0) ? inR.getRMSLevel(0, 0, numSamples) : 0.0f;
+
+    float rmsValL = rawL;
+    float rmsValR = rawR;
+
+    if (rawL > 0.00001f && rawR <= 0.00001f)
+    {
+        rmsValR = rawL; // Mono L -> Stereo R fallback
+    }
+    else if (rawR > 0.00001f && rawL <= 0.00001f)
+    {
+        rmsValL = rawR; // Mono R -> Stereo L fallback
+    }
 
     float prevL = rmsL.load();
     float prevR = rmsR.load();
     rmsL.store(std::max(rmsValL, prevL * 0.82f));
     rmsR.store(std::max(rmsValR, prevR * 0.82f));
 
-    if (inL.getNumChannels() > 0 && numSamples > 0)
+    const float* readPtr = nullptr;
+    if (inL.getNumChannels() > 0 && rawL > 0.00001f) readPtr = inL.getReadPointer(0);
+    else if (inR.getNumChannels() > 0 && rawR > 0.00001f) readPtr = inR.getReadPointer(0);
+
+    if (readPtr && numSamples > 0)
     {
-        const float* readPtr = inL.getReadPointer(0);
         if (waveformBuffer.size() < 512) waveformBuffer.resize(512, 0.0f);
         size_t len = waveformBuffer.size();
         for (int i = 0; i < numSamples; ++i)
