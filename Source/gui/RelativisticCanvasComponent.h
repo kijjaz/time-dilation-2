@@ -34,6 +34,25 @@ public:
     void spawnMessageBoxForNode(int targetNodeId, const std::string& msgText);
     void recenterView();
 
+    // Multi-Selection Helper Methods
+    bool isNodeSelected(int nodeId) const { return selectedNodeIds.find(nodeId) != selectedNodeIds.end(); }
+    void selectNode(int nodeId) { selectedNodeIds.insert(nodeId); }
+    void deselectNode(int nodeId) { selectedNodeIds.erase(nodeId); }
+    void toggleNodeSelection(int nodeId)
+    {
+        if (isNodeSelected(nodeId)) deselectNode(nodeId);
+        else selectNode(nodeId);
+    }
+    void clearSelection() { selectedNodeIds.clear(); selectedConnectionId = -1; }
+    void selectAllNodes();
+
+    // Clipboard & Editing Operations
+    void copySelectedNodes();
+    void cutSelectedNodes();
+    void pasteClipboardNodes();
+    void duplicateSelectedNodes();
+    void deleteSelectedNodes();
+
     std::function<void(std::shared_ptr<RelativisticNode>)> onNodeSelected;
 
 private:
@@ -41,13 +60,20 @@ private:
     std::vector<RelativisticNodeGraph*> graphStack;
     std::vector<std::string> breadcrumbs;
 
-    int selectedNodeId = -1;
+    std::unordered_set<int> selectedNodeIds;
     int selectedConnectionId = -1;
     int draggingPortNodeId = -1;
     int draggingPortIdx = -1;
     bool isDraggingFromOutlet = true;
     juce::Point<float> dragCurrentPos;
     juce::Point<float> nodeDragStartPos;
+    std::unordered_map<int, juce::Point<float>> multiNodeDragStarts;
+
+    // Marquee / Lasso Selection Box State
+    bool isMarqueeSelecting = false;
+    juce::Point<float> marqueeStartPos;
+    juce::Rectangle<float> marqueeRect;
+
     bool isResizingNode = false;
     juce::Point<float> nodeResizeStartSize;
     juce::Point<float> lastMousePos{ 150.0f, 150.0f };
@@ -55,6 +81,36 @@ private:
     juce::TextEditor objectEditor;
     bool isEditingObject = false;
     int editingNodeId = -1;
+
+    // Canvas Node & Cable Clipboard
+    struct ClipboardNodeData
+    {
+        int originalId = 0;
+        std::string symbol;
+        std::string label;
+        float xPos = 0.0f;
+        float yPos = 0.0f;
+        float width = 120.0f;
+        float height = 70.0f;
+    };
+
+    struct ClipboardConnectionData
+    {
+        int sourceNodeId = 0;
+        int sourcePortIndex = 0;
+        int destNodeId = 0;
+        int destPortIndex = 0;
+        PortDataType dataType = PortDataType::Audio;
+    };
+
+    struct CanvasClipboard
+    {
+        std::vector<ClipboardNodeData> nodes;
+        std::vector<ClipboardConnectionData> connections;
+        bool isEmpty() const { return nodes.empty(); }
+    };
+
+    CanvasClipboard clipboard;
 
     // View Panning & Recenter State
     float viewOffsetX = 0.0f;

@@ -49,7 +49,7 @@ void RelativisticCanvasComponent::pushSubGraphView(RelativisticNodeGraph* subGra
     {
         graphStack.push_back(subGraph);
         breadcrumbs.push_back(name);
-        selectedNodeId = -1;
+        clearSelection();
         repaint();
     }
 }
@@ -60,7 +60,7 @@ void RelativisticCanvasComponent::popSubGraphView()
     {
         graphStack.pop_back();
         breadcrumbs.pop_back();
-        selectedNodeId = -1;
+        clearSelection();
         repaint();
     }
 }
@@ -209,14 +209,14 @@ void RelativisticCanvasComponent::paint(juce::Graphics& g)
     for (const auto& node : currGraph.getNodes())
     {
         auto b = getNodeBounds(*node);
-        bool isSelected = (node->getId() == selectedNodeId);
+        bool isSelected = isNodeSelected(node->getId());
 
-        // Node Panel Background
+        // Paint Nodes
         g.setColour(isSelected ? CarbonGoldLookAndFeel::slatePanel.brighter(0.2f) : CarbonGoldLookAndFeel::slatePanel);
         g.fillRoundedRectangle(b, 5.0f);
 
         g.setColour(isSelected ? CarbonGoldLookAndFeel::goldAccent : CarbonGoldLookAndFeel::slatePanel.brighter(0.4f));
-        g.drawRoundedRectangle(b, 5.0f, isSelected ? 2.0f : 1.0f);
+        g.drawRoundedRectangle(b, 5.0f, isSelected ? 2.5f : 1.0f);
 
         // Header Title Label
         auto headerRect = b.removeFromTop(22.0f);
@@ -537,6 +537,15 @@ void RelativisticCanvasComponent::paint(juce::Graphics& g)
             g.fillEllipse(p.x - 5.0f, p.y - 5.0f, 10.0f, 10.0f);
         }
     }
+
+    // Paint Marquee / Lasso Selection Box
+    if (isMarqueeSelecting && !marqueeRect.isEmpty())
+    {
+        g.setColour(CarbonGoldLookAndFeel::goldAccent.withAlpha(0.15f));
+        g.fillRect(marqueeRect);
+        g.setColour(CarbonGoldLookAndFeel::goldAccent);
+        g.drawRect(marqueeRect, 1.5f);
+    }
 }
 
 void RelativisticCanvasComponent::resized()
@@ -616,6 +625,128 @@ void RelativisticCanvasComponent::cancelObjectCreation()
     repaint();
 }
 
+void RelativisticCanvasComponent::selectAllNodes()
+{
+    clearSelection();
+    for (const auto& node : getCurrentGraph().getNodes())
+    {
+        selectNode(node->getId());
+    }
+    repaint();
+}
+
+void RelativisticCanvasComponent::copySelectedNodes()
+{
+    clipboard.nodes.clear();
+    clipboard.connections.clear();
+
+    if (selectedNodeIds.empty()) return;
+
+    for (int id : selectedNodeIds)
+    {
+        auto node = getCurrentGraph().getNode(id);
+        if (!node) continue;
+
+        ClipboardNodeData cNode;
+        cNode.originalId = node->getId();
+        cNode.symbol = node->getSymbol();
+        cNode.label = node->getLabel();
+        cNode.xPos = node->xPos;
+        cNode.yPos = node->yPos;
+        cNode.width = node->width;
+        cNode.height = node->height;
+        clipboard.nodes.push_back(cNode);
+    }
+
+    for (const auto& conn : getCurrentGraph().getConnections())
+    {
+        if (isNodeSelected(conn.sourceNodeId) && isNodeSelected(conn.destNodeId))
+        {
+            ClipboardConnectionData cConn;
+            cConn.sourceNodeId = conn.sourceNodeId;
+            cConn.sourcePortIndex = conn.sourcePortIndex;
+            cConn.destNodeId = conn.destNodeId;
+            cConn.destPortIndex = conn.destPortIndex;
+            cConn.dataType = conn.dataType;
+            clipboard.connections.push_back(cConn);
+        }
+    }
+}
+
+void RelativisticCanvasComponent::cutSelectedNodes()
+{
+    copySelectedNodes();
+    deleteSelectedNodes();
+}
+
+void RelativisticCanvasComponent::pasteClipboardNodes()
+{
+    if (clipboard.isEmpty()) return;
+
+    static int nextPasteId = 1000;
+    std::unordered_map<int, int> oldToNewIdMap;
+
+    clearSelection();
+
+    // Paste nodes with +30px, +30px offset
+    for (const auto& cNode : clipboard.nodes)
+    {
+        int newId = nextPasteId++;
+        oldToNewIdMap[cNode.originalId] = newId;
+
+        auto newNode = RelativisticNodeFactory::createNode(newId, cNode.label);
+        if (!newNode) newNode = RelativisticNodeFactory::createNode(newId, cNode.symbol);
+
+        if (newNode)
+        {
+            newNode->setLabel(cNode.label);
+            newNode->xPos = cNode.xPos + 30.0f;
+            newNode->yPos = cNode.yPos + 30.0f;
+            newNode->width = cNode.width;
+            newNode->height = cNode.height;
+            getCurrentGraph().addNode(newNode);
+            selectNode(newId);
+        }
+    }
+
+    // Re-create internal connections between pasted nodes
+    for (const auto& cConn : clipboard.connections)
+    {
+        auto srcIt = oldToNewIdMap.find(cConn.sourceNodeId);
+        auto destIt = oldToNewIdMap.find(cConn.destNodeId);
+        if (srcIt != oldToNewIdMap.end() && destIt != oldToNewIdMap.end())
+        {
+            getCurrentGraph().addConnection(srcIt->second, cConn.sourcePortIndex, destIt->second, cConn.destPortIndex);
+        }
+    }
+
+    repaint();
+}
+
+void RelativisticCanvasComponent::duplicateSelectedNodes()
+{
+    copySelectedNodes();
+    pasteClipboardNodes();
+}
+
+void RelativisticCanvasComponent::deleteSelectedNodes()
+{
+    if (selectedNodeIds.empty() && selectedConnectionId == -1) return;
+
+    if (selectedConnectionId != -1)
+    {
+        getCurrentGraph().removeConnection(selectedConnectionId);
+        selectedConnectionId = -1;
+    }
+
+    for (int id : selectedNodeIds)
+    {
+        getCurrentGraph().removeNode(id);
+    }
+    selectedNodeIds.clear();
+    repaint();
+}
+
 void RelativisticCanvasComponent::spawnMessageBoxForNode(int targetNodeId, const std::string& msgText)
 {
     auto targetNode = getCurrentGraph().getNode(targetNodeId);
@@ -638,28 +769,66 @@ void RelativisticCanvasComponent::spawnMessageBoxForNode(int targetNodeId, const
 
 bool RelativisticCanvasComponent::keyPressed(const juce::KeyPress& key)
 {
-    // Cmd + 0, Ctrl + 0, or Home key: Recenter Canvas View
-    if (((key.getModifiers().isCommandDown() || key.getModifiers().isCtrlDown()) && key.getKeyCode() == '0') || key.getKeyCode() == juce::KeyPress::homeKey)
+    bool isCmdOrCtrl = key.getModifiers().isCommandDown() || key.getModifiers().isCtrlDown();
+    int code = std::tolower(key.getKeyCode());
+
+    // Cmd + A: Select All Nodes
+    if (isCmdOrCtrl && code == 'a' && !isEditingObject)
+    {
+        selectAllNodes();
+        return true;
+    }
+
+    // Cmd + C: Copy Selected Nodes
+    if (isCmdOrCtrl && code == 'c' && !isEditingObject)
+    {
+        copySelectedNodes();
+        return true;
+    }
+
+    // Cmd + X: Cut Selected Nodes
+    if (isCmdOrCtrl && code == 'x' && !isEditingObject)
+    {
+        cutSelectedNodes();
+        return true;
+    }
+
+    // Cmd + V: Paste Clipboard Nodes
+    if (isCmdOrCtrl && code == 'v' && !isEditingObject)
+    {
+        pasteClipboardNodes();
+        return true;
+    }
+
+    // Cmd + D: Duplicate Selected Nodes
+    if (isCmdOrCtrl && code == 'd' && !isEditingObject)
+    {
+        duplicateSelectedNodes();
+        return true;
+    }
+
+    // Cmd + 0 or Home key: Recenter Canvas View
+    if ((isCmdOrCtrl && key.getKeyCode() == '0') || key.getKeyCode() == juce::KeyPress::homeKey)
     {
         recenterView();
         return true;
     }
 
-    // Cmd + 1 or Ctrl + 1: Spawn object box at cursor
-    if ((key.getModifiers().isCommandDown() || key.getModifiers().isCtrlDown()) && key.getKeyCode() == '1')
+    // Cmd + 1: Spawn object box at cursor
+    if (isCmdOrCtrl && key.getKeyCode() == '1')
     {
         spawnObjectEditorAt(lastMousePos);
         return true;
     }
 
     // Enter when blank space selected: Spawn object box at cursor
-    if (key.getKeyCode() == juce::KeyPress::returnKey && selectedNodeId == -1 && !isEditingObject)
+    if (key.getKeyCode() == juce::KeyPress::returnKey && selectedNodeIds.empty() && !isEditingObject)
     {
         spawnObjectEditorAt(lastMousePos);
         return true;
     }
 
-    // Esc or Delete/Backspace key: Delete selected node or selected connection cable
+    // Esc or Delete/Backspace key: Delete selected nodes or selected connection cable
     if (key.getKeyCode() == juce::KeyPress::escapeKey)
     {
         if (isEditingObject)
@@ -667,37 +836,16 @@ bool RelativisticCanvasComponent::keyPressed(const juce::KeyPress& key)
             cancelObjectCreation();
             return true;
         }
-        else if (selectedConnectionId != -1)
+        else
         {
-            getCurrentGraph().removeConnection(selectedConnectionId);
-            selectedConnectionId = -1;
-            repaint();
-            return true;
-        }
-        else if (selectedNodeId != -1)
-        {
-            getCurrentGraph().removeNode(selectedNodeId);
-            selectedNodeId = -1;
-            repaint();
+            deleteSelectedNodes();
             return true;
         }
     }
-    else if (key.getKeyCode() == juce::KeyPress::backspaceKey || key.getKeyCode() == juce::KeyPress::deleteKey)
+    else if ((key.getKeyCode() == juce::KeyPress::backspaceKey || key.getKeyCode() == juce::KeyPress::deleteKey) && !isEditingObject)
     {
-        if (selectedConnectionId != -1 && !isEditingObject)
-        {
-            getCurrentGraph().removeConnection(selectedConnectionId);
-            selectedConnectionId = -1;
-            repaint();
-            return true;
-        }
-        else if (selectedNodeId != -1 && !isEditingObject)
-        {
-            getCurrentGraph().removeNode(selectedNodeId);
-            selectedNodeId = -1;
-            repaint();
-            return true;
-        }
+        deleteSelectedNodes();
+        return true;
     }
 
     return false;
@@ -731,8 +879,7 @@ void RelativisticCanvasComponent::mouseDown(const juce::MouseEvent& e)
         return;
     }
 
-    selectedNodeId = -1;
-    selectedConnectionId = -1;
+    clearSelection();
 
     // 1. Check if clicked a Port (Outlet OR Inlet for bi-directional dragging!)
     for (const auto& node : currGraph.getNodes())
@@ -769,13 +916,29 @@ void RelativisticCanvasComponent::mouseDown(const juce::MouseEvent& e)
     }
 
     // 2. Check if clicked a Node panel
+    bool isShift = e.mods.isShiftDown();
     for (const auto& node : currGraph.getNodes())
     {
         auto b = getNodeBounds(*node);
         if (b.contains(pos))
         {
-            selectedNodeId = node->getId();
-            nodeDragStartPos = { node->xPos, node->yPos };
+            if (isShift)
+            {
+                toggleNodeSelection(node->getId());
+            }
+            else if (!isNodeSelected(node->getId()))
+            {
+                clearSelection();
+                selectNode(node->getId());
+            }
+
+            multiNodeDragStarts.clear();
+            for (int id : selectedNodeIds)
+            {
+                auto n = currGraph.getNode(id);
+                if (n) multiNodeDragStarts[id] = { n->xPos, n->yPos };
+            }
+            nodeDragStartPos = pos;
 
             if (onNodeSelected) onNodeSelected(node);
 
@@ -861,6 +1024,7 @@ void RelativisticCanvasComponent::mouseDown(const juce::MouseEvent& e)
         juce::Line<float> line(p1, p2);
         if (line.findNearestPointTo(pos).getDistanceFrom(pos) < 10.0f)
         {
+            clearSelection();
             selectedConnectionId = conn.connectionId;
 
             // Right-click options on connection cable
@@ -882,6 +1046,11 @@ void RelativisticCanvasComponent::mouseDown(const juce::MouseEvent& e)
         }
     }
 
+    // 4. Clicked blank space: Start marquee lasso selection box
+    if (!isShift) clearSelection();
+    isMarqueeSelecting = true;
+    marqueeStartPos = pos;
+    marqueeRect = { pos.x, pos.y, 0.0f, 0.0f };
     repaint();
 }
 
@@ -935,9 +1104,25 @@ void RelativisticCanvasComponent::mouseDrag(const juce::MouseEvent& e)
         return;
     }
 
-    if (isResizingNode && selectedNodeId != -1)
+    if (isMarqueeSelecting)
     {
-        auto node = currGraph.getNode(selectedNodeId);
+        marqueeRect = juce::Rectangle<float>::leftTopRightBottom(std::min(marqueeStartPos.x, pos.x), std::min(marqueeStartPos.y, pos.y), std::max(marqueeStartPos.x, pos.x), std::max(marqueeStartPos.y, pos.y));
+        if (!e.mods.isShiftDown()) selectedNodeIds.clear();
+        for (const auto& node : currGraph.getNodes())
+        {
+            if (getNodeBounds(*node).intersects(marqueeRect))
+            {
+                selectNode(node->getId());
+            }
+        }
+        repaint();
+        return;
+    }
+
+    if (isResizingNode && !selectedNodeIds.empty())
+    {
+        int targetId = *selectedNodeIds.begin();
+        auto node = currGraph.getNode(targetId);
         if (node)
         {
             float newW = std::max(120.0f, nodeResizeStartSize.x + static_cast<float>(e.getDistanceFromDragStartX()));
@@ -954,15 +1139,20 @@ void RelativisticCanvasComponent::mouseDrag(const juce::MouseEvent& e)
         dragCurrentPos = pos;
         repaint();
     }
-    else if (selectedNodeId != -1)
+    else if (!multiNodeDragStarts.empty())
     {
-        auto node = currGraph.getNode(selectedNodeId);
-        if (node)
+        float dx = static_cast<float>(e.getDistanceFromDragStartX());
+        float dy = static_cast<float>(e.getDistanceFromDragStartY());
+        for (const auto& kv : multiNodeDragStarts)
         {
-            node->xPos = nodeDragStartPos.x + static_cast<float>(e.getDistanceFromDragStartX());
-            node->yPos = nodeDragStartPos.y + static_cast<float>(e.getDistanceFromDragStartY());
-            repaint();
+            auto node = currGraph.getNode(kv.first);
+            if (node)
+            {
+                node->xPos = kv.second.x + dx;
+                node->yPos = kv.second.y + dy;
+            }
         }
+        repaint();
     }
 }
 
@@ -984,6 +1174,14 @@ void RelativisticCanvasComponent::mouseUp(const juce::MouseEvent& e)
         repaint();
         return;
     }
+
+    if (isMarqueeSelecting)
+    {
+        isMarqueeSelecting = false;
+        marqueeRect = {};
+        repaint();
+    }
+    multiNodeDragStarts.clear();
 
     if (draggingPortNodeId != -1)
     {
