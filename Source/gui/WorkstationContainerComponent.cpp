@@ -168,10 +168,10 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
 
     workflowMenuButton.onClick = [this]() {
         juce::PopupMenu m;
-        m.addItem(1, "\U0001f3bc Composer / Musician Mode (Synth Lead + Pluck String)");
-        m.addItem(2, "\U0001f39b Sound Designer Mode (Moog Ladder Filter + WaveShaper)");
-        m.addItem(3, "\U0001f3ac Film & Game Sci-Fi Mode (Relativistic Doppler Wormhole)");
-        m.addItem(4, "\U0001f52c Experimentalist Mode (Tarjan Feedback Chaos Loop)");
+        m.addItem(1, "Composer / Musician Mode (Synth Lead + Pluck String)");
+        m.addItem(2, "Sound Designer Mode (Moog Ladder Filter + WaveShaper)");
+        m.addItem(3, "Film & Game Sci-Fi Mode (Relativistic Doppler Wormhole)");
+        m.addItem(4, "Experimentalist Mode (Tarjan Feedback Chaos Loop)");
         m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&workflowMenuButton), [this](int result) {
             if (result == 1) setupComposerTemplate();
             else if (result == 2) setupSoundDesignerTemplate();

@@ -19,7 +19,7 @@ ArrangementTimelineComponent::ArrangementTimelineComponent(RelativisticNodeGraph
 
     loopButton.onClick = [this]() {
         isLoopEnabled = !isLoopEnabled;
-        loopButton.setButtonText(isLoopEnabled ? "🔁 LOOP ON" : "🔁 LOOP OFF");
+        loopButton.setButtonText(isLoopEnabled ? "LOOP ON" : "LOOP OFF");
         repaint();
     };
     loopButton.setColour(juce::TextButton::buttonColourId, CarbonGoldLookAndFeel::slatePanel.brighter(0.1f));
@@ -52,7 +52,7 @@ ArrangementTimelineComponent::~ArrangementTimelineComponent()
 void ArrangementTimelineComponent::togglePlayback()
 {
     isTimelinePlaying = !isTimelinePlaying;
-    playStopButton.setButtonText(isTimelinePlaying ? "⏹ STOP" : "▶ PLAY");
+    playStopButton.setButtonText(isTimelinePlaying ? "STOP" : "PLAY");
     playStopButton.setColour(juce::TextButton::textColourOffId, isTimelinePlaying ? juce::Colours::deeppink : CarbonGoldLookAndFeel::goldAccent);
     repaint();
 }
@@ -285,7 +285,7 @@ void ArrangementTimelineComponent::timerCallback()
     int ms = static_cast<int>((playheadTimeSec - std::floor(playheadTimeSec)) * 100.0);
 
     char buf[80];
-    std::snprintf(buf, sizeof(buf), "Bar %d.%d (%d/%d) — %02d:%02d.%02d", currentBar, currentBeat, numBeats, beatValue, mins, secs, ms);
+    std::snprintf(buf, sizeof(buf), "Bar %d.%d (%d/%d) | %02d:%02d.%02d", currentBar, currentBeat, numBeats, beatValue, mins, secs, ms);
     timeDisplayLabel.setText(buf, juce::dontSendNotification);
 
     repaint();
@@ -567,7 +567,7 @@ void ArrangementTimelineComponent::paint(juce::Graphics& g)
 
         g.setColour(isSel ? juce::Colours::black : CarbonGoldLookAndFeel::goldAccent);
         g.setFont(juce::Font(10.0f, juce::Font::bold));
-        g.drawText("✉ " + ev.messageText, badgeRect.reduced(4.0f, 1.0f), juce::Justification::centredLeft, true);
+        g.drawText("MSG: " + ev.messageText, badgeRect.reduced(4.0f, 1.0f), juce::Justification::centredLeft, true);
     }
 
     // 7. Moving Playhead Scrubber Line

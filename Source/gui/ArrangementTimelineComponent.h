@@ -87,10 +87,10 @@ private:
     int trackHeaderWidth = 180;
 
     // Transport UI Controls
-    juce::TextButton playStopButton{ "▶ PLAY" };
-    juce::TextButton rewindButton{ "⏮ REWIND" };
-    juce::TextButton loopButton{ "🔁 LOOP ON" };
-    juce::Label timeDisplayLabel{ "TimeDisplay", "Bar 1.1 — 00:00.00" };
+    juce::TextButton playStopButton{ "PLAY" };
+    juce::TextButton rewindButton{ "REWIND" };
+    juce::TextButton loopButton{ "LOOP ON" };
+    juce::Label timeDisplayLabel{ "TimeDisplay", "Bar 1.1 | 00:00.00" };
 };
 
 } // namespace TimeDilationDAW
