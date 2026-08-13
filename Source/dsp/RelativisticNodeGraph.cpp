@@ -636,11 +636,11 @@ void RelativisticNodeGraph::process(juce::AudioBuffer<float>& masterOutBuffer, i
             }
         }
 
-        // Sum `out~` master inlets into masterOutBuffer (Inlet 0 -> Left, Inlet 1 -> Right) with mono fallback
+        // Sum `out~` master inlets into masterOutBuffer (Inlet 1 -> Left, Inlet 2 -> Right) with mono fallback
         if (node->getSymbol() == "out~")
         {
-            const auto& bufL = node->getInletBuffer(0); // in1~ (Audio L)
-            const auto& bufR = node->getInletBuffer(1); // in2~ (Audio R)
+            const auto& bufL = node->getInletBuffer(1); // in1~ (Audio L, Inlet 1)
+            const auto& bufR = node->getInletBuffer(2); // in2~ (Audio R, Inlet 2)
 
             int chans = masterOutBuffer.getNumChannels();
             bool hasL = (bufL.getNumChannels() > 0 && bufL.getMagnitude(0, numSamples) > 0.00001f);

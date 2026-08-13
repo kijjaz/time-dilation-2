@@ -715,8 +715,8 @@ void OutNode::prepare(double sampleRate, int samplesPerBlock)
 
 void OutNode::process(int numSamples)
 {
-    const auto& inL = getInletBuffer(0); // Inlet 0: Audio Left (Cyan)
-    const auto& inR = getInletBuffer(1); // Inlet 1: Audio Right (Cyan)
+    const auto& inL = getInletBuffer(1); // Inlet 1: Audio Left (in1~, Cyan)
+    const auto& inR = getInletBuffer(2); // Inlet 2: Audio Right (in2~, Cyan)
 
     float rawL = (inL.getNumChannels() > 0 && numSamples > 0) ? inL.getRMSLevel(0, 0, numSamples) : 0.0f;
     float rawR = (inR.getNumChannels() > 0 && numSamples > 0) ? inR.getRMSLevel(0, 0, numSamples) : 0.0f;
