@@ -520,12 +520,12 @@ void RelativisticCanvasComponent::paint(juce::Graphics& g)
                         {
                             maxDev = std::max(maxDev, std::abs(scopeBuf[(readStart + i) % len] - meanVal));
                         }
-                        float normScale = (maxDev > 0.0001f) ? (1.0f / maxDev) : 1.0f;
+                        float normScale = (maxDev > 0.0001f) ? (0.85f / maxDev) : 1.0f;
 
                         for (int i = 0; i < 128; ++i)
                         {
                             float sampleVal = scopeBuf[(readStart + i) % len];
-                            float normVal = (sampleVal - meanVal) * std::min(1.0f, normScale * 0.8f);
+                            float normVal = (sampleVal - meanVal) * normScale;
                             float px = scopeBox.getX() + (i / 128.0f) * w;
                             float py = midY - normVal * h;
                             if (i == 0) wavePath.startNewSubPath(px, py);
@@ -550,12 +550,12 @@ void RelativisticCanvasComponent::paint(juce::Graphics& g)
 
                                 float tauMaxDev = 0.001f;
                                 for (int i = 0; i < 128; ++i) tauMaxDev = std::max(tauMaxDev, std::abs(tauBuf[(tauReadStart + i) % tauLen] - tauMean));
-                                float tauScale = (tauMaxDev > 0.0001f) ? (1.0f / tauMaxDev) : 1.0f;
+                                float tauScale = (tauMaxDev > 0.0001f) ? (0.85f / tauMaxDev) : 1.0f;
 
                                 for (int i = 0; i < 128; ++i)
                                 {
                                     float sampleVal = tauBuf[(tauReadStart + i) % tauLen];
-                                    float normVal = (sampleVal - tauMean) * std::min(1.0f, tauScale * 0.8f);
+                                    float normVal = (sampleVal - tauMean) * tauScale;
                                     float px = scopeBox.getX() + (i / 128.0f) * w;
                                     float py = midY - normVal * h;
                                     if (i == 0) tauPath.startNewSubPath(px, py);

@@ -621,25 +621,30 @@ void RelativisticNodeGraph::process(juce::AudioBuffer<float>& masterOutBuffer, i
         {
             if (node->getOutlets()[i].dataType == PortDataType::Time)
             {
-                const auto& tf = node->getOutletTimeFrame(static_cast<int>(i));
-                float gammaVal = static_cast<float>(tf.masterGamma);
-                float tauVal = static_cast<float>(!tf.streams.empty() ? tf.streams[0].tau : 0.0);
-                float cVal = static_cast<float>(!tf.streams.empty() ? tf.streams[0].offsetCoupling : 1.0);
+                // Nodes like time.lfo push sample-accurate LFO waveforms during process()
+                std::string sym = node->getSymbol();
+                if (sym != "time.lfo" && sym != "time.lfo~")
+                {
+                    const auto& tf = node->getOutletTimeFrame(static_cast<int>(i));
+                    float gammaVal = static_cast<float>(tf.masterGamma);
+                    float tauVal = static_cast<float>(!tf.streams.empty() ? tf.streams[0].tau : 0.0);
+                    float cVal = static_cast<float>(!tf.streams.empty() ? tf.streams[0].offsetCoupling : 1.0);
 
-                float sampleVal = gammaVal;
-                if (node->timeVarMode == RelativisticNode::TimeScopeVariable::OffsetTau)
-                {
-                    sampleVal = tauVal;
-                }
-                else if (node->timeVarMode == RelativisticNode::TimeScopeVariable::CouplingC)
-                {
-                    sampleVal = cVal;
-                }
+                    float sampleVal = gammaVal;
+                    if (node->timeVarMode == RelativisticNode::TimeScopeVariable::OffsetTau)
+                    {
+                        sampleVal = tauVal;
+                    }
+                    else if (node->timeVarMode == RelativisticNode::TimeScopeVariable::CouplingC)
+                    {
+                        sampleVal = cVal;
+                    }
 
-                for (int s = 0; s < numSamples; ++s)
-                {
-                    node->pushTimeScopeSample(sampleVal);
-                    node->pushTimeTauScopeSample(tauVal);
+                    for (int s = 0; s < numSamples; ++s)
+                    {
+                        node->pushTimeScopeSample(sampleVal);
+                        node->pushTimeTauScopeSample(tauVal);
+                    }
                 }
                 break;
             }
