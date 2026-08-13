@@ -1,0 +1,61 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{geometry}
+\usepackage{hyperref}
+
+\geometry{margin=1in}
+
+\title{\textbf{\Huge Non-Linear Tube Saturation \& Overdrive DSP}\\[0.5em]
+\Large Mathematical Models of \texttt{[drive\textasciitilde{}]} and Waveshaping Objects}
+\author{\textbf{Time Dilation DAW (v0.0.1) Engineering Group}}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This paper formulates the non-linear transfer functions, hyperbolic tangent $\tanh(x)$ waveshaping, asymmetric grid bias tube saturation equations, cubic soft-clipping polynomials, and harmonic gain normalization used in the \texttt{[drive\textasciitilde{}]} node object.
+\end{abstract}
+
+\section{Symmetric Hyperbolic Tangent ($\tanh$) Saturation}
+In vacuum tube triode amplification, soft saturation limits signal amplitude as input voltage increases. The symmetric transfer function $f(x)$ for input signal $x(n)$ with drive gain $G \ge 1.0$ is:
+\begin{equation}
+y(n) = \tanh\left( G \cdot x(n) \right)
+\end{equation}
+Taking the Taylor series expansion of $\tanh(u)$ around $u = 0$:
+\begin{equation}
+\tanh(u) = u - \frac{u^3}{3} + \frac{2u^5}{15} - \frac{17u^7}{315} + O(u^9)
+\end{equation}
+The presence of odd-powered polynomial terms ($u^3, u^5, u^7$) introduces odd harmonic overtones ($3f, 5f, 7f$) into the output spectrum, generating warm analog saturation.
+
+\section{Asymmetric Triode Vacuum Tube Bias Modeling}
+To simulate authentic vacuum tube asymmetric clipping (which introduces even harmonics $2f, 4f, 6f$ associated with tubey warmth), a DC grid bias offset $V_{\text{bias}} \in [-0.5, 0.5]$ is injected prior to non-linear transformation:
+\begin{equation}
+y_{\text{raw}}(n) = \tanh\left( G \cdot x(n) + V_{\text{bias}} \right) - \tanh(V_{\text{bias}})
+\end{equation}
+Subtracting $\tanh(V_{\text{bias}})$ removes the static DC offset, preserving zero DC operating bias at rest.
+
+\section{Cubic Soft-Clipping Polynomial}
+For lightweight processing without transcendental functions:
+\begin{equation}
+y_{\text{cubic}}(x) =
+\begin{cases}
+-1.0, & x \le -1.5 \\
+x - \frac{x^3}{3}, & -1.5 < x < 1.5 \\
+1.0, & x \ge 1.5
+\end{cases}
+\end{equation}
+
+\section{Harmonic Gain Compensation \& Peak Normalization}
+To maintain consistent output loudness across drive settings $G \in [1.0, 100.0]$, an dynamic automatic gain compensation multiplier $A(G)$ is applied:
+\begin{equation}
+A(G) = \frac{1}{\max\left(1.0, \, \tanh(G)\right)} \approx \frac{1.0}{\sqrt{G}}
+\end{equation}
+The final normalized output $y_{\text{final}}(n)$ is:
+\begin{equation}
+y_{\text{final}}(n) = A(G) \cdot y_{\text{raw}}(n)
+\end{equation}
+
+\end{document}

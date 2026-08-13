@@ -1,0 +1,10 @@
+{
+  "status": "SUCCESS",
+  "sampleRate": 44100,
+  "blockSize": 512,
+  "totalBlocks": 430,
+  "activeNodes": 7,
+  "activeConnections": 6,
+  "peakMagnitude": 0,
+  "tarjanSCCStability": true
+}

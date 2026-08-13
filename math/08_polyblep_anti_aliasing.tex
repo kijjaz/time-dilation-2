@@ -1,0 +1,59 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{geometry}
+\usepackage{hyperref}
+
+\geometry{margin=1in}
+
+\title{\textbf{\Huge PolyBLEP Anti-Aliasing Residual Polynomials}\\[0.5em]
+\Large Band-Limited Synthesis Math for \texttt{[osc\textasciitilde{}]} and \texttt{[phasor\textasciitilde{}]} Objects}
+\author{\textbf{Time Dilation DAW (v0.0.1) Engineering Group}}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This document formulates the 2-point PolyBLEP (Polynomial Band-Limited Step) residual function equations utilized in \textbf{Time Dilation DAW} to suppress high-frequency aliasing foldback during non-bandlimited waveform generation.
+\end{abstract}
+
+\section{The Aliasing Problem in Naive Digital Oscillators}
+A naive digital sawtooth waveform $\phi(t) \in [0, 1)$ generated at normalized frequency $dt = \frac{f}{f_s}$ contains discontinuous step transitions at phase wrap points:
+\begin{equation}
+x_{\text{naive}}(t) = 2\phi(t) - 1.0
+\end{equation}
+By Fourier analysis, a ideal continuous sawtooth contains infinite harmonics decreasing as $\frac{1}{k}$. In discrete sample domain, harmonics exceeding the Nyquist limit $f_{\text{Nyquist}} = \frac{f_s}{2}$ fold back into the audible spectrum, causing harsh metallic aliasing noise.
+
+\section{The PolyBLEP Residual Correction Function}
+PolyBLEP smooths the sharp step discontinuity by subtracting a 2nd-order polynomial residual $\text{blep}(t, dt)$ within a $\pm 1$ sample neighborhood of the phase wrap transition.
+
+The normalized phase offset $t = \frac{\phi}{dt}$ near transition is evaluated as:
+\begin{equation}
+\text{blep}(t, dt) =
+\begin{cases}
+2t - t^2 - 1.0 = -\left(1 - t\right)^2, & 0 \le t < 1 \quad (\text{Just after step}) \\
+t^2 + 2t + 1.0 = (t + 1)^2, & -1 < t < 0 \quad (\text{Just before step}) \\
+0.0, & \text{otherwise}
+\end{cases}
+\end{equation}
+
+\section{Application to Waveform Types}
+
+\subsection{Band-Limited Sawtooth Waveform (\texttt{[phasor\textasciitilde{}]}, \texttt{[osc\textasciitilde{}]})}
+Subtracting the PolyBLEP residual from the naive sawtooth:
+\begin{equation}
+y_{\text{saw}}(t) = (2\phi(t) - 1.0) - \text{blep}(\phi(t), dt)
+\end{equation}
+
+\subsection{Band-Limited Square / Pulse Waveform (\texttt{[osc\textasciitilde{}]})}
+A square wave contains two step discontinuities per period: one at $\phi = 0$ (rising edge) and one at $\phi = 0.5$ (falling edge):
+\begin{equation}
+y_{\text{square}}(t) = y_{\text{naive}}(t) + \text{blep}(\phi(t), dt) - \text{blep}\left((\phi(t) - 0.5) \pmod{1}, \, dt\right)
+\end{equation}
+
+\subsection{Band-Limited Triangle Waveform (\texttt{[osc\textasciitilde{}]})}
+Integrating a band-limited square wave yields a smooth triangle wave with attenuation of aliasing by over $80\,\text{dB}$ across all fundamental frequencies up to $f_{\text{Nyquist}}$.
+
+\end{document}

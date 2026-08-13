@@ -1,0 +1,69 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{geometry}
+\usepackage{hyperref}
+
+\geometry{margin=1in}
+
+\title{\textbf{\Huge Exponential ADSR Envelope Generators \& Peak Trackers}\\[0.5em]
+\Large Mathematical Formalism of \texttt{[adsr\textasciitilde{}]} and \texttt{[env\textasciitilde{}]} DSP Nodes}
+\author{\textbf{Time Dilation DAW (v0.0.1) Engineering Group}}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This document formulates the piecewise exponential state machine governing 4-stage ADSR envelope generators (\texttt{[adsr\textasciitilde{}]}) and the continuous peak/RMS energy tracking equations of audio envelope followers (\texttt{[env\textasciitilde{}]}).
+\end{abstract}
+
+\section{Analog Exponential RC Charging Curves}
+Analog envelope generators utilize capacitor charging across resistors, resulting in natural exponential curves. The continuous-time voltage response $v(t)$ when approaching target voltage $V_{\text{target}}$ from initial voltage $V_0$ is:
+\begin{equation}
+v(t) = V_{\text{target}} + (V_0 - V_{\text{target}}) \, e^{-t / \tau_c}
+\end{equation}
+where $\tau_c = R \cdot C$ is the RC time constant.
+
+\section{Discrete-Time ADSR State Machine}
+In sample domain at rate $f_s$, the per-sample update for envelope level $e[n]$ is:
+\begin{equation}
+e[n] = e[n-1] + \alpha_{\text{stage}} \cdot \left( V_{\text{target, stage}} - e[n-1] \right)
+\end{equation}
+where the smoothing coefficient $\alpha_{\text{stage}} \in (0, 1)$ is determined by the desired time duration $T_{\text{stage}}$ (in seconds):
+\begin{equation}
+\alpha_{\text{stage}} = 1 - \exp\left( -\frac{1}{f_s \cdot T_{\text{stage}}} \right)
+\end{equation}
+
+\subsection{Stage Definitions}
+The finite state machine switches states based on threshold completion:
+\begin{enumerate}
+\item \textbf{Attack Stage} ($e[n-1] < 1.0$):
+$V_{\text{target}} = 1.2$ (overshooting to ensure linear-like fast rise), switching to Decay when $e[n] \ge 1.0$.
+\item \textbf{Decay Stage} ($e[n-1] > S$):
+$V_{\text{target}} = S$ (Sustain level $S \in [0, 1]$), transitioning to Sustain when $|e[n] - S| < \epsilon$.
+\item \textbf{Sustain Stage}:
+$e[n] = S$ held constant while gate is active ($\text{gate} > 0$).
+\item \textbf{Release Stage} ($\text{gate} == 0$):
+$V_{\text{target}} = -0.05$ (undershooting target to reach absolute zero quickly), terminating when $e[n] \le 0.0$.
+\end{enumerate}
+
+\section{Audio Envelope Follower (\texttt{[env\textasciitilde{}]}) Peak/RMS Tracker}
+The \texttt{[env\textasciitilde{}]} node extracts signal amplitude envelope $A[n]$ from input audio $x[n]$ using asymmetrical attack/release smoothing coefficients:
+\begin{equation}
+|x[n]| = \text{rectify}(x[n]) = \sqrt{x[n]^2 + \delta}
+\end{equation}
+\begin{equation}
+A[n] =
+\begin{cases}
+(1 - \alpha_{\text{attack}}) A[n-1] + \alpha_{\text{attack}} |x[n]|, & |x[n]| > A[n-1] \\
+(1 - \alpha_{\text{release}}) A[n-1] + \alpha_{\text{release}} |x[n]|, & |x[n]| \le A[n-1]
+\end{cases}
+\end{equation}
+Converting amplitude $A[n]$ to decibels RMS ($dB_{\text{SPL}}$):
+\begin{equation}
+L_{\text{dB}}[n] = 20 \log_{10} \left( \max\left(10^{-4}, A[n]\right) \right)
+\end{equation}
+
+\end{document}

@@ -1,0 +1,86 @@
+#include <juce_gui_extra/juce_gui_extra.h>
+#include "gui/WorkstationContainerComponent.h"
+#include "utils/AgentTestRunner.h"
+#include <iostream>
+
+class TimeDilationApplication  : public juce::JUCEApplication
+{
+public:
+    TimeDilationApplication() {}
+
+    const juce::String getApplicationName() override      { return "Time Dilation DAW"; }
+    const juce::String getApplicationVersion() override   { return "0.0.3"; }
+    bool moreThanOneInstanceAllowed() override            { return true; }
+
+    void initialise(const juce::String& commandLine) override
+    {
+        auto args = getCommandLineParameterArray();
+        
+        // Headless Agent Testing Mode
+        if (commandLine.contains("--agent-test") || commandLine.contains("--headless-test"))
+        {
+            int result = TimeDilationDAW::AgentTestRunner::runHeadlessTest(args);
+            setApplicationReturnValue(result);
+            quit();
+            return;
+        }
+
+        // GUI Window Mode
+        mainWindow = std::make_unique<MainWindow>(getApplicationName());
+
+        if (commandLine.contains("--auto-close") || commandLine.contains("--test-and-exit"))
+        {
+            juce::Timer::callAfterDelay(1500, [this]() {
+                setApplicationReturnValue(0);
+                quit();
+            });
+        }
+    }
+
+    void shutdown() override
+    {
+        mainWindow = nullptr;
+    }
+
+    void systemRequestedQuit() override
+    {
+        quit();
+    }
+
+    class MainWindow    : public juce::DocumentWindow
+    {
+    public:
+        MainWindow(juce::String name)
+            : DocumentWindow(name,
+                             juce::Desktop::getInstance().getDefaultLookAndFeel()
+                                                         .findColour(juce::ResizableWindow::backgroundColourId),
+                             DocumentWindow::allButtons)
+        {
+            setUsingNativeTitleBar(true);
+            setContentOwned(new TimeDilationDAW::WorkstationContainerComponent(), true);
+
+           #if JUCE_IOS || JUCE_ANDROID
+            setFullScreen(true);
+           #else
+            setResizable(true, true);
+            setResizeLimits(800, 600, 3840, 2160);
+            centreWithSize(1280, 720);
+           #endif
+
+            setVisible(true);
+        }
+
+        void closeButtonPressed() override
+        {
+            JUCEApplication::getInstance()->systemRequestedQuit();
+        }
+
+    private:
+        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainWindow)
+    };
+
+private:
+    std::unique_ptr<MainWindow> mainWindow;
+};
+
+START_JUCE_APPLICATION(TimeDilationApplication)

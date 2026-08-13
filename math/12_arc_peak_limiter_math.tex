@@ -1,0 +1,75 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{geometry}
+\usepackage{hyperref}
+\geometry{margin=1in}
+
+\title{\textbf{Auto Release Control (ARC) Dynamic Peak Limiting \& Gain Smoothing in Time-Dilated Audio Engines}}
+\author{Time Dilation DAW Research Group --- Version 0.0.1}
+\date{August 2026}
+
+\begin{document}
+\maketitle
+
+\section{Overview}
+In relativistic time-dilated audio synthesis, dynamic time warping and feedback cascades can produce transient amplitude spikes exceeding standard $0.0 \text{ dBFS}$ audio ceilings. To prevent output clipping and digital inter-sample distortion while maintaining acoustic warmth, the \texttt{out\textasciitilde} (\texttt{OutNode}) master object incorporates an automatic \textbf{ARC Safety Peak Limiter} operating at a ceiling of $-1.5 \text{ dBFS}$.
+
+\section{Ceiling \& Gain Threshold Math}
+The linear ceiling threshold $C$ for a peak ceiling of $-1.5 \text{ dBFS}$ is defined by:
+\begin{equation}
+C = 10^{\frac{-1.5}{20}} \approx 0.8413951
+\end{equation}
+
+For each audio sample $s \in [0, N-1]$ in a stereo block, the instantaneous peak magnitude $p[s]$ is computed as:
+\begin{equation}
+p[s] = \max\left(|s_L[s]|, |s_R[s]|\right)
+\end{equation}
+
+The target gain multiplier $g_{\text{target}}[s]$ required to constrain $p[s]$ within the ceiling $C$ is:
+\begin{equation}
+g_{\text{target}}[s] = \begin{cases}
+1.0 & \text{if } p[s] \le C \\
+\frac{C}{p[s]} & \text{if } p[s] > C
+\end{cases}
+\end{equation}
+
+\section{Two-Stage Attack \& Adaptive ARC Release Filter}
+To suppress transient clipping instantly without introduced harmonic distortion or audible pumping during sustained signals, the limiter uses an \textbf{Auto Release Control (ARC)} mechanism.
+
+\subsection{Attack Phase}
+The attack filter operates at an ultra-fast time constant $\tau_{\text{att}} = 0.05 \text{ ms}$ ($50 \ \mu\text{s}$):
+\begin{equation}
+\alpha_{\text{att}} = 1.0 - \exp\left(-\frac{1.0}{f_s \cdot 0.00005}\right)
+\end{equation}
+
+When $g_{\text{target}}[s] < g[s-1]$, the limiter triggers attack attenuation:
+\begin{equation}
+g[s] = g[s-1] + \alpha_{\text{att}} \cdot (g_{\text{target}}[s] - g[s-1])
+\end{equation}
+
+\subsection{Adaptive ARC Release Phase}
+When $g_{\text{target}}[s] \ge g[s-1]$, the release time constant dynamically adjusts based on the transient intensity ratio $R = p[s] / C$:
+\begin{equation}
+\tau_{\text{rel}}(R) = \begin{cases}
+10 \text{ ms} & \text{if } R < 1.5 \quad (\text{Fast recovery for transient spikes}) \\
+300 \text{ ms} & \text{if } R \ge 1.5 \quad (\text{Smooth recovery for sustained peaks})
+\end{cases}
+\end{equation}
+
+The release smoothing coefficient $\alpha_{\text{rel}}$ is computed sample-by-sample:
+\begin{equation}
+\alpha_{\text{rel}} = 1.0 - \exp\left(-\frac{1.0}{f_s \cdot (\tau_{\text{rel}} / 1000.0)}\right)
+\end{equation}
+\begin{equation}
+g[s] = g[s-1] + \alpha_{\text{rel}} \cdot (g_{\text{target}}[s] - g[s-1])
+\end{equation}
+
+\section{Output Signal Scaling}
+The final limited stereo sample pair $(y_L[s], y_R[s])$ delivered to the DAW output buffer is:
+\begin{equation}
+y_L[s] = s_L[s] \cdot g[s], \quad y_R[s] = s_R[s] \cdot g[s]
+\end{equation}
+This guarantees zero hard clipping at $\pm 1.0$, complete protection of downstream audio devices, and transparent ARC release dynamics.
+
+\end{document}

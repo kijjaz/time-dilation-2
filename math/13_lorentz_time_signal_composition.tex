@@ -1,0 +1,69 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{geometry}
+\usepackage{hyperref}
+\geometry{margin=1in}
+
+\title{\textbf{Relativistic Time Signal Math: Lorentz Composition, Dynamic Auto-Scaling Bounds, and Phase Orbit Space Mapping}}
+\author{Time Dilation DAW Research Group --- Version 0.0.1}
+\date{August 2026}
+
+\begin{document}
+\maketitle
+
+\section{Overview}
+In Time Dilation DAW, time signals ($\gamma(t)$ velocity fields and local coordinate time $t_{\text{local}}$) operate as native audio-rate control streams. Objects such as \texttt{time.math\textasciitilde}, \texttt{time.scope}, and \texttt{time.xy} process, combine, and visualize relativistic time dilation vectors. This paper formalizes the Lorentz composition law for time signals and the dynamic auto-scaling algorithms for 2D phase visualizers.
+
+\section{Lorentz Time Signal Composition Law}
+When two independent relativistic time dilation sources with factors $\gamma_1 \ge 0.0$ and $\gamma_2 \ge 0.0$ are combined via relativistic addition (\texttt{time.math\textasciitilde} mode 0), their effective normalized velocities $v_1$ and $v_2$ relative to stationary coordinate time are:
+\begin{equation}
+v_1 = \gamma_1 - 1.0, \quad v_2 = \gamma_2 - 1.0
+\end{equation}
+
+By Einstein's Special Theory of Relativity, velocity addition in a spacetime manifold with speed-of-light bound $c = 4.0$ follows:
+\begin{equation}
+v_{\text{comp}} = \frac{v_1 + v_2}{1.0 + \frac{v_1 \cdot v_2}{c^2}}
+\end{equation}
+
+The composite relativistic time dilation factor $\gamma_{\text{comp}}$ is derived as:
+\begin{equation}
+\gamma_{\text{comp}} = 1.0 + v_{\text{comp}} = 1.0 + \frac{(\gamma_1 - 1.0) + (\gamma_2 - 1.0)}{1.0 + \frac{(\gamma_1 - 1.0)(\gamma_2 - 1.0)}{c^2}}
+\end{equation}
+
+This formula guarantees:
+\begin{enumerate}
+    \item \textbf{Causality Bound}: $v_{\text{comp}} < c$ for all finite $v_1, v_2 < c$.
+    \item \textbf{Identity Element}: Combining any time signal $\gamma_1$ with un-dilated time $\gamma_2 = 1.0$ yields $\gamma_{\text{comp}} = \gamma_1$.
+    \item \textbf{Symmetry}: $\gamma_{\text{comp}}(\gamma_1, \gamma_2) = \gamma_{\text{comp}}(\gamma_2, \gamma_1)$.
+\end{enumerate}
+
+\section{Dynamic Auto-Scaling Bounds Algorithms}
+
+\subsection{Continuous Telemetry Scope Auto-Scaling (\texttt{time.scope})}
+For a time signal sequence $y[i]$ over a sliding window history $i \in [0, K-1]$, the peak amplitude $M$ is tracked:
+\begin{equation}
+M = \max_{0 \le i < K} |y[i]|
+\end{equation}
+To prevent waveform clipping or off-screen rendering when $\gamma$ scales high ($\gamma \gg 1.0$), the scope peak scale $S[n]$ is smoothed via exponential moving average:
+\begin{equation}
+S[n] = S[n-1] + \lambda \cdot \left(\max(1.0, M \cdot 1.15) - S[n-1]\right)
+\end{equation}
+where $\lambda = 0.1$ is the smoothing coefficient and $1.15$ provides a $15\%$ visual headroom margin.
+
+\subsection{Dual-Time 2D Phase Lissajous Orbital Bounds (\texttt{time.xy})}
+For dual time signals $(x[i], y[i])$, the phase orbit radius $r[i]$ is:
+\begin{equation}
+r[i] = \sqrt{x[i]^2 + y[i]^2}
+\end{equation}
+The maximum radial extent $R_{\text{max}}$ over the orbital window is:
+\begin{equation}
+R_{\text{max}} = \max_{0 \le i < K} r[i]
+\end{equation}
+The 2D visual radius $R_{\text{scale}}[n]$ auto-scales smoothly to enclose the phase orbit:
+\begin{equation}
+R_{\text{scale}}[n] = R_{\text{scale}}[n-1] + \lambda \cdot \left(\max(1.0, R_{\text{max}} \cdot 1.15) - R_{\text{scale}}[n-1]\right)
+\end{equation}
+Normalized coordinates plotted on the screen vector canvas are $(\hat{x}[i], \hat{y}[i]) = (x[i] / R_{\text{scale}}, y[i] / R_{\text{scale}})$, ensuring full orbital visibility at any dilation magnitude.
+
+\end{document}

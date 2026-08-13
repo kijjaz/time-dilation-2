@@ -1,0 +1,141 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,amsfonts,amsthm}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{microtype}
+
+\geometry{margin=1in}
+
+\title{\textbf{Relativistic Future Lookahead \& Global Causality Horizon Engine}\\[0.5em]
+\large Mathematical Formalism of Temporal Offsets and Smoothed Time Dilation Transitions}
+\author{\textbf{Time Dilation DAW Architecture Team}}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+In real-time dynamic digital signal processing (DSP), non-causal operations requiring future signal information $\mathbf{x}(t + \Delta t_{\text{future}})$ present a physical impossibility under standard real-time constraints. This paper presents a novel relativistic solution: the \textbf{Global Causality Horizon Offset Engine}. By introducing a dynamic global causality delay $T_{\text{horizon}} = \max_i (\Delta t_{\text{future}, i})$ across the entire workspace, the observer present is shifted backward, allowing future-requesting nodes to inspect the live un-delayed stream. Furthermore, to eliminate audio artifacts and transient phase discontinuities during time dilation factor $\gamma(t)$ modulation, we formulate a 1-pole exponential lowpass filter with user-adjustable cutoff frequency $f_c$ and complete bypass control.
+\end{abstract}
+
+\section{Introduction}
+Standard digital audio workstations (DAWs) rely strictly on causal signal processing:
+\begin{equation}
+y(t) = \mathcal{H}\Big( \{x(\tau) \mid \tau \le t\} \Big)
+\end{equation}
+In relativistic audio synthesis, nodes may request information from future coordinate times $t + \Delta t$. To realize this without violating physical time progression, the engine establishes a global reference frame offset.
+
+\section{Global Causality Horizon Transformation}
+
+In our relativistic framework, \textbf{any time object generating positive time progression} ($\gamma > 1.0$, such as \texttt{[time.warp\~{}]}, \texttt{[time.future\~{}]}, or accelerated \texttt{[time.transport]}) inherently creates a positive time advance relative to standard 1.0x baseline time:
+\begin{equation}
+\Delta t_{\text{future}, k} = \max\Big(0, \frac{\gamma_k - 1.0}{2}\Big)
+\end{equation}
+
+Let $\mathcal{N} = \{N_1, N_2, \dots, N_M\}$ be the graph of audio and control nodes. If nodes generate positive time leads $\Delta t_k > 0$, the master causality horizon $T_{\text{horizon}}$ is dynamically evaluated as:
+\begin{equation}
+T_{\text{horizon}} = \max_{N_k \in \mathcal{N}} (\Delta t_k)
+\end{equation}
+
+The coordinate time transformation for standard (causal) nodes $N_j$ is delayed by $T_{\text{horizon}}$:
+\begin{equation}
+x_j'(t) = x_j(t - T_{\text{horizon}})
+\end{equation}
+
+Conversely, positive time generating nodes $N_k$ access the un-delayed live stream:
+\begin{equation}
+x_k'(t) = x_k(t) = x_k'(t + T_{\text{horizon}})
+\end{equation}
+
+Thus, positive time objects seamlessly project audio and control signals into the future horizon without violating causal execution.
+
+\section{Smoothed Time Dilation Lowpass Filter}
+
+Rapid changes in the relativistic time dilation factor $\gamma(t)$ can introduce steep pitch jumps and phase discontinuities. To guarantee smooth temporal transitions while granting total user control, the effective time dilation factor $\gamma_{\text{smooth}}(t)$ is governed by a first-order continuous-time differential equation:
+
+\begin{equation}
+\frac{d \gamma_{\text{smooth}}(t)}{dt} = 2\pi f_c \Big( \gamma_{\text{target}}(t) - \gamma_{\text{smooth}}(t) \Big)
+\end{equation}
+
+where $f_c \in [0.1, 50.0] \text{ Hz}$ represents the user-configurable smoothing cutoff frequency.
+
+\subsection{Discrete-Time Recurrence Relation}
+In discrete sample domain at sample rate $f_s = 1 / T_s$:
+\begin{equation}
+\alpha = 1 - \exp\left( -2\pi \frac{f_c}{f_s} \right)
+\end{equation}
+
+The smoothed time dilation factor is updated per sample $n$:
+\begin{equation}
+\gamma_{\text{smooth}}[n] = 
+\begin{cases}
+\gamma_{\text{target}}[n], & \text{if Bypass is ACTIVE or } f_c = 0 \\
+(1 - \alpha)\gamma_{\text{smooth}}[n-1] + \alpha \gamma_{\text{target}}[n], & \text{otherwise}
+\end{cases}
+\end{equation}
+
+\section{Eliminating Glitches During Horizon Expansion via Lowpass Interpolated Delay}
+
+A critical challenge occurs when the required causality horizon $T_{\text{horizon}}$ increases dynamically (e.g., when a positive time node accelerates from $\gamma = 1.0 \to 3.0$). An instantaneous step jump in delay time $\Delta T$ would cause severe audio buffer tearing, click artifacts, and sample starvation.
+
+To resolve this, our lowpass filter of time $f_c$ is directly applied to the causality horizon expansion rate:
+
+\begin{equation}
+\frac{d T_{\text{horizon, smooth}}(t)}{dt} = 2\pi f_c \Big( T_{\text{target}}(t) - T_{\text{horizon, smooth}}(t) \Big)
+\end{equation}
+
+During the transition phase ($\frac{dT_{\text{horizon, smooth}}}{dt} > 0$), standard nodes read from the global delay buffer using a \textbf{4-point Hermite fractional delay interpolator}:
+
+\begin{equation}
+x_{\text{smooth}}'(t) = \text{Hermite}\Big( x(t - T_{\text{horizon, smooth}}(t)) \Big)
+\end{equation}
+
+Because the horizon expansion velocity $\frac{dT_{\text{horizon, smooth}}}{dt} \ll 1.0$ is strictly rate-limited by $f_c$, the delay read pointer moves continuously without buffer tearing. This produces a \textbf{smooth, phase-aligned organic pitch bend} during horizon expansion, completely eliminating harsh glitch spikes while achieving the target future horizon.
+
+If the user activates \textbf{Bypass Mode} ($f_c = 0$), the smoothing constraint is removed, allowing instantaneous quantum step jumps for experimental glitch sound design.
+
+\section{Adaptive Target-Matched Cutoff \& Linear Slew Limiting}
+
+Rather than using a static lowpass cutoff $f_c$, the engine dynamically calculates an \textbf{adaptive cutoff frequency} $f_c^{\text{adaptive}}$ that automatically matches the exact time duration required to travel to the requested future horizon:
+
+\begin{equation}
+T_{\text{travel}} = \frac{1}{2} \Big| \gamma_{\text{target}} - \gamma_{\text{smooth}} \Big|
+\end{equation}
+
+\begin{equation}
+f_c^{\text{adaptive}} = \frac{1}{2\pi \cdot T_{\text{travel}}}
+\end{equation}
+
+To complement adaptive lowpass filtering, a \textbf{Linear Slew-Rate Limiter} ($S_{\text{max}}$) bounds the maximum acceleration of coordinate time:
+
+\begin{equation}
+\Big| \frac{d\gamma_{\text{smooth}}}{dt} \Big| \le S_{\text{max}}
+\end{equation}
+
+This dual-stage architecture guarantees:
+\begin{enumerate}
+\item \textbf{Constant Doppler Pitch Shift}: Linear slew limiting enforces a constant pitch shift ratio ($\text{ratio} = 1 - S_{\text{max}}$), delivering an organic, musical pitch glide rather than exponential decay.
+\item \textbf{Exact Target Arrival}: Adaptive cutoff frequency tuning ensures the system reaches the exact target future horizon $T_{\text{future}}$ precisely when the travel phase completes.
+\end{enumerate}
+
+\section{The Future Preparation Horizon: Latent Pre-Rendering and Instant Execution}
+
+The fundamental core principle of our future horizon engine can be stated simply:
+\begin{quote}
+\textit{Sound from the future may occur; we do not play it yet, but if we need to, we are instantly ready to do so.}
+\end{quote}
+
+Formally, the engine maintains a \textbf{Latent Future Preparation Horizon} $\mathbf{x}_{\text{future}}(t + \tau)$ in global RAM memory. While standard audio execution continues at observer present $t$, future audio calculation threads execute ahead by $\Delta t_{\text{lookahead}}$.
+
+\begin{equation}
+\mathbf{x}_{\text{future}}(t) = \mathcal{H}\Big( \{x(\tau) \mid \tau \le t + \Delta t_{\text{lookahead}}\} \Big)
+\end{equation}
+
+When a time warp acceleration or future trigger event occurs at $t_{\text{event}}$, no calculation lag or buffer starvation takes place: the future audio stream is \textbf{already pre-rendered and phase-aligned}, enabling zero-latency instant execution.
+
+\section{Conclusion}
+This framework provides total mathematical consistency for future lookahead audio prediction and smooth temporal warping, preserving phase coherence while offering instant quantum bypass when raw step transitions are desired.
+
+\end{document}

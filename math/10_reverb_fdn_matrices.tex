@@ -1,0 +1,67 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{geometry}
+\usepackage{hyperref}
+
+\geometry{margin=1in}
+
+\title{\textbf{\Huge Feedback Delay Network (FDN) Reverb Matrices}\\[0.5em]
+\Large Unitary Matrix Feedback Math for \texttt{[reverb\textasciitilde{}]} Objects}
+\author{\textbf{Time Dilation DAW (v0.0.1) Engineering Group}}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This paper formulates the multi-channel Feedback Delay Network (FDN) reverberation architecture, Householder and Hadamard orthogonal feedback matrices, prime delay length distribution, and absorbing lowpass filter equations implemented in the \texttt{[reverb\textasciitilde{}]} node object.
+\end{abstract}
+
+\section{Feedback Delay Network (FDN) Core Structure}
+An $N$-channel Feedback Delay Network consists of $N$ parallel delay lines of prime sample lengths $\mathbf{m} = [m_1, m_2, \dots, m_N]^T$, absorbing first-order lowpass filters $\mathbf{H}(z) = \text{diag}(h_1(z), \dots, h_N(z))$, and an $N \times N$ feedback matrix $\mathbf{A}$:
+\begin{equation}
+\mathbf{s}(n) = \mathbf{x}(n) + \mathbf{A} \cdot \mathbf{y}_{\text{delayed}}(n)
+\end{equation}
+\begin{equation}
+y_k(n) = h_k(z) * s_k(n - m_k), \quad k = 1, \dots, N
+\end{equation}
+
+\section{Unitary Orthogonal Feedback Matrices $\mathbf{A}$}
+To guarantee absolute energy conservation and prevent exponential energy growth or unnatural decay, the feedback matrix $\mathbf{A}$ must be orthogonal ($\mathbf{A}^T \mathbf{A} = \mathbf{I}$), ensuring eigenvalues lie on the unit circle ($|\lambda_i| = 1$).
+
+\subsection{Householder Reflection Matrix}
+The $N \times N$ Householder matrix is constructed as:
+\begin{equation}
+\mathbf{A}_{\text{Householder}} = \mathbf{I} - \frac{2}{N} \mathbf{1}_{N \times N} =
+\begin{bmatrix}
+1 - \frac{2}{N} & -\frac{2}{N} & \dots & -\frac{2}{N} \\
+-\frac{2}{N} & 1 - \frac{2}{N} & \dots & -\frac{2}{N} \\
+\vdots & \vdots & \ddots & \vdots \\
+-\frac{2}{N} & -\frac{2}{N} & \dots & 1 - \frac{2}{N}
+\end{bmatrix}
+\end{equation}
+For $N = 4$ channels:
+\begin{equation}
+\mathbf{A}_4 = \begin{bmatrix}
+0.5 & -0.5 & -0.5 & -0.5 \\
+-0.5 & 0.5 & -0.5 & -0.5 \\
+-0.5 & -0.5 & 0.5 & -0.5 \\
+-0.5 & -0.5 & -0.5 & 0.5
+\end{bmatrix}
+\end{equation}
+
+\section{Prime Delay Length Selection \& Modal Density}
+Delay lengths $m_k$ are chosen as mutually co-prime integers (e.g. $m \in \{1087, 1297, 1609, 1933\}$ at $44.1\,\text{kHz}$) to eliminate standing periodic comb echoes and maximize echo density growth rate:
+\begin{equation}
+\text{Density}(t) \propto \frac{t^{N-1}}{\prod_{k=1}^N m_k}
+\end{equation}
+
+\section{Frequency-Dependent Absorption \& Reverb Time $T_{60}$}
+High frequencies decay faster in physical rooms due to air absorption. Each delay line includes a 1-pole lowpass filter $h_k(z) = \frac{1 - g_k}{1 - g_k z^{-1}}$ where gain $g_k$ is computed from target reverberation time $T_{60}$:
+\begin{equation}
+g_k = 10^{-\frac{3 m_k}{f_s \cdot T_{60}}}
+\end{equation}
+
+\end{document}

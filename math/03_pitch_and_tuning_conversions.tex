@@ -1,0 +1,59 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{geometry}
+\usepackage{hyperref}
+
+\geometry{margin=1in}
+
+\title{\textbf{\Huge Equal Temperament Pitch \& Frequency Conversions}\\[0.5em]
+\Large Mathematical Models of \texttt{[mtof]} and \texttt{[ftom]} Nodes}
+\author{\textbf{Time Dilation DAW (v0.0.1) Engineering Group}}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This document formulates the logarithmic and exponential relationships between MIDI Note numbers $m \in [0, 127]$, fundamental frequencies $f \in \mathbb{R}^+$ (in Hz), microtonal cent tuning ratios, and Doppler frequency shifts under relativistic coordinate time dilation.
+\end{abstract}
+
+\section{MIDI Note to Frequency Conversion (\texttt{[mtof]})}
+In 12-tone equal temperament (12-TET) with concert pitch reference $A_4 = 440\,\text{Hz}$ at MIDI Note $m = 69$, the fundamental frequency $f(m)$ is defined exponentially:
+\begin{equation}
+f(m) = 440 \cdot 2^{\frac{m - 69}{12}}
+\end{equation}
+For an arbitrary reference concert pitch $A_4 = f_0$:
+\begin{equation}
+f(m, f_0) = f_0 \cdot 2^{\frac{m - 69}{12}}
+\end{equation}
+
+\section{Frequency to MIDI Note Conversion (\texttt{[ftom]})}
+The inverse mapping from fundamental frequency $f > 0$ to MIDI Note number $m(f)$ is derived by taking the base-2 logarithm:
+\begin{equation}
+m(f) = 69 + 12 \cdot \log_2\left(\frac{f}{440}\right)
+\end{equation}
+Using standard natural logarithms:
+\begin{equation}
+m(f) = 69 + \frac{12}{\ln 2} \cdot \ln\left(\frac{f}{440}\right)
+\end{equation}
+
+\section{Cent Tuning \& Transposition Ratios}
+The frequency multiplier ratio $R(c)$ for a microtonal interval of $c$ cents ($100\,\text{cents} = 1\,\text{semitone}$) is:
+\begin{equation}
+R(c) = 2^{\frac{c}{1200}}
+\end{equation}
+Given a base frequency $f_{\text{base}}$ and semitone shift $\Delta m$ with fine detune cents $c$, the modulated frequency is:
+\begin{equation}
+f_{\text{final}} = f_{\text{base}} \cdot 2^{\frac{\Delta m + c/100}{12}}
+\end{equation}
+
+\section{Relativistic Doppler Pitch Shift under Time Warping}
+When an audio node is driven by a time dilation factor $\gamma(t)$, the apparent perceived playback frequency $f_{\text{perceived}}$ experiences an acoustic Doppler shift:
+\begin{equation}
+f_{\text{perceived}}(t) = f_{\text{base}} \cdot |\gamma(t)|
+\end{equation}
+Under retrograde time flow ($\gamma(t) < 0$), the frequency magnitude remains $|f_{\text{perceived}}| = f_{\text{base}} \cdot |\gamma(t)|$ while the phase trajectories invert direction.
+
+\end{document}

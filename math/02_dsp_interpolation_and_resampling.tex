@@ -1,0 +1,74 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{xcolor}
+
+\geometry{margin=1in}
+
+\title{\textbf{\Huge Hermite 4-Point Cubic Interpolation \& Varispeed Resampling}\\[0.5em]
+\Large DSP Mathematics of Wavetable, Sampler, and Delay Line Objects}
+\author{\textbf{Time Dilation DAW (v0.0.1) Engineering Group}}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This paper formulates the mathematical models of sub-sample fractional position interpolation used in \textbf{Time Dilation DAW}'s \texttt{[osc\textasciitilde{}]}, \texttt{[sampler\textasciitilde{}]}, \texttt{[tabosc4\textasciitilde{}]}, and \texttt{[delay\textasciitilde{}]} nodes, detailing 4-Point Hermite 3rd-Order Cubic Splines, Linear Interpolation, and Nearest-Neighbor Zero-Order Hold.
+\end{abstract}
+
+\section{Fractional Table Read Head Position}
+When playing audio buffers or wavetables at non-integer pitch ratios or dilated time speeds $\gamma$, the fractional read head position $p(n)$ at sample $n$ is:
+\begin{equation}
+p(n) = p(n-1) + \text{step}, \quad \text{where } \text{step} = \frac{|\gamma(n)| \cdot f \cdot N_{\text{table}}}{f_s}
+\end{equation}
+Decomposing $p(n)$ into integer index $i = \lfloor p(n) \rfloor$ and fractional offset $\alpha = p(n) - i \in [0, 1)$.
+
+\section{Hermite 4-Point 3rd-Order Cubic Spline Interpolation}
+To eliminate high-frequency aliasing and inter-sample quantization noise during varispeed pitch shifting, we evaluate four adjacent table samples $(y_0, y_1, y_2, y_3)$ at indices $(i-1, i, i+1, i+2)$:
+\begin{equation}
+y(\alpha) = c_3 \alpha^3 + c_2 \alpha^2 + c_1 \alpha + c_0
+\end{equation}
+where the polynomial coefficients are computed from the 4-point stencil as:
+\begin{align}
+c_0 &= y_1 \\
+c_1 &= \frac{1}{2}(y_2 - y_0) \\
+c_2 &= y_0 - \frac{5}{2} y_1 + 2 y_2 - \frac{1}{2} y_3 \\
+c_3 &= \frac{1}{2}(y_3 - y_0) + \frac{3}{2}(y_1 - y_2)
+\end{align}
+
+\subsection{Matrix Representation}
+The Hermite interpolation polynomial can be expressed in compact matrix vector form:
+\begin{equation}
+y(\alpha) = \begin{bmatrix} 1 & \alpha & \alpha^2 & \alpha^3 \end{bmatrix}
+\begin{bmatrix}
+0 & 1 & 0 & 0 \\
+-\frac{1}{2} & 0 & \frac{1}{2} & 0 \\
+1 & -\frac{5}{2} & 2 & -\frac{1}{2} \\
+-\frac{1}{2} & \frac{3}{2} & -\frac{3}{2} & \frac{1}{2}
+\end{bmatrix}
+\begin{bmatrix}
+y_0 \\ y_1 \\ y_2 \\ y_3
+\end{bmatrix}
+\end{equation}
+
+\section{Linear Interpolation \& Nearest Neighbor}
+\subsection{Linear Interpolation (2-Point)}
+For computationally lightweight playback:
+\begin{equation}
+y(\alpha) = (1 - \alpha) y_1 + \alpha y_2
+\end{equation}
+
+\subsection{Nearest Neighbor (Zero-Order Hold)}
+For intentionally quantized glitch sound design:
+\begin{equation}
+y(\alpha) = y_{\lfloor \alpha + 0.5 \rfloor + i}
+\end{equation}
+
+\section{Spectral Error \& Aliasing Suppression}
+Hermite 4-point cubic interpolation provides $O(\Delta x^3)$ local truncation error accuracy, attenuating high-frequency spectral imaging foldback by more than $60\,\text{dB}$ across the audible range compared to linear interpolation.
+
+\end{document}

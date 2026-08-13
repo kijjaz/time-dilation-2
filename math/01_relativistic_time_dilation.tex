@@ -1,0 +1,102 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{xcolor}
+
+\geometry{margin=1in}
+\definecolor{primary}{RGB}{139, 92, 246}
+\definecolor{secondary}{RGB}{6, 182, 212}
+\definecolor{accent}{RGB}{245, 158, 11}
+
+\title{\textbf{\Huge Relativistic Time Dilation \& Coordinate Phase Integration}\\[0.5em]
+\Large Complete Spacetime Mathematics of the Time Dilation DAW Engine}
+\author{\textbf{Time Dilation DAW (v0.0.1) Engineering Group}}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This document details the mathematical framework governing relativistic coordinate time dilation, Lorentz velocity transformations, Schwarzschild gravitational redshift event horizons, metric time grid quantization, universal node \texttt{timeIn} propagation, and digital audio phase integration in \textbf{Time Dilation DAW (v0.0.1)}.
+\end{abstract}
+
+\section{Introduction to Relativistic Coordinate Time ($\tau$)}
+In standard Digital Audio Workstations (DAWs), digital time progresses linearly at a constant sample rate $f_s$:
+\begin{equation}
+t(n) = \frac{n}{f_s}
+\end{equation}
+In \textbf{Time Dilation DAW}, coordinate time is modulated by a dynamic relativistic factor $\gamma(t) \in [-16.0, 16.0]$, representing localized gravitational or velocity time dilation:
+\begin{equation}
+d\tau = \gamma(t) \, dt
+\end{equation}
+The accumulated coordinate time $\tau(t)$ after physical elapsed timeline $t$ is obtained by phase integration:
+\begin{equation}
+\tau(t) = \int_0^t \gamma(t') \, dt'
+\end{equation}
+
+\section{Universal Node \texttt{timeIn} Propagation Architecture}
+Every functional node object in the Time Dilation DAW graph engine incorporates an explicit or implicit Inlet 0 designated \texttt{timeIn} (\texttt{NodePortType::Time}). This architectural pattern guarantees universal relativistic time handling across all signal, control, telemetry, and sequencer nodes.
+
+\subsection{Hierarchical Time Dilation Inheritance}
+During each audio process cycle, the graph executes \texttt{propagateTimeDilationHierarchy()} prior to DSP evaluation:
+\begin{equation}
+\gamma_{\text{node}} = \begin{cases}
+\gamma_{\text{patched}} & \text{if Inlet 0 (\texttt{timeIn}) is explicitly connected to a time output} \\
+\gamma_{\text{upstream}} & \text{if \texttt{timeIn} is disconnected (\text{inherits upstream coordinate time})} \\
+1.0 & \text{if unpatched and root level (\text{stationary reference frame})}
+\end{cases}
+\end{equation}
+
+\subsection{Unified Sample-Rate \& Phase Modulation}
+Regardless of node class (Audio, Control, Monitor, or Sequencer), the effective local time step $d\tau_n$ evaluated by the node at sample step $n$ is:
+\begin{equation}
+d\tau_n = \frac{\gamma_{\text{node}}[n]}{f_s}
+\end{equation}
+For an audio node, $d\tau_n$ controls the Hermite sub-sample interpolation delay pointer advance rate. For a control or clock node (e.g. \texttt{seq}, \texttt{adsr\textasciitilde{}}, \texttt{phasor\textasciitilde{}}), $d\tau_n$ modulates the phase accumulator step $\Delta \phi = 2\pi f \cdot d\tau_n$.
+
+\section{Velocity Time Dilation (Special Relativity)}
+Under Einstein's Special Theory of Relativity, coordinate time dilation for an observer moving at relative velocity $v(t)$ with respect to speed of light $c$ is defined by the Lorentz factor:
+\begin{equation}
+\gamma(v) = \frac{1}{\sqrt{1 - \frac{v(t)^2}{c^2}}}
+\end{equation}
+For $v \to c$, $\gamma(v) \to \infty$, causing asymptotic time dilation. In our engine, $\gamma$ is clamped to $[-16.0, 16.0]$ for real-time digital stability.
+
+\section{Gravitational Time Dilation \& Event Horizon Redshift}
+Near a massive gravitational body of Schwarzschild radius $r_s = \frac{2GM}{c^2}$, time dilation at radius $r$ follows:
+\begin{equation}
+\gamma(r) = \sqrt{1 - \frac{r_s}{r}} = \text{redshift}
+\end{equation}
+As $r \to r_s^+$ (approaching the Event Horizon), $\text{redshift} \to 0$, causing gravitational time stasis ($\gamma \to 0.0$). In the \texttt{[time.singularity\textasciitilde{}]} node, non-linear curvature warping is applied:
+\begin{equation}
+\gamma_{\text{singularity}}(r, M) = \text{clamp}\left( \sqrt{\left| 1 - \frac{2GM}{c^2 r} \right|}, \, 0.0, \, 16.0 \right)
+\end{equation}
+
+\section{Retrograde Time Reversal \& Metric Grid Quantization}
+\subsection{Retrograde Time Reversal (\texttt{[time.retro\textasciitilde{}]})}
+When $\gamma(n) < 0$, the coordinate time rate reverses ($\dot{\tau} = -1.0$), executing authentic \textit{Retrograde Time Reversal}:
+\begin{equation}
+\tau[n] = \tau[n-1] + \frac{\gamma[n]}{f_s}, \quad \text{where } \gamma[n] \in [-16.0, 0.0)
+\end{equation}
+Under retrograde flow, phase increments $\Delta \phi(n) = \frac{2\pi f \gamma(n)}{f_s} < 0$, causing audio buffer read pointers to traverse backwards in real time.
+
+\subsection{Metric Time Grid Quantization (\texttt{[time.quantize\textasciitilde{}]})}
+To enforce rhythmic micro-step stuttering, coordinate time $\tau(t)$ is discretized against a metric grid division $Q \in \mathbb{R}^+$ (e.g. $1/16$-note grid duration $T_Q = \frac{60}{4 \cdot \text{BPM}}$):
+\begin{equation}
+\tau_{\text{quantized}}(t) = \lfloor \frac{\tau(t)}{T_Q} \rfloor \cdot T_Q + \text{hold}\left(\tau(t) \pmod{T_Q}\right)
+\end{equation}
+
+\section{Coordinate Phase Integration in Discrete Sampler Domain}
+In discrete time at sample rate $f_s$, the per-sample phase increment $\Delta \phi(n)$ for an oscillator or table reader at frequency $f$ is:
+\begin{equation}
+\Delta \phi(n) = \frac{2\pi \cdot f \cdot |\gamma(n)|}{f_s}
+\end{equation}
+The continuous phase accumulator $\phi[n]$ is updated according to:
+\begin{equation}
+\phi[n] = \left( \phi[n-1] + \Delta \phi(n) \right) \pmod{2\pi}
+\end{equation}
+This guarantees phase continuity and exact frequency scaling under arbitrary dynamic time warping $\gamma(t)$.
+
+\end{document}

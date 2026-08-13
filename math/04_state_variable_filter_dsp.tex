@@ -1,0 +1,65 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{geometry}
+\usepackage{hyperref}
+
+\geometry{margin=1in}
+
+\title{\textbf{\Huge Topology-Preserving Transform (TPT) State-Variable Filters}\\[0.5em]
+\Large Zero-Delay Feedback Filter Discretization \& Moog 24dB Cascade Math}
+\author{\textbf{Time Dilation DAW (v0.0.1) Engineering Group}}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This paper details the continuous-time and discretized equations of the active State Variable Filter (\texttt{[filter\textasciitilde{}]} and \texttt{[svfilter\textasciitilde{}]}) implemented using Vadim Zavalishin's Topology-Preserving Transform (TPT) zero-delay feedback method.
+\end{abstract}
+
+\section{Continuous-Time Active SVF Equations}
+The continuous-time 2-pole state-variable filter integrates high-pass $y_{HP}(t)$, band-pass $y_{BP}(t)$, low-pass $y_{LP}(t)$, and notch $y_{\text{notch}}(t)$ outputs simultaneously:
+\begin{align}
+y_{HP}(t) &= x(t) - R \cdot y_{BP}(t) - y_{LP}(t) \\
+y_{BP}(t) &= \omega_0 \int y_{HP}(t) \, dt \\
+y_{LP}(t) &= \omega_0 \int y_{BP}(t) \, dt \\
+y_{\text{notch}}(t) &= y_{HP}(t) + y_{LP}(t)
+\end{align}
+where $\omega_0 = 2\pi f_c$ is the cutoff angular frequency and $R = \frac{1}{Q}$ is the damping factor.
+
+\section{Bilinear Transform Discretization \& TPT Structure}
+Applying trapezoidal integration with pre-warped gain coefficient $g = \tan\left(\frac{\pi f_c}{f_s}\right)$ and resonance damping coefficient $k = \frac{1}{Q}$:
+\begin{align}
+v_H(n) &= \frac{x(n) - (g + k) s_1(n-1) - s_2(n-1)}{1 + g(g + k)} \\
+v_B(n) &= g \cdot v_H(n) + s_1(n-1) \\
+v_L(n) &= g \cdot v_B(n) + s_2(n-1)
+\end{align}
+State registers $s_1(n)$ and $s_2(n)$ are updated per sample as:
+\begin{align}
+s_1(n) &= 2 v_B(n) - s_1(n-1) \\
+s_2(n) &= 2 v_L(n) - s_2(n-1)
+\end{align}
+
+\section{Filter Mode Combinations}
+The active output signal $y(n)$ is selected according to filter mode:
+\begin{equation}
+y(n) =
+\begin{cases}
+v_L(n), & \text{Low-Pass (LP)} \\
+v_H(n), & \text{High-Pass (HP)} \\
+v_B(n), & \text{Band-Pass (BP)} \\
+v_H(n) + v_L(n), & \text{Notch / Band-Reject}
+\end{cases}
+\end{equation}
+
+\section{Moog 24dB 4-Pole Resonant Lowpass Cascade (\texttt{[filter\textasciitilde{}]})}
+For 4-pole $24\,\text{dB/octave}$ attenuation, two identical TPT 2-pole SVF stages are cascaded in series:
+\begin{align}
+y_{\text{stage1}}(n) &= \text{TPT\_SVF}_1\left(x(n), \, f_c, \, Q\right) \\
+y_{\text{stage2}}(n) &= \text{TPT\_SVF}_2\left(y_{\text{stage1}}(n), \, f_c, \, Q\right)
+\end{align}
+This structure maintains amplitude stability and prevents digital cramping near the Nyquist limit $f_s / 2$.
+
+\end{document}

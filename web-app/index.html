@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Time Dilation Live Studio | Universal Temporal Bus</title>
+  <meta name="description" content="Universal Time Speed & Phase Offset Bus Studio - Multi-Target Modulation Matrix.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600;700&family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header / Top Bar -->
+    <header class="top-bar">
+      <div class="brand">
+        <div class="logo-icon">⏳</div>
+        <div class="brand-text">
+          <h1>TIME DILATION</h1>
+          <span class="subtext">UNIVERSAL TEMPORAL BUS v4.0</span>
+        </div>
+      </div>
+
+      <div class="scale-section">
+        <label for="scale-select">SCALE LOCK:</label>
+        <select id="scale-select" class="pro-select">
+          <option value="minor" selected>C Minor Pentatonic</option>
+          <option value="major">C Major Scale</option>
+          <option value="pentatonic">C Blues Pentatonic</option>
+        </select>
+      </div>
+
+      <div class="header-actions">
+        <button id="btn-rec" class="btn btn-rec">🔴 RECORD WAV</button>
+        <button id="btn-export-json" class="btn btn-secondary">💾 EXPORT JSON</button>
+        <button id="btn-audio-engine" class="btn btn-gold btn-power">⚡ START ENGINE</button>
+      </div>
+    </header>
+
+    <!-- Main Workstation Layout -->
+    <main class="workstation">
+      <!-- Left Panel: Universal Temporal Bus & Routing -->
+      <section class="panel master-panel">
+        <div class="panel-header">
+          <h2>UNIVERSAL TEMPORAL BUS</h2>
+          <span class="status-badge" id="engine-status">OFFLINE</span>
+        </div>
+
+        <!-- Master Speed & Offset Control Box -->
+        <div class="dilation-hero-box">
+          <div class="dilation-readout">
+            <span class="label">UNIVERSAL TIME SPEED (&gamma;)</span>
+            <div class="value-display" id="dilation-value">1.000&times;</div>
+            <div class="sub-readout">
+              <span>CLOCK: <strong id="perceived-bpm">120 BPM</strong></span>
+              <span>PITCH: <strong id="semitone-shift">+0.00st</strong></span>
+            </div>
+          </div>
+
+          <div class="slider-wrapper">
+            <input type="range" id="dilation-slider" min="0.10" max="4.00" step="0.005" value="1.000" class="hero-slider">
+          </div>
+
+          <!-- TEMPORAL PHASE OFFSET SHIFT SLIDER -->
+          <div class="offset-box">
+            <div class="tweak-row">
+              <span class="tweak-label">TEMPORAL OFFSET (&Delta;&phi;):</span>
+              <strong id="offset-val" class="gold-text">0 ms</strong>
+            </div>
+            <input type="range" id="offset-slider" min="0" max="1000" step="10" value="0" class="hero-slider">
+          </div>
+        </div>
+
+        <!-- TEMPORAL BUS TARGET MODULATION ROUTING MATRIX -->
+        <div class="synth-tweak-box">
+          <div class="synth-header">🎯 UNIVERSAL MODULATION TARGETS</div>
+          <div class="target-grid">
+            <label class="target-item"><input type="checkbox" data-target="drumsSeq" checked> Drums Clock</label>
+            <label class="target-item"><input type="checkbox" data-target="bassSeq" checked> Bass Clock</label>
+            <label class="target-item"><input type="checkbox" data-target="leadSeq" checked> Lead Clock</label>
+            <label class="target-item"><input type="checkbox" data-target="filterLfo" checked> Filter LFO</label>
+            <label class="target-item"><input type="checkbox" data-target="echoDelay" checked> Echo Delay</label>
+            <label class="target-item"><input type="checkbox" data-target="visualizer" checked> Visualizer Mesh</label>
+          </div>
+        </div>
+
+        <!-- SOUND DESIGN SYNTH CONTROLS -->
+        <div class="synth-tweak-box">
+          <div class="synth-header">🎛️ VOICE SOUND DESIGN</div>
+          
+          <div class="tweak-row">
+            <span class="tweak-label">BASS WAVE:</span>
+            <select id="bass-wave" class="pro-select-small">
+              <option value="sawtooth" selected>Sawtooth</option>
+              <option value="square">Square</option>
+              <option value="triangle">Triangle</option>
+              <option value="sine">Sine</option>
+            </select>
+          </div>
+
+          <div class="tweak-row">
+            <span class="tweak-label">BASS CUTOFF:</span>
+            <input type="range" id="bass-cutoff" min="100" max="3000" step="10" value="600" class="mini-slider">
+          </div>
+
+          <div class="tweak-row">
+            <span class="tweak-label">LEAD WAVE:</span>
+            <select id="lead-wave" class="pro-select-small">
+              <option value="square" selected>Square</option>
+              <option value="sawtooth">Sawtooth</option>
+              <option value="triangle">Triangle</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- DYNAMIC SIGNAL ROUTING MATRIX -->
+        <div class="matrix-box">
+          <div class="matrix-header">🔀 SIGNAL ROUTING MATRIX</div>
+          <div class="matrix-routes">
+            <div class="route-row">
+              <span class="route-label">DRUMS VOICE:</span>
+              <select class="matrix-select" data-voice="drums">
+                <option value="direct" selected>➡️ Direct Master</option>
+                <option value="filter">🎛️ Lowpass Filter</option>
+                <option value="delay">📻 Echo Delay</option>
+                <option value="warp">🌀 Time Warp FX</option>
+              </select>
+            </div>
+
+            <div class="route-row">
+              <span class="route-label">BASS VOICE:</span>
+              <select class="matrix-select" data-voice="bass">
+                <option value="direct">➡️ Direct Master</option>
+                <option value="filter" selected>🎛️ Lowpass Filter</option>
+                <option value="delay">📻 Echo Delay</option>
+                <option value="warp">🌀 Time Warp FX</option>
+              </select>
+            </div>
+
+            <div class="route-row">
+              <span class="route-label">LEAD VOICE:</span>
+              <select class="matrix-select" data-voice="lead">
+                <option value="direct">➡️ Direct Master</option>
+                <option value="filter">🎛️ Lowpass Filter</option>
+                <option value="delay" selected>📻 Echo Delay</option>
+                <option value="warp">🌀 Time Warp FX</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Transport Controls -->
+        <div class="transport-bar">
+          <button id="btn-play" class="btn btn-transport">▶ PLAY</button>
+          <button id="btn-stop" class="btn btn-transport">⏹ STOP</button>
+        </div>
+      </section>
+
+      <!-- Center Panel: Sequencers & Visualizer -->
+      <section class="panel center-panel">
+        <div class="visualizer-container">
+          <div class="vis-header">
+            <h3>TEMPORAL MESH OSCILLOSCOPE & SPECTROGRAM</h3>
+            <div class="vis-controls">
+              <button id="vis-mode-toggle" class="btn btn-small">MODE: OSCILLOSCOPE</button>
+            </div>
+          </div>
+          <canvas id="vis-canvas" width="800" height="110"></canvas>
+        </div>
+
+        <!-- 3 SEQUENCER RACKS WITH PITCH SELECTORS -->
+        <div class="sequencers-container">
+
+          <!-- DRUMS -->
+          <div class="seq-rack">
+            <div class="rack-title"><span class="badge badge-drum">DRUMS</span> 16-Step Beat Sequencer</div>
+            <div class="step-grid-rows">
+              <div class="grid-row"><span class="row-label">KICK</span><div class="step-cells" data-seq="drums" data-sound="kick"></div></div>
+              <div class="grid-row"><span class="row-label">SNARE</span><div class="step-cells" data-seq="drums" data-sound="snare"></div></div>
+              <div class="grid-row"><span class="row-label">HI-HAT</span><div class="step-cells" data-seq="drums" data-sound="hihat"></div></div>
+              <div class="grid-row"><span class="row-label">PERC</span><div class="step-cells" data-seq="drums" data-sound="perc"></div></div>
+            </div>
+          </div>
+
+          <!-- BASSLINE -->
+          <div class="seq-rack">
+            <div class="rack-title"><span class="badge badge-synth">BASS</span> 16-Step Pitch & Gate Sequencer</div>
+            <div class="step-grid-single">
+              <div class="row-label">BASS</div>
+              <div class="step-cells" data-seq="bass"></div>
+            </div>
+          </div>
+
+          <!-- LEAD SYNTH -->
+          <div class="seq-rack">
+            <div class="rack-title"><span class="badge badge-lead">LEAD</span> 16-Step Melodic Pitch Sequencer</div>
+            <div class="step-grid-single">
+              <div class="row-label">LEAD</div>
+              <div class="step-cells" data-seq="lead"></div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer Strip -->
+    <footer class="footer-strip">
+      <div class="footer-left">
+        <span>STATUS: <strong id="foot-status">READY</strong></span>
+        <span>AUDIO CONTEXT: <strong id="foot-ctx">STOPPED (48.0 kHz)</strong></span>
+      </div>
+      <div class="footer-right">
+        <span>TIME DILATION LIVE STUDIO &copy; 2026</span>
+        <span>UNIVERSAL TEMPORAL BUS</span>
+      </div>
+    </footer>
+  </div>
+
+  <script src="js/temporalBus.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/matrix.js"></script>
+  <script src="js/sequencer.js"></script>
+  <script src="js/visualizer.js"></script>
+  <script src="js/presets.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
