@@ -78,7 +78,33 @@ private:
     juce::Point<float> nodeResizeStartSize;
     juce::Point<float> lastMousePos{ 150.0f, 150.0f };
 
+    struct AutocompleteItem
+    {
+        std::string symbol;
+        std::string description;
+    };
+
+    class AutocompleteModel : public juce::ListBoxModel
+    {
+    public:
+        AutocompleteModel(RelativisticCanvasComponent& owner) : canvas(owner) {}
+        int getNumRows() override;
+        void paintListBoxItem(int rowNumber, juce::Graphics& g, int width, int height, bool rowIsSelected) override;
+        void listBoxItemClicked(int row, const juce::MouseEvent& e) override;
+
+    private:
+        RelativisticCanvasComponent& canvas;
+    };
+
     juce::TextEditor objectEditor;
+    juce::ListBox suggestionListBox;
+    AutocompleteModel autocompleteModel{ *this };
+    std::vector<AutocompleteItem> allCatalogueObjects;
+    std::vector<AutocompleteItem> filteredObjects;
+
+    void updateAutocompleteSuggestions();
+    void selectAutocompleteSuggestion(int row);
+
     bool isEditingObject = false;
     int editingNodeId = -1;
 

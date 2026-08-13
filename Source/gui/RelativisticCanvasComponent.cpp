@@ -22,8 +22,49 @@ RelativisticCanvasComponent::RelativisticCanvasComponent(RelativisticNodeGraph& 
 
     objectEditor.onReturnKey = [this]() { commitObjectCreation(); };
     objectEditor.onEscapeKey = [this]() { cancelObjectCreation(); };
+    objectEditor.onTextChange = [this]() { updateAutocompleteSuggestions(); };
 
     addChildComponent(objectEditor);
+
+    suggestionListBox.setModel(&autocompleteModel);
+    suggestionListBox.setRowHeight(22);
+    suggestionListBox.setColour(juce::ListBox::backgroundColourId, juce::Colour::fromRGB(0x0e, 0x12, 0x1c));
+    suggestionListBox.setColour(juce::ListBox::outlineColourId, CarbonGoldLookAndFeel::goldAccent);
+    suggestionListBox.setVisible(false);
+    addChildComponent(suggestionListBox);
+
+    allCatalogueObjects = {
+        { "spectrogram~", "Real-Time FFT Waterfall Spectrogram (0Hz - Nyquist)" },
+        { "spec~", "Alias for spectrogram~" },
+        { "meter~", "Precision Level Meter (Peak, RMS, LUFS modes)" },
+        { "meter~ rms", "RMS Level Meter" },
+        { "meter~ lufs", "EBU R128 LUFS Loudness Meter" },
+        { "vu~", "Alias for meter~ level meter" },
+        { "osc~ sin 440", "Anti-aliased PolyBLEP Sine Oscillator @ 440 Hz" },
+        { "osc~ saw 220", "Sawtooth Oscillator @ 220 Hz" },
+        { "osc~ square 110", "Square Wave Oscillator @ 110 Hz" },
+        { "osc~ tri 330", "Triangle Wave Oscillator @ 330 Hz" },
+        { "ladder~ 1500 0.5", "4-Pole Moog VA Ladder Filter (Cutoff: 1500Hz, Res: 0.5)" },
+        { "drive~ 2.0", "Hyperbolic WaveShaper Tube Distortion (Drive: 2.0)" },
+        { "saturate~ 2.5", "Alias for drive~ saturator" },
+        { "pluck~ 220", "Karplus-Strong Physical String Model (Pitch: 220Hz)" },
+        { "out~", "Master Stereo Output & Monitoring Node" },
+        { "time.lfo~ 0.5 0.8", "Relativistic Proper Time LFO (Rate: 0.5Hz, Depth: 0.8)" },
+        { "time.warp~ 1.5", "Relativistic Time Warp Node (\u03b3 = 1.5x speed)" },
+        { "time.grav.osc~ 1.0 2.0", "Gravitational Redshift Oscillator (Mass: 1.0, Radius: 2.0)" },
+        { "time.lorentz~ 1200 0.5", "Lorentz Velocity Filter (v = 0.5c)" },
+        { "time.tachyon.grain~ 50", "Faster-than-Light Granular Synthesizer (50ms grains)" },
+        { "time.transport~", "Relativistic Transport Master Clock" },
+        { "time.scope~", "Proper Time Telemetry Plot" },
+        { "table array1 44100", "Audio Sample Buffer Array (44100 samples)" },
+        { "tabread~ array1", "Audio Sample Buffer Reader" },
+        { "delay~ 2.0", "Feedback Delay Line (Max 2.0 seconds)" },
+        { "svf~ 1000 0.707", "State Variable Filter (Cutoff: 1000Hz, Q: 0.707)" },
+        { "seq notes 60 62 64 67", "Relativistic Step Sequencer" },
+        { "mtof", "MIDI Note to Frequency Converter" },
+        { "msg play", "Parameter Control Message Box ('play')" },
+        { "msg cutoff 1200", "Parameter Control Message Box ('cutoff 1200')" }
+    };
 
     recenterButton.setButtonText("Recenter View");
     recenterButton.onClick = [this]() { recenterView(); };
@@ -681,6 +722,86 @@ void RelativisticCanvasComponent::resized()
     recenterButton.setBounds(getWidth() - 110, getHeight() - 35, 100, 24);
 }
 
+void RelativisticCanvasComponent::updateAutocompleteSuggestions()
+{
+    if (!isEditingObject)
+    {
+        suggestionListBox.setVisible(false);
+        return;
+    }
+
+    juce::String text = objectEditor.getText().toLowerCase().trim();
+    filteredObjects.clear();
+
+    for (const auto& item : allCatalogueObjects)
+    {
+        juce::String sym = juce::String(item.symbol).toLowerCase();
+        juce::String desc = juce::String(item.description).toLowerCase();
+
+        if (text.isEmpty() || sym.contains(text) || desc.contains(text))
+        {
+            filteredObjects.push_back(item);
+        }
+    }
+
+    if (!filteredObjects.empty())
+    {
+        int x = objectEditor.getX();
+        int y = objectEditor.getBottom() + 2;
+        int w = std::max(320, objectEditor.getWidth());
+        int h = std::min(180, static_cast<int>(filteredObjects.size()) * 22 + 6);
+
+        if (y + h > getHeight()) y = objectEditor.getY() - h - 2;
+
+        suggestionListBox.setBounds(x, y, w, h);
+        suggestionListBox.updateContent();
+        suggestionListBox.setVisible(true);
+        suggestionListBox.toFront(false);
+    }
+    else
+    {
+        suggestionListBox.setVisible(false);
+    }
+}
+
+void RelativisticCanvasComponent::selectAutocompleteSuggestion(int row)
+{
+    if (row >= 0 && row < static_cast<int>(filteredObjects.size()))
+    {
+        objectEditor.setText(filteredObjects[static_cast<size_t>(row)].symbol);
+        commitObjectCreation();
+    }
+}
+
+int RelativisticCanvasComponent::AutocompleteModel::getNumRows()
+{
+    return static_cast<int>(canvas.filteredObjects.size());
+}
+
+void RelativisticCanvasComponent::AutocompleteModel::paintListBoxItem(int rowNumber, juce::Graphics& g, int width, int height, bool rowIsSelected)
+{
+    if (rowNumber < 0 || rowNumber >= static_cast<int>(canvas.filteredObjects.size())) return;
+
+    if (rowIsSelected) g.fillAll(CarbonGoldLookAndFeel::goldAccent.withAlpha(0.25f));
+    else g.fillAll(juce::Colour::fromRGB(0x0e, 0x12, 0x1c));
+
+    const auto& item = canvas.filteredObjects[static_cast<size_t>(rowNumber)];
+
+    g.setColour(CarbonGoldLookAndFeel::goldAccent);
+    g.setFont(juce::Font(11.5f, juce::Font::bold));
+    g.drawText(item.symbol, 6, 0, 130, height, juce::Justification::centredLeft, true);
+
+    g.setColour(juce::Colours::lightgrey);
+    g.setFont(10.0f);
+    g.drawText(item.description, 140, 0, width - 146, height, juce::Justification::centredLeft, true);
+}
+
+void RelativisticCanvasComponent::AutocompleteModel::listBoxItemClicked(int row, const juce::MouseEvent& e)
+{
+    juce::ignoreUnused(e);
+    canvas.selectAutocompleteSuggestion(row);
+}
+
 void RelativisticCanvasComponent::spawnObjectEditorAt(juce::Point<float> pos)
 {
     lastMousePos = pos;
@@ -690,6 +811,7 @@ void RelativisticCanvasComponent::spawnObjectEditorAt(juce::Point<float> pos)
     objectEditor.setBounds(static_cast<int>(pos.x), static_cast<int>(pos.y), 140, 30);
     objectEditor.setVisible(true);
     objectEditor.grabKeyboardFocus();
+    updateAutocompleteSuggestions();
 }
 
 void RelativisticCanvasComponent::spawnObjectEditorForNode(int nodeId)
@@ -706,6 +828,7 @@ void RelativisticCanvasComponent::spawnObjectEditorForNode(int nodeId)
     objectEditor.setVisible(true);
     objectEditor.selectAll();
     objectEditor.grabKeyboardFocus();
+    updateAutocompleteSuggestions();
 }
 
 void RelativisticCanvasComponent::commitObjectCreation()
@@ -714,6 +837,7 @@ void RelativisticCanvasComponent::commitObjectCreation()
 
     juce::String text = objectEditor.getText().trim();
     objectEditor.setVisible(false);
+    suggestionListBox.setVisible(false);
     isEditingObject = false;
 
     if (text.isNotEmpty())
@@ -748,6 +872,7 @@ void RelativisticCanvasComponent::commitObjectCreation()
 void RelativisticCanvasComponent::cancelObjectCreation()
 {
     objectEditor.setVisible(false);
+    suggestionListBox.setVisible(false);
     isEditingObject = false;
     editingNodeId = -1;
     repaint();
