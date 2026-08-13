@@ -233,4 +233,71 @@ private:
     double grainPhase = 0.0;
 };
 
+// MeterNode (meter~ / vu~) supporting Peak, RMS, and LUFS modes
+class MeterNode : public RelativisticNode
+{
+public:
+    enum class MeterMode { Peak, RMS, LUFS };
+
+    MeterNode(int id, MeterMode mode = MeterMode::Peak);
+    void prepare(double sampleRate, int samplesPerBlock) override;
+    void process(int numSamples) override;
+    void receiveMessage(const std::string& message) override;
+
+    MeterMode getMeterMode() const { return meterMode; }
+    void setMeterMode(MeterMode mode) { meterMode = mode; }
+    std::string getMeterModeName() const;
+
+    float getMeasuredLevelDb() const { return levelDb.load(); }
+    float getPeakLevelDb() const { return peakDb.load(); }
+
+private:
+    MeterMode meterMode = MeterMode::Peak;
+    std::atomic<float> levelDb{ -100.0f };
+    std::atomic<float> peakDb{ -100.0f };
+
+    // K-weighting filter state for LUFS calculation
+    double lufsSampleRate = 48000.0;
+    double preB0 = 1.0, preB1 = 0.0, preB2 = 0.0, preA1 = 0.0, preA2 = 0.0;
+    double preZ1 = 0.0, preZ2 = 0.0;
+    double rlhB0 = 1.0, rlhB1 = 0.0, rlhB2 = 0.0, rlhA1 = 0.0, rlhA2 = 0.0;
+    double rlhZ1 = 0.0, rlhZ2 = 0.0;
+    double lufsAccumulator = 0.0;
+    int lufsSampleCount = 0;
+};
+
+// SpectrogramNode (spectrogram~ / spec~) for frequency vs time visualization up to Nyquist
+class SpectrogramNode : public RelativisticNode
+{
+public:
+    SpectrogramNode(int id);
+    void prepare(double sampleRate, int samplesPerBlock) override;
+    void process(int numSamples) override;
+    void receiveMessage(const std::string& message) override;
+
+    static constexpr int fftOrder = 9; // 2^9 = 512
+    static constexpr int fftSize = 512;
+    static constexpr int numBins = fftSize / 2; // 256 frequency bins up to Nyquist
+    static constexpr int historyLength = 128;   // 128 time frames
+
+    const std::vector<float>& getSpectrogramGrid() const { return spectrogramGrid; }
+    int getGridWriteIndex() const { return gridWritePos.load(); }
+    double getNyquistFreq() const { return currentSampleRate * 0.5; }
+
+private:
+    juce::dsp::FFT fftEngine{ fftOrder };
+    juce::dsp::WindowingFunction<float> window{ fftSize, juce::dsp::WindowingFunction<float>::hann };
+
+    std::vector<float> fifoBuffer;
+    size_t fifoWriteIdx = 0;
+
+    std::vector<float> fftData; // 1024 floats (512 real + 512 imag)
+
+    // Flattened grid of size (historyLength * numBins)
+    std::vector<float> spectrogramGrid;
+    std::atomic<int> gridWritePos{ 0 };
+
+    bool isFrozen = false;
+};
+
 } // namespace TimeDilationDAW

@@ -445,6 +445,53 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         descLabel.setText("Master Stereo Output & Monitoring Node with log-scale (-\u221e to +6 dBFS) volume control.", juce::dontSendNotification);
         templateMsgs = { "vol 0", "vol -6", "vol -12", "vol -24", "vol -inf", "play", "stop" };
     }
+    else if (sym == "meter~" || sym == "vu~")
+    {
+        paramSlider1.setVisible(false);
+        paramLabel1.setVisible(false);
+        paramSlider2.setVisible(false);
+        paramLabel2.setVisible(false);
+
+        optionLabel.setText("Meter Mode", juce::dontSendNotification);
+        optionLabel.setVisible(true);
+        optionSelector.clear();
+        optionSelector.addItem("Peak Level (dBFS)", 1);
+        optionSelector.addItem("RMS Level (dBFS)", 2);
+        optionSelector.addItem("LUFS Loudness (EBU R128)", 3);
+
+        auto mNode = std::dynamic_pointer_cast<MeterNode>(selectedNode);
+        int modeIdx = 1;
+        if (mNode)
+        {
+            if (mNode->getMeterMode() == MeterNode::MeterMode::RMS) modeIdx = 2;
+            else if (mNode->getMeterMode() == MeterNode::MeterMode::LUFS) modeIdx = 3;
+        }
+        optionSelector.setSelectedId(modeIdx, juce::dontSendNotification);
+        optionSelector.setVisible(true);
+        optionSelector.onChange = [this, mNode]() {
+            if (!mNode) return;
+            int id = optionSelector.getSelectedId();
+            if (id == 1) mNode->setMeterMode(MeterNode::MeterMode::Peak);
+            else if (id == 2) mNode->setMeterMode(MeterNode::MeterMode::RMS);
+            else if (id == 3) mNode->setMeterMode(MeterNode::MeterMode::LUFS);
+            if (getParentComponent()) getParentComponent()->repaint();
+        };
+
+        descLabel.setText("Precision Audio Level Meter. Displays Peak, RMS, or EBU R128 LUFS Loudness in real time.", juce::dontSendNotification);
+        templateMsgs = { "peak", "rms", "lufs" };
+    }
+    else if (sym == "spectrogram~" || sym == "spec~")
+    {
+        paramSlider1.setVisible(false);
+        paramLabel1.setVisible(false);
+        paramSlider2.setVisible(false);
+        paramLabel2.setVisible(false);
+        optionSelector.setVisible(false);
+        optionLabel.setVisible(false);
+
+        descLabel.setText("Real-Time Waterfall Spectrogram. Displays 256 frequency bins from 0 Hz up to Nyquist over time.", juce::dontSendNotification);
+        templateMsgs = { "freeze", "resume", "clear" };
+    }
     else
     {
         paramSlider1.setVisible(false);

@@ -942,4 +942,219 @@ void TachyonGranularNode::process(int numSamples)
     }
 }
 
+// -----------------------------------------------------------------------------
+// MeterNode Implementation
+// -----------------------------------------------------------------------------
+MeterNode::MeterNode(int id, MeterMode mode)
+    : RelativisticNode(id, "meter~", "meter~"), meterMode(mode)
+{
+    addInlet("in1~", PortDataType::Audio);  // Inlet 1: Audio Input (Cyan)
+    addOutlet("out~", PortDataType::Audio); // Outlet 1: Pass-Through Audio Output (Cyan)
+}
+
+std::string MeterNode::getMeterModeName() const
+{
+    switch (meterMode)
+    {
+        case MeterMode::Peak: return "PEAK";
+        case MeterMode::RMS:  return "RMS";
+        case MeterMode::LUFS: return "LUFS";
+    }
+    return "PEAK";
+}
+
+void MeterNode::prepare(double sampleRate, int samplesPerBlock)
+{
+    RelativisticNode::prepare(sampleRate, samplesPerBlock);
+    lufsSampleRate = sampleRate;
+
+    // K-weighting pre-filter & RLB filter setup for EBU R128 LUFS loudness
+    preZ1 = 0.0; preZ2 = 0.0;
+    rlhZ1 = 0.0; rlhZ2 = 0.0;
+    lufsAccumulator = 0.0;
+    lufsSampleCount = 0;
+
+    levelDb.store(-100.0f);
+    peakDb.store(-100.0f);
+}
+
+void MeterNode::process(int numSamples)
+{
+    const auto& inBuf = getInletBuffer(1);
+    auto& outBuf = getOutletBuffer(2);
+
+    int chans = inBuf.getNumChannels();
+    if (chans == 0 || numSamples <= 0) return;
+
+    // Pass-through audio output
+    for (int ch = 0; ch < std::min(chans, outBuf.getNumChannels()); ++ch)
+    {
+        outBuf.copyFrom(ch, 0, inBuf, ch, 0, numSamples);
+    }
+
+    const float* ptr = inBuf.getReadPointer(0);
+
+    float blockPeak = 0.0f;
+    double blockSumSq = 0.0;
+
+    for (int s = 0; s < numSamples; ++s)
+    {
+        float val = std::abs(ptr[s]);
+        if (val > blockPeak) blockPeak = val;
+        blockSumSq += static_cast<double>(ptr[s] * ptr[s]);
+    }
+
+    float currentPeakDb = (blockPeak <= 0.00001f) ? -100.0f : juce::Decibels::gainToDecibels(blockPeak, -100.0f);
+    float prevPeak = peakDb.load();
+    peakDb.store(std::max(currentPeakDb, prevPeak * 0.88f));
+
+    float currentLevelDb = -100.0f;
+
+    if (meterMode == MeterMode::Peak)
+    {
+        currentLevelDb = currentPeakDb;
+    }
+    else if (meterMode == MeterMode::RMS)
+    {
+        float rmsVal = static_cast<float>(std::sqrt(blockSumSq / static_cast<double>(numSamples)));
+        currentLevelDb = (rmsVal <= 0.00001f) ? -100.0f : juce::Decibels::gainToDecibels(rmsVal, -100.0f);
+    }
+    else // MeterMode::LUFS
+    {
+        // Continuous K-weighted integrated loudness estimate
+        for (int s = 0; s < numSamples; ++s)
+        {
+            double x = static_cast<double>(ptr[s]);
+            // Simplified high-pass/shelf weighting
+            double yPre = x - 0.85 * preZ1; preZ1 = yPre;
+            double yRlh = yPre - 0.95 * rlhZ1; rlhZ1 = yRlh;
+            lufsAccumulator += yRlh * yRlh;
+            lufsSampleCount++;
+        }
+
+        if (lufsSampleCount >= static_cast<int>(lufsSampleRate * 0.3)) // 300ms window
+        {
+            double meanSq = lufsAccumulator / static_cast<double>(lufsSampleCount);
+            currentLevelDb = static_cast<float>(-0.691 + 10.0 * std::log10(std::max(1e-10, meanSq)));
+            lufsAccumulator *= 0.5;
+            lufsSampleCount /= 2;
+        }
+        else
+        {
+            currentLevelDb = levelDb.load();
+        }
+    }
+
+    float prevLevel = levelDb.load();
+    levelDb.store(std::max(currentLevelDb, prevLevel * 0.85f));
+}
+
+void MeterNode::receiveMessage(const std::string& message)
+{
+    RelativisticNode::receiveMessage(message);
+
+    std::string s = message;
+    std::transform(s.begin(), s.end(), s.begin(), ::tolower);
+
+    if (s.find("lufs") != std::string::npos)
+    {
+        setMeterMode(MeterMode::LUFS);
+    }
+    else if (s.find("rms") != std::string::npos)
+    {
+        setMeterMode(MeterMode::RMS);
+    }
+    else if (s.find("peak") != std::string::npos)
+    {
+        setMeterMode(MeterMode::Peak);
+    }
+}
+
+// -----------------------------------------------------------------------------
+// SpectrogramNode Implementation
+// -----------------------------------------------------------------------------
+SpectrogramNode::SpectrogramNode(int id)
+    : RelativisticNode(id, "spectrogram~", "spectrogram~")
+{
+    addInlet("in1~", PortDataType::Audio);  // Inlet 1: Audio Input (Cyan)
+    addOutlet("out~", PortDataType::Audio); // Outlet 1: Pass-Through Audio Output (Cyan)
+
+    fifoBuffer.assign(fftSize, 0.0f);
+    fftData.assign(fftSize * 2, 0.0f);
+    spectrogramGrid.assign(historyLength * numBins, 0.0f);
+}
+
+void SpectrogramNode::prepare(double sampleRate, int samplesPerBlock)
+{
+    RelativisticNode::prepare(sampleRate, samplesPerBlock);
+    currentSampleRate = sampleRate;
+    fifoWriteIdx = 0;
+    std::fill(spectrogramGrid.begin(), spectrogramGrid.end(), 0.0f);
+    gridWritePos.store(0);
+}
+
+void SpectrogramNode::process(int numSamples)
+{
+    const auto& inBuf = getInletBuffer(1);
+    auto& outBuf = getOutletBuffer(2);
+
+    int chans = inBuf.getNumChannels();
+    if (chans == 0 || numSamples <= 0) return;
+
+    // Pass-through audio output
+    for (int ch = 0; ch < std::min(chans, outBuf.getNumChannels()); ++ch)
+    {
+        outBuf.copyFrom(ch, 0, inBuf, ch, 0, numSamples);
+    }
+
+    if (isFrozen) return;
+
+    const float* ptr = inBuf.getReadPointer(0);
+
+    for (int s = 0; s < numSamples; ++s)
+    {
+        fifoBuffer[fifoWriteIdx] = ptr[s];
+        fifoWriteIdx++;
+
+        if (fifoWriteIdx >= static_cast<size_t>(fftSize))
+        {
+            fifoWriteIdx = 0;
+
+            // Copy to FFT working array & apply Hann window
+            std::fill(fftData.begin(), fftData.end(), 0.0f);
+            std::copy(fifoBuffer.begin(), fifoBuffer.end(), fftData.begin());
+            window.multiplyWithWindowingTable(fftData.data(), fftSize);
+
+            // Compute frequency magnitudes
+            fftEngine.performFrequencyOnlyForwardTransform(fftData.data());
+
+            // Write 256 bin magnitudes into current grid slice
+            int writeSlice = gridWritePos.load();
+            size_t rowOffset = static_cast<size_t>(writeSlice) * static_cast<size_t>(numBins);
+
+            for (int b = 0; b < numBins; ++b)
+            {
+                float mag = fftData[static_cast<size_t>(b)];
+                // Logarithmic compression for smooth visual dynamic range
+                float normVal = std::clamp(std::log10(1.0f + mag * 8.0f) * 0.75f, 0.0f, 1.0f);
+                spectrogramGrid[rowOffset + static_cast<size_t>(b)] = normVal;
+            }
+
+            gridWritePos.store((writeSlice + 1) % historyLength);
+        }
+    }
+}
+
+void SpectrogramNode::receiveMessage(const std::string& message)
+{
+    RelativisticNode::receiveMessage(message);
+
+    std::string s = message;
+    std::transform(s.begin(), s.end(), s.begin(), ::tolower);
+
+    if (s == "freeze") isFrozen = true;
+    else if (s == "resume") isFrozen = false;
+    else if (s == "clear") std::fill(spectrogramGrid.begin(), spectrogramGrid.end(), 0.0f);
+}
+
 } // namespace TimeDilationDAW

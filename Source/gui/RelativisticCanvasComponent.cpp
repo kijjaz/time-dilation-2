@@ -341,6 +341,93 @@ void RelativisticCanvasComponent::paint(juce::Graphics& g)
                 g.setFont(9.0f);
                 g.drawText(valBuf, waveArea.reduced(2.0f, 1.0f), juce::Justification::topRight, false);
             }
+            else if (auto meterNode = std::dynamic_pointer_cast<MeterNode>(node))
+            {
+                g.setColour(juce::Colour::fromRGB(0x0a, 0x0c, 0x10));
+                g.fillRect(scopeBox);
+
+                float levelDb = meterNode->getMeasuredLevelDb();
+                float peakDb = meterNode->getPeakLevelDb();
+                std::string modeName = meterNode->getMeterModeName();
+
+                // Map dB [-60.0 to +6.0] -> [0.0 to 1.0] norm level
+                float normLevel = std::clamp((levelDb + 60.0f) / 66.0f, 0.0f, 1.0f);
+                float normPeak = std::clamp((peakDb + 60.0f) / 66.0f, 0.0f, 1.0f);
+
+                auto meterBar = scopeBox.reduced(6.0f, 8.0f);
+                float fillW = meterBar.getWidth() * normLevel;
+                auto fillRect = meterBar.withWidth(fillW);
+
+                juce::ColourGradient grad(CarbonGoldLookAndFeel::cyberCyan, meterBar.getX(), meterBar.getY(),
+                                          (levelDb > 0.0f ? juce::Colours::red : CarbonGoldLookAndFeel::goldAccent), meterBar.getRight(), meterBar.getY(), false);
+                g.setGradientFill(grad);
+                g.fillRect(fillRect);
+
+                // Peak indicator line
+                float peakX = meterBar.getX() + meterBar.getWidth() * normPeak;
+                g.setColour(juce::Colours::white);
+                g.drawVerticalLine(static_cast<int>(peakX), meterBar.getY(), meterBar.getBottom());
+
+                g.setColour(CarbonGoldLookAndFeel::slatePanel.brighter());
+                g.drawRect(meterBar, 1.0f);
+
+                // Mode & dB Level Overlay Text
+                juce::String tagText = "[" + juce::String(modeName) + "] " +
+                    (levelDb <= -99.0f ? "-\u221e dB" : juce::String(levelDb, 1) + (meterNode->getMeterMode() == MeterNode::MeterMode::LUFS ? " LUFS" : " dB"));
+                g.setColour(CarbonGoldLookAndFeel::goldAccent);
+                g.setFont(juce::Font(10.0f, juce::Font::bold));
+                g.drawText(tagText, scopeBox.reduced(4.0f, 2.0f), juce::Justification::topRight, false);
+            }
+            else if (auto specNode = std::dynamic_pointer_cast<SpectrogramNode>(node))
+            {
+                g.setColour(juce::Colour::fromRGB(0x06, 0x09, 0x12));
+                g.fillRect(scopeBox);
+
+                const auto& grid = specNode->getSpectrogramGrid();
+                int writeSlice = specNode->getGridWriteIndex();
+                int numBins = SpectrogramNode::numBins;
+                int histLen = SpectrogramNode::historyLength;
+
+                if (!grid.empty())
+                {
+                    int w = static_cast<int>(scopeBox.getWidth());
+                    int h = static_cast<int>(scopeBox.getHeight());
+                    if (w > 0 && h > 0)
+                    {
+                        juce::Image specImg(juce::Image::RGB, histLen, numBins, true);
+                        for (int t = 0; t < histLen; ++t)
+                        {
+                            int sliceIdx = (writeSlice + t) % histLen;
+                            size_t rowOffset = static_cast<size_t>(sliceIdx) * static_cast<size_t>(numBins);
+
+                            for (int b = 0; b < numBins; ++b)
+                            {
+                                float val = grid[rowOffset + static_cast<size_t>(b)];
+                                int py = numBins - 1 - b; // Nyquist freq at top, 0 Hz at bottom
+
+                                // Carbon & Gold Colorful Spectrogram Palette (Non-distracting)
+                                juce::Colour col;
+                                if (val < 0.05f) col = juce::Colour::fromRGB(0x06, 0x09, 0x12);
+                                else if (val < 0.25f) col = juce::Colour::fromRGB(0x28, 0x12, 0x48); // Royal Violet low
+                                else if (val < 0.55f) col = juce::Colour::fromRGB(0x00, 0x88, 0xcc); // Cyber Cyan mid
+                                else if (val < 0.85f) col = juce::Colour::fromRGB(0xd4, 0x98, 0x00); // Warm Gold high
+                                else col = juce::Colour::fromRGB(0xff, 0xf0, 0xd0);                 // Gold-White peak
+
+                                specImg.setPixelAt(t, py, col);
+                            }
+                        }
+
+                        g.drawImage(specImg, scopeBox, juce::RectanglePlacement::stretchToFit);
+                    }
+                }
+
+                // Nyquist and Spectrum Overlay Label
+                double nyquist = specNode->getNyquistFreq();
+                juce::String nyquistStr = "0Hz - " + juce::String(static_cast<int>(nyquist / 1000.0)) + "kHz";
+                g.setColour(CarbonGoldLookAndFeel::cyberCyan.withAlpha(0.9f));
+                g.setFont(9.0f);
+                g.drawText(nyquistStr, scopeBox.reduced(3.0f, 2.0f), juce::Justification::topRight, false);
+            }
             else if (node->scopeMode == RelativisticNode::ScopeRenderMode::Waveform2D)
             {
                 // 2D Waveform Scope (Audio Output or Proper Time Telemetry Plot)

@@ -164,6 +164,19 @@ std::shared_ptr<RelativisticNode> RelativisticNodeFactory::createNode(int nodeId
         if (ss >> dur) {}
         return std::make_shared<TachyonGranularNode>(nodeId, dur);
     }
+    else if (symbol == "meter~" || symbol == "vu~")
+    {
+        std::string modeStr = "peak";
+        if (ss >> modeStr) {}
+        MeterNode::MeterMode m = MeterNode::MeterMode::Peak;
+        if (modeStr == "rms") m = MeterNode::MeterMode::RMS;
+        else if (modeStr == "lufs") m = MeterNode::MeterMode::LUFS;
+        return std::make_shared<MeterNode>(nodeId, m);
+    }
+    else if (symbol == "spectrogram~" || symbol == "spec~")
+    {
+        return std::make_shared<SpectrogramNode>(nodeId);
+    }
     else if (symbol == "patch~")
     {
         std::string patchName = "synth.voice~";
