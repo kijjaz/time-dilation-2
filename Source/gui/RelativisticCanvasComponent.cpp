@@ -1026,13 +1026,16 @@ void RelativisticCanvasComponent::mouseDown(const juce::MouseEvent& e)
                 return;
             }
 
-            // If clicked a MessageNode, dispatch its message down connected cables!
-            if (node->getSymbol() == "msg")
+            // ONLY DISPATCH MESSAGE ON Cmd-Click (or Ctrl-Click)! Normal click is strictly for editing/selection!
+            if (e.mods.isCommandDown() || e.mods.isCtrlDown())
             {
-                auto msgNode = std::dynamic_pointer_cast<MessageNode>(node);
-                if (msgNode)
+                juce::String sym = juce::String(node->getSymbol()).toLowerCase();
+                if (sym == "msg" || sym == "message" || sym == "bng" || sym == "bang" || sym == "number" || sym == "radio" || sym == "toggle")
                 {
-                    std::string msgText = msgNode->getMessageText();
+                    auto msgNode = std::dynamic_pointer_cast<MessageNode>(node);
+                    std::string msgText = msgNode ? msgNode->getMessageText() : node->getLabel();
+                    if (msgText.empty()) msgText = "play";
+
                     for (const auto& conn : currGraph.getConnections())
                     {
                         if (conn.sourceNodeId == node->getId())
