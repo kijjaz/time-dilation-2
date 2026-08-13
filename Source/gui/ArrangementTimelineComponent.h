@@ -53,6 +53,21 @@ public:
     void spawnEventEditor(int targetNodeId, int trackIdx, double timeSec, int existingEventId = -1);
     void commitEventEditor();
 
+    const std::vector<TimelineMessageEvent>& getMessageEvents() const { return messageEvents; }
+    void clearMessageEvents() { messageEvents.clear(); selectedEventId = -1; repaint(); }
+
+    double getLoopStartSec() const { return loopStartSec; }
+    double getLoopEndSec() const { return loopEndSec; }
+    bool isLoopActive() const { return isLoopEnabled; }
+    void setLoopRange(double startSec, double endSec, bool enableLoop)
+    {
+        loopStartSec = startSec;
+        loopEndSec = endSec;
+        isLoopEnabled = enableLoop;
+        loopButton.setButtonText(isLoopEnabled ? "LOOP ON" : "LOOP OFF");
+        repaint();
+    }
+
     std::function<void(int nodeId)> onInspectNodePatch;
 
 private:

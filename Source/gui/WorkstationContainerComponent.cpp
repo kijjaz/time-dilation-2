@@ -105,17 +105,21 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
     fileMenuButton.onClick = [this]() {
         juce::PopupMenu m;
         m.addItem(1, "New Patch (Cmd+N)");
-        m.addItem(2, "Open Patch (.pdil)...");
+        m.addItem(2, "Open Patch (.pdil)... (Cmd+O)");
         m.addSeparator();
-        m.addItem(3, "Save Patch (.pdil)");
-        m.addItem(4, "Save As...");
+        m.addItem(3, "Save Patch (.pdil) (Cmd+S)");
+        m.addItem(4, "Save As... (Cmd+Shift+S)");
         m.addSeparator();
         m.addItem(5, "Audio Settings (Interface, Sample Rate, Buffer Size)...");
         m.addSeparator();
         m.addItem(6, "Quit");
         m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&fileMenuButton), [this](int result) {
-            if (result == 1) setupDefaultPatch();
+            if (result == 1) newPatch();
+            else if (result == 2) loadPatchFromFile(juce::File{});
+            else if (result == 3) savePatch();
+            else if (result == 4) savePatchAs();
             else if (result == 5) showAudioSettingsWindow();
+            else if (result == 6) juce::JUCEApplication::getInstance()->systemRequestedQuit();
         });
     };
 
@@ -533,6 +537,184 @@ void WorkstationContainerComponent::setupExperimentalistTemplate()
     nodeGraph.addConnection(3, 0, 2, 2);
 
     nextNodeId = 5;
+}
+
+bool WorkstationContainerComponent::keyPressed(const juce::KeyPress& key)
+{
+    if (key.getModifiers().isCommandDown() || key.getModifiers().isCtrlDown())
+    {
+        if (key.getKeyCode() == 'S' || key.getKeyCode() == 's')
+        {
+            if (key.getModifiers().isShiftDown()) savePatchAs();
+            else savePatch();
+            return true;
+        }
+        else if (key.getKeyCode() == 'O' || key.getKeyCode() == 'o')
+        {
+            loadPatchFromFile(juce::File{});
+            return true;
+        }
+        else if (key.getKeyCode() == 'N' || key.getKeyCode() == 'n')
+        {
+            newPatch();
+            return true;
+        }
+    }
+    return false;
+}
+
+void WorkstationContainerComponent::newPatch()
+{
+    currentPatchFile = juce::File{};
+    setupDefaultPatch();
+    titleLabel.setText("Time Dilation DAW 2 — Untitled.pdil", juce::dontSendNotification);
+}
+
+void WorkstationContainerComponent::savePatch()
+{
+    if (currentPatchFile.existsAsFile())
+    {
+        juce::DynamicObject::Ptr rootObj = new juce::DynamicObject();
+
+        // 1. Serialize Node Graph
+        juce::String graphJsonStr = nodeGraph.serializeToJSON();
+        auto parsedGraph = juce::JSON::parse(graphJsonStr);
+        if (parsedGraph.isObject())
+        {
+            rootObj->setProperty("graph", parsedGraph);
+        }
+
+        // 2. Serialize Arrangement Timeline Message Events
+        juce::Array<juce::var> eventsArr;
+        for (const auto& ev : arrangementTimelineComponent.getMessageEvents())
+        {
+            juce::DynamicObject::Ptr eObj = new juce::DynamicObject();
+            eObj->setProperty("eventId", ev.eventId);
+            eObj->setProperty("targetNodeId", ev.targetNodeId);
+            eObj->setProperty("trackIndex", ev.trackIndex);
+            eObj->setProperty("timeSec", ev.timeSec);
+            eObj->setProperty("messageText", ev.messageText);
+            eventsArr.add(juce::var(eObj.get()));
+        }
+        rootObj->setProperty("timelineEvents", eventsArr);
+
+        // 3. Serialize Master Transport & Loop Settings
+        juce::DynamicObject::Ptr transportObj = new juce::DynamicObject();
+        transportObj->setProperty("bpm", bpmSlider.getValue());
+        transportObj->setProperty("timeSigId", timeSigCombo.getSelectedId());
+        transportObj->setProperty("loopStartSec", arrangementTimelineComponent.getLoopStartSec());
+        transportObj->setProperty("loopEndSec", arrangementTimelineComponent.getLoopEndSec());
+        transportObj->setProperty("isLoopEnabled", arrangementTimelineComponent.isLoopActive());
+        rootObj->setProperty("transport", juce::var(transportObj.get()));
+
+        juce::String fullJson = juce::JSON::toString(juce::var(rootObj.get()), false);
+        currentPatchFile.replaceWithText(fullJson);
+
+        titleLabel.setText("Time Dilation DAW 2 — " + currentPatchFile.getFileName(), juce::dontSendNotification);
+    }
+    else
+    {
+        savePatchAs();
+    }
+}
+
+void WorkstationContainerComponent::savePatchAs()
+{
+    activeFileChooser = std::make_unique<juce::FileChooser>(
+        "Save Relativistic Patch As...",
+        juce::File::getSpecialLocation(juce::File::userHomeDirectory).getChildFile("Untitled.pdil"),
+        "*.pdil");
+
+    activeFileChooser->launchAsync(
+        juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles,
+        [this](const juce::FileChooser& fc) {
+            auto result = fc.getResult();
+            if (result != juce::File{})
+            {
+                currentPatchFile = result.withFileExtension(".pdil");
+                savePatch();
+            }
+        });
+}
+
+void WorkstationContainerComponent::loadPatchFromFile(const juce::File& fileToLoad)
+{
+    if (fileToLoad.existsAsFile())
+    {
+        juce::String jsonStr = fileToLoad.loadFileAsString();
+        auto parsed = juce::JSON::parse(jsonStr);
+        if (parsed.isObject())
+        {
+            auto rootObj = parsed.getDynamicObject();
+            if (rootObj)
+            {
+                // 1. Restore Node Graph
+                if (rootObj->hasProperty("graph"))
+                {
+                    juce::String graphStr = juce::JSON::toString(rootObj->getProperty("graph"));
+                    nodeGraph.deserializeFromJSON(graphStr.toStdString());
+                }
+
+                // 2. Restore Timeline Message Events
+                arrangementTimelineComponent.clearMessageEvents();
+                if (rootObj->hasProperty("timelineEvents"))
+                {
+                    auto evsVar = rootObj->getProperty("timelineEvents");
+                    if (evsVar.isArray())
+                    {
+                        for (const auto& evVar : *evsVar.getArray())
+                        {
+                            if (auto eObj = evVar.getDynamicObject())
+                            {
+                                int targetNodeId = eObj->getProperty("targetNodeId");
+                                int trackIdx = eObj->getProperty("trackIndex");
+                                double timeSec = eObj->getProperty("timeSec");
+                                juce::String msg = eObj->getProperty("messageText");
+                                arrangementTimelineComponent.addMessageEvent(targetNodeId, trackIdx, timeSec, msg);
+                            }
+                        }
+                    }
+                }
+
+                // 3. Restore Transport & Loop Settings
+                if (rootObj->hasProperty("transport"))
+                {
+                    if (auto tObj = rootObj->getProperty("transport").getDynamicObject())
+                    {
+                        if (tObj->hasProperty("bpm")) bpmSlider.setValue(tObj->getProperty("bpm"));
+                        if (tObj->hasProperty("timeSigId")) timeSigCombo.setSelectedId(tObj->getProperty("timeSigId"));
+                        double lStart = tObj->hasProperty("loopStartSec") ? static_cast<double>(tObj->getProperty("loopStartSec")) : 0.0;
+                        double lEnd = tObj->hasProperty("loopEndSec") ? static_cast<double>(tObj->getProperty("loopEndSec")) : 16.0;
+                        bool lActive = tObj->hasProperty("isLoopEnabled") ? static_cast<bool>(tObj->getProperty("isLoopEnabled")) : true;
+                        arrangementTimelineComponent.setLoopRange(lStart, lEnd, lActive);
+                    }
+                }
+
+                currentPatchFile = fileToLoad;
+                titleLabel.setText("Time Dilation DAW 2 — " + currentPatchFile.getFileName(), juce::dontSendNotification);
+                canvasComponent.repaint();
+                trackViewComponent.refreshTracks();
+                arrangementTimelineComponent.refreshTimeline();
+            }
+        }
+    }
+    else
+    {
+        activeFileChooser = std::make_unique<juce::FileChooser>(
+            "Open Relativistic Patch...",
+            juce::File::getSpecialLocation(juce::File::userHomeDirectory),
+            "*.pdil");
+
+        activeFileChooser->launchAsync(
+            juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+            [this](const juce::FileChooser& fc) {
+                auto result = fc.getResult();
+                if (result.existsAsFile())
+                {
+                    loadPatchFromFile(result);
+                }
+            });
+    }
 }
 
 } // namespace TimeDilationDAW

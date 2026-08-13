@@ -172,6 +172,16 @@ private:
     juce::AudioDeviceManager deviceManager;
     juce::AudioSourcePlayer audioSourcePlayer;
 
+    bool keyPressed(const juce::KeyPress& key) override;
+
+    void newPatch();
+    void savePatch();
+    void savePatchAs();
+    void loadPatchFromFile(const juce::File& fileToLoad);
+
+    juce::File currentPatchFile;
+    std::unique_ptr<juce::FileChooser> activeFileChooser;
+
     void setupDefaultPatch();
     void showAudioSettingsWindow();
 };

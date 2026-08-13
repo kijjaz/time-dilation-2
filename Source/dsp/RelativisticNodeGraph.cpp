@@ -752,6 +752,13 @@ std::string RelativisticNodeGraph::serializeToJSON() const
         nObj->setProperty("label", juce::String(node->getLabel()));
         nObj->setProperty("xPos", node->xPos);
         nObj->setProperty("yPos", node->yPos);
+        nObj->setProperty("width", node->width);
+        nObj->setProperty("height", node->height);
+        nObj->setProperty("outputVolume", node->outputVolume);
+        nObj->setProperty("showRealtimeDisplay", node->showRealtimeDisplay);
+        nObj->setProperty("displayType", static_cast<int>(node->displayType));
+        nObj->setProperty("timeVarMode", static_cast<int>(node->timeVarMode));
+        nObj->setProperty("scopeMode", static_cast<int>(node->scopeMode));
         nodesArr.add(juce::var(nObj));
     }
     rootObj->setProperty("nodes", nodesArr);
@@ -802,6 +809,14 @@ bool RelativisticNodeGraph::deserializeFromJSON(const std::string& jsonStr)
                     node->setLabel(label);
                     node->xPos = x;
                     node->yPos = y;
+                    if (nObj->hasProperty("width")) node->width = static_cast<float>(nObj->getProperty("width"));
+                    if (nObj->hasProperty("height")) node->height = static_cast<float>(nObj->getProperty("height"));
+                    if (nObj->hasProperty("outputVolume")) node->outputVolume = static_cast<float>(nObj->getProperty("outputVolume"));
+                    if (nObj->hasProperty("showRealtimeDisplay")) node->showRealtimeDisplay = nObj->getProperty("showRealtimeDisplay");
+                    if (nObj->hasProperty("displayType")) node->displayType = static_cast<RelativisticNode::ScopeDisplayType>(static_cast<int>(nObj->getProperty("displayType")));
+                    if (nObj->hasProperty("timeVarMode")) node->timeVarMode = static_cast<RelativisticNode::TimeScopeVariable>(static_cast<int>(nObj->getProperty("timeVarMode")));
+                    if (nObj->hasProperty("scopeMode")) node->scopeMode = static_cast<RelativisticNode::ScopeRenderMode>(static_cast<int>(nObj->getProperty("scopeMode")));
+
                     addNode(node);
                 }
             }
