@@ -455,7 +455,8 @@ void RelativisticCanvasComponent::paint(juce::Graphics& g)
         {
             // Recessed Terminal Display Screen Box
             auto dNode = std::dynamic_pointer_cast<DisplayNode>(node);
-            std::string dispStr = dNode ? dNode->getDisplayText() : node->getLabel();
+            std::string dispStr = dNode ? dNode->getDisplayText() : "---";
+            std::string tag = dNode && !dNode->getCustomTag().empty() ? dNode->getCustomTag() : (sym == "print" ? "print" : "disp");
 
             g.setColour(juce::Colour::fromRGB(0x06, 0x0a, 0x12));
             g.fillRoundedRectangle(b, 4.0f);
@@ -464,7 +465,7 @@ void RelativisticCanvasComponent::paint(juce::Graphics& g)
 
             g.setColour(CarbonGoldLookAndFeel::cyberCyan);
             g.setFont(juce::Font(12.0f, juce::Font::bold));
-            g.drawText("disp: " + dispStr, b.reduced(8.0f, 4.0f), juce::Justification::centredLeft, true);
+            g.drawText(tag + ": " + dispStr, b.reduced(8.0f, 4.0f), juce::Justification::centredLeft, true);
         }
         else if (isControlLogicSymbol(sym))
         {

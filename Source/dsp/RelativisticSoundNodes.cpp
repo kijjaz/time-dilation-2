@@ -1,4 +1,5 @@
 #include "RelativisticSoundNodes.h"
+#include "../utils/ConsoleLogger.h"
 #include <juce_dsp/juce_dsp.h>
 #include <cmath>
 #include <algorithm>
@@ -879,8 +880,9 @@ void RadioNode::receiveMessage(const std::string& message)
 // -----------------------------------------------------------------------------
 // DisplayNode Implementation (display / print / disp)
 // -----------------------------------------------------------------------------
-DisplayNode::DisplayNode(int id)
-    : RelativisticNode(id, "display", "disp: ---")
+DisplayNode::DisplayNode(int id, const std::string& sym, const std::string& tag)
+    : RelativisticNode(id, sym, (!tag.empty() ? tag + ": ---" : (sym + ": ---"))),
+      customTag(tag)
 {
     addInlet("in", PortDataType::Message);
     addInlet("audioIn~", PortDataType::Audio);
@@ -900,7 +902,17 @@ void DisplayNode::process(int numSamples)
 void DisplayNode::receiveMessage(const std::string& message)
 {
     displayText = message;
-    setLabel(message);
+    if (!customTag.empty())
+        setLabel(customTag + ": " + message);
+    else
+        setLabel(getSymbol() + ": " + message);
+
+    // Stream message directly to the Terminal Console & Debug Stream panel
+    std::string tag = !customTag.empty() ? customTag : getSymbol();
+    ConsoleLogger::getInstance().log(message, tag, LogLevel::Message);
+
+    // Relay downstream to outlet
+    emitMessageOnOutlet(0, message);
 }
 
 std::string DisplayNode::getDisplayText() const

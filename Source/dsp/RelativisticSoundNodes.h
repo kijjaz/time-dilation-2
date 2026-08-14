@@ -260,13 +260,16 @@ private:
 class DisplayNode : public RelativisticNode
 {
 public:
-    DisplayNode(int id);
+    DisplayNode(int id, const std::string& sym = "disp", const std::string& tag = "");
     void prepare(double sampleRate, int samplesPerBlock) override;
     void process(int numSamples) override;
     void receiveMessage(const std::string& message) override;
     std::string getDisplayText() const;
+    void setCustomTag(const std::string& tag) { customTag = tag; }
+    const std::string& getCustomTag() const { return customTag; }
 
 private:
+    std::string customTag;
     std::string displayText = "---";
 };
 

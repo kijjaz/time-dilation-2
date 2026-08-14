@@ -143,7 +143,9 @@ std::shared_ptr<RelativisticNode> RelativisticNodeFactory::createNode(int nodeId
     }
     else if (symbol == "display" || symbol == "disp" || symbol == "print")
     {
-        return std::make_shared<DisplayNode>(nodeId);
+        std::string tag;
+        if (ss >> tag) {}
+        return std::make_shared<DisplayNode>(nodeId, symbol, tag);
     }
     else if (symbol == "time.transport~" || symbol == "time.transport" || symbol == "transport~" || symbol == "transport" || symbol == "timeline~" || symbol == "timeline" || symbol == "time.timeline~")
     {
