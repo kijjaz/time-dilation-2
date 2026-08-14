@@ -70,11 +70,20 @@ void TidalSeqNode::prepare(double sr, int spb)
 
 void TidalSeqNode::process(int numSamples)
 {
-    const auto& timeIn = getInletTimeFrame(1);
-    double currentGamma = timeIn.masterGamma > 0.0001 ? timeIn.masterGamma : 1.0;
-
     auto& freqOut = getOutletBuffer(1);     // Outlet 1: freqOut~
     auto& audioTrig = getOutletBuffer(4);   // Outlet 4: audioTrig~
+
+    // Only advance when connected to an active time/clock stream (e.g. time.transport~ / timeline~)!
+    bool isDriven = isInletConnected(0);
+    const auto& timeIn = getInletTimeFrame(0);
+    double currentGamma = isDriven ? std::max(0.0, timeIn.masterGamma) : 0.0;
+
+    if (currentGamma <= 0.000001)
+    {
+        freqOut.clear();
+        audioTrig.clear();
+        return;
+    }
 
     for (int i = 0; i < numSamples; ++i)
     {

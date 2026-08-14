@@ -104,9 +104,18 @@ void EuclidSequencerNode::prepare(double sr, int spb)
 
 void EuclidSequencerNode::process(int numSamples)
 {
-    const auto& timeIn = getInletTimeFrame(1);
-    double currentGamma = timeIn.masterGamma > 0.0001 ? timeIn.masterGamma : 1.0;
     auto& audioOut = getOutletBuffer(2); // Outlet 2: audioTrig~
+
+    // Only advance when connected to an active clock / time stream!
+    bool isDriven = isInletConnected(0);
+    const auto& timeIn = getInletTimeFrame(0);
+    double currentGamma = isDriven ? std::max(0.0, timeIn.masterGamma) : 0.0;
+
+    if (currentGamma <= 0.000001)
+    {
+        audioOut.clear();
+        return;
+    }
 
     for (int i = 0; i < numSamples; ++i)
     {
@@ -241,9 +250,18 @@ void ArpNode::prepare(double sr, int spb)
 
 void ArpNode::process(int numSamples)
 {
-    const auto& timeIn = getInletTimeFrame(1);
-    double currentGamma = timeIn.masterGamma > 0.0001 ? timeIn.masterGamma : 1.0;
     auto& freqOut = getOutletBuffer(1); // Outlet 1: freqOut~
+
+    // Only advance when connected to an active clock / time stream!
+    bool isDriven = isInletConnected(0);
+    const auto& timeIn = getInletTimeFrame(0);
+    double currentGamma = isDriven ? std::max(0.0, timeIn.masterGamma) : 0.0;
+
+    if (currentGamma <= 0.000001)
+    {
+        freqOut.clear();
+        return;
+    }
 
     for (int i = 0; i < numSamples; ++i)
     {
@@ -375,8 +393,15 @@ void PolySeqNode::prepare(double sr, int spb)
 
 void PolySeqNode::process(int numSamples)
 {
-    const auto& timeIn = getInletTimeFrame(1);
-    double currentGamma = timeIn.masterGamma > 0.0001 ? timeIn.masterGamma : 1.0;
+    // Only advance when connected to an active clock / time stream!
+    bool isDriven = isInletConnected(0);
+    const auto& timeIn = getInletTimeFrame(0);
+    double currentGamma = isDriven ? std::max(0.0, timeIn.masterGamma) : 0.0;
+
+    if (currentGamma <= 0.000001)
+    {
+        return;
+    }
 
     for (int i = 0; i < numSamples; ++i)
     {

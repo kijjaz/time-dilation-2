@@ -456,20 +456,29 @@ void TransportNode::process(int numSamples)
 {
     const auto& timeInFrame = getTimeInlet("timeIn");
     auto& timeOutFrame = getTimeOutlet("timeOut");
-    timeOutFrame = timeInFrame; // Stream master timeline clock downstream!
+
+    double inputGamma = isInletConnected(0) ? timeInFrame.masterGamma : 1.0;
 
     if (isRunning)
     {
-        currentPlayheadSec += (static_cast<double>(numSamples) / currentSampleRate) * timeInFrame.masterGamma;
+        currentPlayheadSec += (static_cast<double>(numSamples) / currentSampleRate) * inputGamma;
+        timeOutFrame.masterGamma = inputGamma;
+        timeOutFrame.masterTau = currentPlayheadSec;
+    }
+    else
+    {
+        timeOutFrame.masterGamma = 0.0;
+        timeOutFrame.masterTau = currentPlayheadSec;
     }
 }
 
 void TransportNode::receiveMessage(const std::string& message)
 {
     RelativisticNode::receiveMessage(message);
-    if (message == "stop" || message == "0") isRunning = false;
-    else if (message == "play" || message == "start" || message == "1") isRunning = true;
-    else if (message == "reset") currentPlayheadSec = 0.0;
+    if (message == "stop" || message == "0" || message == "pause") isRunning = false;
+    else if (message == "play" || message == "start" || message == "1" || message == "run") isRunning = true;
+    else if (message == "toggle") isRunning = !isRunning;
+    else if (message == "reset" || message == "rewind") currentPlayheadSec = 0.0;
 }
 
 // ============================================================================

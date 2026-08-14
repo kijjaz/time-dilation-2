@@ -154,6 +154,18 @@ public:
     const std::vector<Port>& getInlets() const { return inlets; }
     const std::vector<Port>& getOutlets() const { return outlets; }
 
+    bool isInletConnected(int inletIdx) const
+    {
+        if (inletIdx >= 0 && inletIdx < static_cast<int>(inletConnectedFlags.size()))
+            return inletConnectedFlags[static_cast<size_t>(inletIdx)];
+        return false;
+    }
+    void setInletConnected(int inletIdx, bool connected)
+    {
+        if (inletIdx >= 0 && inletIdx < static_cast<int>(inletConnectedFlags.size()))
+            inletConnectedFlags[static_cast<size_t>(inletIdx)] = connected;
+    }
+
     virtual void prepare(double sampleRate, int samplesPerBlock);
     virtual void process(int numSamples) = 0;
     virtual void receiveMessage(const std::string& message);
@@ -371,6 +383,7 @@ protected:
 
     std::vector<TimePolyFrame> inletTimeFrames;
     std::vector<TimePolyFrame> outletTimeFrames;
+    std::vector<bool> inletConnectedFlags;
 
     double currentSampleRate = 44100.0;
     int currentBlockSize = 512;

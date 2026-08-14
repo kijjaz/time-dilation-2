@@ -1982,6 +1982,23 @@ bool AgentTestRunner::testTidalCyclesPatternEngine()
     tidalNode->setCycleDuration(0.5);
     graph.addNode(tidalNode);
 
+    // 5a. Process blocks WITHOUT clock connection -> must remain stationary!
+    for (int b = 0; b < 50; ++b)
+    {
+        graph.process(dummyBuf, 512);
+    }
+    if (tidalNode->getCycleCount() != 0 || tidalNode->getCyclePhase() != 0.0)
+    {
+        std::cout << "FAILED (TidalSeqNode advanced without incoming clock connection)\n";
+        return false;
+    }
+
+    // 5b. Connect time.transport~ to inlet 0 and start playback -> must advance!
+    auto transportNode = RelativisticNodeFactory::createNode(2, "time.transport~");
+    graph.addNode(transportNode);
+    graph.addConnection(2, 1, 1, 0); // transport timeOut (1) -> tidal timeIn (0)
+    transportNode->receiveMessage("play");
+
     // Process blocks at 96 kHz (200 blocks * 512 = 102,400 samples = ~1.066s = >2 cycles)
     for (int b = 0; b < 200; ++b)
     {
@@ -1990,7 +2007,7 @@ bool AgentTestRunner::testTidalCyclesPatternEngine()
 
     if (tidalNode->getCycleCount() < 1)
     {
-        std::cout << "FAILED (TidalSeqNode cycle did not advance under DSP clock)\n";
+        std::cout << "FAILED (TidalSeqNode cycle did not advance under time.transport~ clock)\n";
         return false;
     }
 

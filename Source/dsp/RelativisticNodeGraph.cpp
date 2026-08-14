@@ -30,6 +30,7 @@ void RelativisticNode::addInlet(const std::string& name, PortDataType type)
 
     inletBuffers.emplace_back(2, 512);
     inletTimeFrames.emplace_back();
+    inletConnectedFlags.push_back(false);
 }
 
 void RelativisticNode::addOutlet(const std::string& name, PortDataType type)
@@ -566,6 +567,23 @@ void RelativisticNodeGraph::updateTopologicalSort()
         if (std::find(sortedNodes.begin(), sortedNodes.end(), n) == sortedNodes.end())
         {
             sortedNodes.push_back(n);
+        }
+    }
+
+    // Refresh inlet connection statuses for all nodes
+    for (auto& n : nodes)
+    {
+        for (int i = 0; i < static_cast<int>(n->getInlets().size()); ++i)
+        {
+            n->setInletConnected(i, false);
+        }
+    }
+    for (const auto& c : connections)
+    {
+        auto dest = getNode(c.destNodeId);
+        if (dest)
+        {
+            dest->setInletConnected(c.destPortIndex, true);
         }
     }
 }

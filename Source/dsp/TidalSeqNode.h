@@ -31,6 +31,7 @@ public:
 
     double getCyclePhase() const { return cyclePhase; }
     int getCycleCount() const { return cycleCount; }
+    const std::vector<TidalEvent>& getScheduledEvents() const { return scheduledEvents; }
 
 private:
     void evaluateCurrentCycle();

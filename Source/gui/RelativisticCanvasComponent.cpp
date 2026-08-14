@@ -500,25 +500,80 @@ void RelativisticCanvasComponent::paint(juce::Graphics& g)
 
             if (auto tidalNode = std::dynamic_pointer_cast<TidalSeqNode>(node))
             {
-                // Live mini-notation string
-                g.setColour(CarbonGoldLookAndFeel::cyberCyan);
-                g.setFont(juce::Font(10.5f, juce::Font::bold));
-                auto textR = bodyRect.withTrimmedBottom(6.0f).reduced(4.0f, 0.0f);
-                g.drawText(tidalNode->getPatternString(), textR, juce::Justification::centredLeft, true);
-
-                // Strudel-style active cycle progress bar at bottom of card
-                auto progR = bodyRect.removeFromBottom(5.0f).reduced(2.0f, 1.0f);
-                g.setColour(CarbonGoldLookAndFeel::carbonBg);
-                g.fillRect(progR);
-
+                const auto& events = tidalNode->getScheduledEvents();
                 double phase = tidalNode->getCyclePhase();
-                float progW = static_cast<float>(phase) * progR.getWidth();
-                g.setColour(CarbonGoldLookAndFeel::goldAccent);
-                g.fillRect(progR.withWidth(progW));
 
-                // Strudel active head glow
-                g.setColour(juce::Colours::white);
-                g.drawVerticalLine(static_cast<int>(progR.getX() + progW), progR.getY(), progR.getBottom());
+                if (!events.empty())
+                {
+                    // Find max channels for polyphonic vertical stacking
+                    int maxCh = 1;
+                    for (const auto& ev : events) maxCh = std::max(maxCh, ev.channel + 1);
+
+                    float laneH = bodyRect.getHeight() / static_cast<float>(maxCh);
+
+                    for (const auto& ev : events)
+                    {
+                        float bx = bodyRect.getX() + static_cast<float>(ev.startCycle) * bodyRect.getWidth();
+                        float bw = std::max(2.0f, static_cast<float>(ev.endCycle - ev.startCycle) * bodyRect.getWidth() - 1.0f);
+                        float by = bodyRect.getY() + ev.channel * laneH;
+                        auto blockRect = juce::Rectangle<float>(bx, by + 1.0f, bw, laneH - 2.0f);
+
+                        bool isCurrentlyPlaying = (phase >= ev.startCycle && phase < ev.endCycle);
+
+                        if (ev.isRest)
+                        {
+                            g.setColour(juce::Colour::fromRGB(0x12, 0x18, 0x24));
+                            g.fillRoundedRectangle(blockRect, 2.0f);
+                            g.setColour(CarbonGoldLookAndFeel::slatePanel.brighter(0.1f));
+                            g.drawRoundedRectangle(blockRect, 2.0f, 0.8f);
+                        }
+                        else
+                        {
+                            juce::Colour blockCol = (ev.channel == 0) ? CarbonGoldLookAndFeel::royalViolet.withAlpha(0.7f)
+                                                                      : CarbonGoldLookAndFeel::cyberCyan.withAlpha(0.6f);
+                            if (isCurrentlyPlaying) blockCol = blockCol.brighter(0.4f);
+
+                            g.setColour(blockCol);
+                            g.fillRoundedRectangle(blockRect, 2.0f);
+
+                            // Active Playing White Border (Strudel style)
+                            if (isCurrentlyPlaying)
+                            {
+                                g.setColour(juce::Colours::white);
+                                g.drawRoundedRectangle(blockRect, 2.0f, 2.0f);
+                            }
+                            else
+                            {
+                                g.setColour(CarbonGoldLookAndFeel::goldAccent.withAlpha(0.4f));
+                                g.drawRoundedRectangle(blockRect, 2.0f, 1.0f);
+                            }
+
+                            // Pitch Label
+                            if (blockRect.getWidth() > 14.0f)
+                            {
+                                g.setColour(isCurrentlyPlaying ? juce::Colours::white : CarbonGoldLookAndFeel::goldAccent);
+                                g.setFont(juce::Font(9.0f, juce::Font::bold));
+                                std::string lbl = std::to_string(ev.pitch);
+                                if (ev.pitch == 36) lbl = "bd";
+                                else if (ev.pitch == 38 || ev.pitch == 40) lbl = "sn";
+                                else if (ev.pitch == 42) lbl = "hh";
+                                g.drawText(lbl, blockRect, juce::Justification::centred, true);
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    // Fallback to pattern string
+                    g.setColour(CarbonGoldLookAndFeel::cyberCyan);
+                    g.setFont(juce::Font(10.5f, juce::Font::bold));
+                    g.drawText(tidalNode->getPatternString(), bodyRect.reduced(4.0f, 0.0f), juce::Justification::centredLeft, true);
+                }
+
+                // Edit pencil button indicator in top-right
+                auto editBtnR = headerRect.removeFromRight(20.0f).reduced(2.0f);
+                g.setColour(CarbonGoldLookAndFeel::goldAccent.withAlpha(0.7f));
+                g.drawText("✏", editBtnR, juce::Justification::centred, false);
             }
             else if (auto euclidNode = std::dynamic_pointer_cast<EuclidSequencerNode>(node))
             {
@@ -1707,6 +1762,16 @@ void RelativisticCanvasComponent::mouseDown(const juce::MouseEvent& e)
                         repaint();
                         return;
                     }
+                }
+            }
+            else if (isSequencerSymbol(sym))
+            {
+                auto headerRect = b.withHeight(22.0f);
+                auto editBtnRect = headerRect.removeFromRight(22.0f).reduced(2.0f);
+                if (editBtnRect.contains(pos))
+                {
+                    spawnObjectEditorForNode(node->getId());
+                    return;
                 }
             }
 
