@@ -34,6 +34,42 @@ RelativisticCanvasComponent::RelativisticCanvasComponent(RelativisticNodeGraph& 
     addChildComponent(suggestionListBox);
 
     allCatalogueObjects = {
+        { "seq.tidal [60 [62 64] 67 [69 71 72]]", "TidalCycles Mini-Notation Pattern Sequencer (Subdivisions, Stacking, Euclids, Speed, Alternation)" },
+        { "tidal [60 64 67, 36 [~ 48]]", "Alias for seq.tidal mini-notation pattern sequencer" },
+        { "pattern [60 62 65 67]", "Alias for seq.tidal pattern sequencer" },
+        { "seq.euclid 5 16", "Bjorklund Euclidean Rhythm Sequencer (5 pulses in 16 steps)" },
+        { "seq.arp up 2 0.125", "Relativistic Chord Arpeggiator (up, down, updown, random)" },
+        { "seq.poly", "Polyrhythmic Multi-Meter Sequencer" },
+        { "auto~ 0.5", "Timeline Parameter Automation Reader (Spline interpolation)" },
+        { "time.curve~ 1.0 500", "Piecewise Time-Curvature Function Generator (Tape Stops, S-Curves)" },
+        { "time.chaos~ 0.5 lorenz", "Relativistic Chaotic Attractor Time Modulator (3D Lorenz / Rossler RK4)" },
+        { "time.crossfade~ 0.5", "Relativistic Spacetime Morpher & Dual Time Vector Interpolator" },
+        { "time.const~ 1.0", "Constant / Stepped Speed Dilation (\u03b3 generator)" },
+        { "time.scale~ 2.0", "Time Multiplier & Polyrhythmic Divider" },
+        { "time.add~ 0.2", "Time Offset & Micro-Timing Groove Summer" },
+        { "time.quantize~ 125", "Continuous-to-Stepped Grid Quantizer" },
+        { "time.split~", "Time Frame to Audio Signal Splitter" },
+        { "time.merge~", "Audio Signals to Time Frame Merger" },
+        { "time.lfo~ 0.5 0.8", "Relativistic Proper Time LFO (Rate: 0.5Hz, Depth: 0.8)" },
+        { "time.warp~ 1.5", "Relativistic Time Warp Node (\u03b3 = 1.5x speed)" },
+        { "time.grav.osc~ 1.0 2.0", "Gravitational Redshift Oscillator (Mass: 1.0, Radius: 2.0)" },
+        { "time.lorentz~ 1200 0.5", "Lorentz Velocity Filter (v = 0.5c)" },
+        { "time.tachyon.grain~ 50", "Faster-than-Light Granular Synthesizer (50ms grains)" },
+        { "time.transport~", "Relativistic Transport Master Clock" },
+        { "time.scope~", "Proper Time Telemetry Plot" },
+        { "metro 125 1", "Relativistic Proper-Time Metronome & Clock" },
+        { "counter 0 15 1", "Step Counter & Integer Clock Divider" },
+        { "random 100", "Deterministic / Stochastic Integer Generator" },
+        { "select 0 4 8 12", "Value Matcher & Bang Dispatcher" },
+        { "route 1 2 3", "Prefix & Channel Router" },
+        { "t b b", "Trigger Bangs in Right-to-Left Sequence" },
+        { "pipe 150", "Relativistic Proper-Time Timestamped Event Queue" },
+        { "timer", "Relativistic Proper-Time Stopwatch" },
+        { "snapshot~", "Instantaneous Audio & Time Frame Sampler" },
+        { "delwrite~ del1 1000", "Relativistic Circular Delay Buffer Writer" },
+        { "vd~ del1 150", "Relativistic Doppler Variable Delay Buffer Reader" },
+        { "readsf~ 2", "Streaming Audio File Playback" },
+        { "soundfiler", "Audio File Reader & Table Buffer Ingestion" },
         { "spectrogram~", "Real-Time FFT Waterfall Spectrogram (0Hz - Nyquist)" },
         { "spec~", "Alias for spectrogram~" },
         { "meter~", "Precision Level Meter (Peak, RMS, LUFS modes)" },
@@ -49,13 +85,6 @@ RelativisticCanvasComponent::RelativisticCanvasComponent(RelativisticNodeGraph& 
         { "saturate~ 2.5", "Alias for drive~ saturator" },
         { "pluck~ 220", "Karplus-Strong Physical String Model (Pitch: 220Hz)" },
         { "out~", "Master Stereo Output & Monitoring Node" },
-        { "time.lfo~ 0.5 0.8", "Relativistic Proper Time LFO (Rate: 0.5Hz, Depth: 0.8)" },
-        { "time.warp~ 1.5", "Relativistic Time Warp Node (\u03b3 = 1.5x speed)" },
-        { "time.grav.osc~ 1.0 2.0", "Gravitational Redshift Oscillator (Mass: 1.0, Radius: 2.0)" },
-        { "time.lorentz~ 1200 0.5", "Lorentz Velocity Filter (v = 0.5c)" },
-        { "time.tachyon.grain~ 50", "Faster-than-Light Granular Synthesizer (50ms grains)" },
-        { "time.transport~", "Relativistic Transport Master Clock" },
-        { "time.scope~", "Proper Time Telemetry Plot" },
         { "table array1 44100", "Audio Sample Buffer Array (44100 samples)" },
         { "tabread~ array1", "Audio Sample Buffer Reader" },
         { "delay~ 2.0", "Feedback Delay Line (Max 2.0 seconds)" },
@@ -959,8 +988,8 @@ void RelativisticCanvasComponent::updateAutocompleteSuggestions()
     {
         int x = objectEditor.getX();
         int y = objectEditor.getBottom() + 2;
-        int w = std::max(320, objectEditor.getWidth());
-        int h = std::min(180, static_cast<int>(filteredObjects.size()) * 22 + 6);
+        int w = std::max(540, objectEditor.getWidth());
+        int h = std::min(220, static_cast<int>(filteredObjects.size()) * 22 + 6);
 
         if (y + h > getHeight()) y = objectEditor.getY() - h - 2;
 
@@ -1000,11 +1029,12 @@ void RelativisticCanvasComponent::AutocompleteModel::paintListBoxItem(int rowNum
 
     g.setColour(CarbonGoldLookAndFeel::goldAccent);
     g.setFont(juce::Font(11.5f, juce::Font::bold));
-    g.drawText(item.symbol, 6, 0, 130, height, juce::Justification::centredLeft, true);
+    int symW = 210;
+    g.drawText(item.symbol, 6, 0, symW, height, juce::Justification::centredLeft, true);
 
     g.setColour(juce::Colours::lightgrey);
     g.setFont(10.0f);
-    g.drawText(item.description, 140, 0, width - 146, height, juce::Justification::centredLeft, true);
+    g.drawText(item.description, symW + 10, 0, width - (symW + 16), height, juce::Justification::centredLeft, true);
 }
 
 void RelativisticCanvasComponent::AutocompleteModel::listBoxItemClicked(int row, const juce::MouseEvent& e)
