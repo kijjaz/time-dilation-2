@@ -460,16 +460,131 @@ void NodeInspectorComponent::updateUIForSelectedNode()
 
         templateMsgs = { "play", "set 220", "set -220", "set 110" };
     }
-    else if (sym == "out~")
+    else if (sym == "delay~")
     {
-        paramLabel1.setText("Master Volume (dBFS)", juce::dontSendNotification);
+        paramLabel1.setText("Delay Time (sec)", juce::dontSendNotification);
         paramLabel1.setVisible(true);
-        paramSlider1.setRange(-100.0, 6.0, 0.1);
-        paramSlider1.setValue(selectedNode->getVolumeDb(), juce::dontSendNotification);
-        paramSlider1.setTextValueSuffix(" dB");
+        paramSlider1.setRange(0.001, 5.0, 0.001);
+        paramSlider1.setValue(0.35, juce::dontSendNotification);
         paramSlider1.setVisible(true);
         paramSlider1.onValueChange = [this]() {
-            if (selectedNode) selectedNode->setVolumeDb(static_cast<float>(paramSlider1.getValue()));
+            if (selectedNode) selectedNode->receiveMessage("time " + std::to_string(paramSlider1.getValue()));
+        };
+
+        paramLabel2.setText("Feedback Gain", juce::dontSendNotification);
+        paramLabel2.setVisible(true);
+        paramSlider2.setRange(0.0, 0.99, 0.01);
+        paramSlider2.setValue(0.5, juce::dontSendNotification);
+        paramSlider2.setVisible(true);
+        paramSlider2.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("feedback " + std::to_string(paramSlider2.getValue()));
+        };
+
+        optionSelector.setVisible(false);
+        optionLabel.setVisible(false);
+
+        descLabel.setText("Feedback Delay Line with continuous cubic Hermite interpolation and Doppler time modulation.", juce::dontSendNotification);
+        templateMsgs = { "time 0.25", "time 0.5", "feedback 0.6", "feedback 0.2" };
+    }
+    else if (sym == "svf~")
+    {
+        paramLabel1.setText("Cutoff Freq (Hz)", juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setRange(20.0, 20000.0, 1.0);
+        paramSlider1.setValue(1000.0, juce::dontSendNotification);
+        paramSlider1.setVisible(true);
+        paramSlider1.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("cutoff " + std::to_string(paramSlider1.getValue()));
+        };
+
+        paramLabel2.setText("Resonance (Q)", juce::dontSendNotification);
+        paramLabel2.setVisible(true);
+        paramSlider2.setRange(0.1, 20.0, 0.01);
+        paramSlider2.setValue(0.707, juce::dontSendNotification);
+        paramSlider2.setVisible(true);
+        paramSlider2.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("q " + std::to_string(paramSlider2.getValue()));
+        };
+
+        optionLabel.setText("Filter Type", juce::dontSendNotification);
+        optionLabel.setVisible(true);
+        optionSelector.clear();
+        optionSelector.addItem("Lowpass (LP)", 1);
+        optionSelector.addItem("Highpass (HP)", 2);
+        optionSelector.addItem("Bandpass (BP)", 3);
+        optionSelector.addItem("Notch (Notch)", 4);
+        optionSelector.setSelectedId(1, juce::dontSendNotification);
+        optionSelector.setVisible(true);
+        optionSelector.onChange = [this]() {
+            int id = optionSelector.getSelectedId();
+            std::string t = (id == 2) ? "hp" : ((id == 3) ? "bp" : ((id == 4) ? "notch" : "lp"));
+            if (selectedNode) selectedNode->receiveMessage("type " + t);
+        };
+
+        descLabel.setText("State Variable Filter offering simultaneous Lowpass, Highpass, Bandpass, and Notch responses.", juce::dontSendNotification);
+        templateMsgs = { "cutoff 800", "cutoff 2500", "q 2.0", "q 0.707", "type lp", "type hp", "type bp", "type notch" };
+    }
+    else if (sym == "time.lorentz~" || sym == "time.lorentz")
+    {
+        paramLabel1.setText("Relativistic Velocity (v/c)", juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setRange(-0.99, 0.99, 0.01);
+        paramSlider1.setValue(0.5, juce::dontSendNotification);
+        paramSlider1.setVisible(true);
+        paramSlider1.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("vel " + std::to_string(paramSlider1.getValue()));
+        };
+
+        paramLabel2.setText("Center Freq (Hz)", juce::dontSendNotification);
+        paramLabel2.setVisible(true);
+        paramSlider2.setRange(20.0, 20000.0, 1.0);
+        paramSlider2.setValue(1200.0, juce::dontSendNotification);
+        paramSlider2.setVisible(true);
+        paramSlider2.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("freq " + std::to_string(paramSlider2.getValue()));
+        };
+
+        optionSelector.setVisible(false);
+        optionLabel.setVisible(false);
+
+        descLabel.setText("Lorentz Velocity Filter. Warps formant bandwidth and relativistic boost according to velocity v.", juce::dontSendNotification);
+        templateMsgs = { "vel 0.5", "vel 0.85", "vel -0.6", "freq 1500" };
+    }
+    else if (sym == "time.grav.osc~" || sym == "time.grav~" || sym == "grav.osc~" || sym == "grav.osc")
+    {
+        paramLabel1.setText("Gravitational Mass (M)", juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setRange(0.0, 10.0, 0.1);
+        paramSlider1.setValue(1.0, juce::dontSendNotification);
+        paramSlider1.setVisible(true);
+        paramSlider1.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("mass " + std::to_string(paramSlider1.getValue()));
+        };
+
+        paramLabel2.setText("Orbital Radius (R)", juce::dontSendNotification);
+        paramLabel2.setVisible(true);
+        paramSlider2.setRange(0.1, 20.0, 0.1);
+        paramSlider2.setValue(2.0, juce::dontSendNotification);
+        paramSlider2.setVisible(true);
+        paramSlider2.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("radius " + std::to_string(paramSlider2.getValue()));
+        };
+
+        optionSelector.setVisible(false);
+        optionLabel.setVisible(false);
+
+        descLabel.setText("Gravitational Redshift Oscillator. Frequency is redshifted according to Einstein's General Relativity.", juce::dontSendNotification);
+        templateMsgs = { "mass 1.5", "radius 3.0", "freq 440", "freq 220" };
+    }
+    else if (sym == "mtof" || sym == "mtof~")
+    {
+        paramLabel1.setText("MIDI Note Number", juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setRange(0.0, 127.0, 1.0);
+        paramSlider1.setValue(60.0, juce::dontSendNotification);
+        paramSlider1.setVisible(true);
+        paramSlider1.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage(std::to_string(paramSlider1.getValue()));
         };
 
         paramSlider2.setVisible(false);
@@ -477,45 +592,98 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         optionSelector.setVisible(false);
         optionLabel.setVisible(false);
 
-        descLabel.setText("Master Stereo Output & Monitoring Node with log-scale (-\u221e to +6 dBFS) volume control.", juce::dontSendNotification);
-        templateMsgs = { "vol 0", "vol -6", "vol -12", "vol -24", "vol -inf", "play", "stop" };
+        descLabel.setText("Converts MIDI Note Number (m) to Frequency in Hz using: f = 440 * 2^((m - 69)/12).", juce::dontSendNotification);
+        templateMsgs = { "60", "62", "64", "65", "67", "69", "71", "72" };
     }
-    else if (sym == "meter~" || sym == "vu~")
+    else if (sym == "ftom" || sym == "ftom~")
+    {
+        paramLabel1.setText("Frequency in Hz", juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setRange(20.0, 20000.0, 1.0);
+        paramSlider1.setValue(440.0, juce::dontSendNotification);
+        paramSlider1.setVisible(true);
+        paramSlider1.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage(std::to_string(paramSlider1.getValue()));
+        };
+
+        paramSlider2.setVisible(false);
+        paramLabel2.setVisible(false);
+        optionSelector.setVisible(false);
+        optionLabel.setVisible(false);
+
+        descLabel.setText("Converts Frequency in Hz (f) to MIDI Note Number using: m = 69 + 12 * log2(f / 440).", juce::dontSendNotification);
+        templateMsgs = { "440.0", "261.63", "220.0", "880.0" };
+    }
+    else if (sym == "number" || sym == "num")
+    {
+        paramLabel1.setText("Number Value", juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setRange(-100000.0, 100000.0, 0.1);
+        auto numNode = std::dynamic_pointer_cast<NumberNode>(selectedNode);
+        paramSlider1.setValue(numNode ? numNode->getValue() : 0.0, juce::dontSendNotification);
+        paramSlider1.setVisible(true);
+        paramSlider1.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage(std::to_string(paramSlider1.getValue()));
+        };
+
+        paramSlider2.setVisible(false);
+        paramLabel2.setVisible(false);
+        optionSelector.setVisible(false);
+        optionLabel.setVisible(false);
+
+        descLabel.setText("Numeric parameter box for entering, editing, or displaying integer and float numbers.", juce::dontSendNotification);
+        templateMsgs = { "440", "120", "0.5", "-6.0" };
+    }
+    else if (sym == "toggle" || sym == "tgl")
     {
         paramSlider1.setVisible(false);
         paramLabel1.setVisible(false);
         paramSlider2.setVisible(false);
         paramLabel2.setVisible(false);
 
-        optionLabel.setText("Meter Mode", juce::dontSendNotification);
+        optionLabel.setText("Toggle State", juce::dontSendNotification);
         optionLabel.setVisible(true);
         optionSelector.clear();
-        optionSelector.addItem("Peak Level (dBFS)", 1);
-        optionSelector.addItem("RMS Level (dBFS)", 2);
-        optionSelector.addItem("LUFS Loudness (EBU R128)", 3);
-
-        auto mNode = std::dynamic_pointer_cast<MeterNode>(selectedNode);
-        int modeIdx = 1;
-        if (mNode)
-        {
-            if (mNode->getMeterMode() == MeterNode::MeterMode::RMS) modeIdx = 2;
-            else if (mNode->getMeterMode() == MeterNode::MeterMode::LUFS) modeIdx = 3;
-        }
-        optionSelector.setSelectedId(modeIdx, juce::dontSendNotification);
+        optionSelector.addItem("OFF [  ] (0)", 1);
+        optionSelector.addItem("ON [X] (1)", 2);
+        auto tNode = std::dynamic_pointer_cast<ToggleNode>(selectedNode);
+        optionSelector.setSelectedId(tNode && tNode->getState() ? 2 : 1, juce::dontSendNotification);
         optionSelector.setVisible(true);
-        optionSelector.onChange = [this, mNode]() {
-            if (!mNode) return;
-            int id = optionSelector.getSelectedId();
-            if (id == 1) mNode->setMeterMode(MeterNode::MeterMode::Peak);
-            else if (id == 2) mNode->setMeterMode(MeterNode::MeterMode::RMS);
-            else if (id == 3) mNode->setMeterMode(MeterNode::MeterMode::LUFS);
+        optionSelector.onChange = [this, tNode]() {
+            if (tNode) tNode->setState(optionSelector.getSelectedId() == 2);
             if (getParentComponent()) getParentComponent()->repaint();
         };
 
-        descLabel.setText("Precision Audio Level Meter. Displays Peak, RMS, or EBU R128 LUFS Loudness in real time.", juce::dontSendNotification);
-        templateMsgs = { "peak", "rms", "lufs" };
+        descLabel.setText("Boolean Toggle Box. Outputs 1 (ON) or 0 (OFF). Toggles state when clicked or banged.", juce::dontSendNotification);
+        templateMsgs = { "1", "0", "bang", "toggle" };
     }
-    else if (sym == "spectrogram~" || sym == "spec~")
+    else if (sym == "radio" || sym == "hradio" || sym == "vradio")
+    {
+        paramSlider1.setVisible(false);
+        paramLabel1.setVisible(false);
+        paramSlider2.setVisible(false);
+        paramLabel2.setVisible(false);
+
+        auto rNode = std::dynamic_pointer_cast<RadioNode>(selectedNode);
+        int opts = rNode ? rNode->getNumOptions() : 4;
+        optionLabel.setText("Selected Radio Option", juce::dontSendNotification);
+        optionLabel.setVisible(true);
+        optionSelector.clear();
+        for (int i = 0; i < opts; ++i)
+        {
+            optionSelector.addItem("Option " + std::to_string(i), i + 1);
+        }
+        optionSelector.setSelectedId((rNode ? rNode->getSelectedIndex() : 0) + 1, juce::dontSendNotification);
+        optionSelector.setVisible(true);
+        optionSelector.onChange = [this, rNode]() {
+            if (rNode) rNode->selectOption(optionSelector.getSelectedId() - 1);
+            if (getParentComponent()) getParentComponent()->repaint();
+        };
+
+        descLabel.setText("Radio Button Strip. Emits the selected index (0, 1, 2, ...) downstream when clicked.", juce::dontSendNotification);
+        templateMsgs = { "0", "1", "2", "3" };
+    }
+    else if (sym == "table" || sym == "tabread~")
     {
         paramSlider1.setVisible(false);
         paramLabel1.setVisible(false);
@@ -524,8 +692,8 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         optionSelector.setVisible(false);
         optionLabel.setVisible(false);
 
-        descLabel.setText("Real-Time Waterfall Spectrogram. Displays 256 frequency bins from 0 Hz up to Nyquist over time.", juce::dontSendNotification);
-        templateMsgs = { "freeze", "resume", "clear" };
+        descLabel.setText("Shared Audio Sample Buffer Array & Reader for custom waveform playback and sequencing.", juce::dontSendNotification);
+        templateMsgs = { "size 44100", "size 88200", "clear" };
     }
     else
     {
@@ -537,7 +705,7 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         optionLabel.setVisible(false);
 
         descLabel.setText("Pure Data-style relational node object.", juce::dontSendNotification);
-        templateMsgs = { "play", "stop", "reset" };
+        templateMsgs = { "play", "stop", "reset", "bang" };
     }
 
     auto getPortFunctionDesc = [](const std::string& symbol, bool isOutlet, int index, const std::string& portName) -> std::string {
