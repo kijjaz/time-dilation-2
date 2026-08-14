@@ -277,6 +277,123 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
         }
     }
 
+    // =========================================================================
+    // WAV Observation 5: Pure Data Control + Relativistic Sample Streaming + Dynamic Line~ Envelope
+    // ([soundfiler] -> [readsf~ 2] -> [time.lfo~] -> [metro] -> [counter] -> [select] -> [line~] -> [ladder~] -> [drive~] -> [out~])
+    // =========================================================================
+    {
+        workstation.getNodeGraph().clearGraph();
+
+        // 1. Synthesize a musical test sample WAV file with rich harmonics
+        juce::File musicalWav("artifacts/musical_sample_test.wav");
+        musicalWav.getParentDirectory().createDirectory();
+        {
+            juce::WavAudioFormat wavFmt;
+            auto stream = musicalWav.createOutputStream();
+            if (stream != nullptr)
+            {
+                std::unique_ptr<juce::AudioFormatWriter> writer(wavFmt.createWriterFor(stream.release(), 96000.0, 2, 16, {}, 0));
+                if (writer != nullptr)
+                {
+                    const int numSamp = static_cast<int>(96000.0 * 2.0); // 2 second sample
+                    juce::AudioBuffer<float> sampleBuf(2, numSamp);
+                    float* l = sampleBuf.getWritePointer(0);
+                    float* r = sampleBuf.getWritePointer(1);
+                    for (int i = 0; i < numSamp; ++i)
+                    {
+                        double t = static_cast<double>(i) / 96000.0;
+                        // Chord progression simulation: A minor 9 (A, C, E, G, B)
+                        double val = 0.25 * std::sin(2.0 * 3.14159265 * 220.0 * t)
+                                   + 0.20 * std::sin(2.0 * 3.14159265 * 261.63 * t)
+                                   + 0.20 * std::sin(2.0 * 3.14159265 * 329.63 * t)
+                                   + 0.15 * std::sin(2.0 * 3.14159265 * 392.00 * t)
+                                   + 0.10 * std::sin(2.0 * 3.14159265 * 493.88 * t);
+                        // Subtle stereo chorus detune
+                        l[i] = static_cast<float>(val * std::exp(-0.8 * t));
+                        r[i] = static_cast<float>((0.25 * std::sin(2.0 * 3.14159265 * 220.5 * t)
+                                                 + 0.20 * std::sin(2.0 * 3.14159265 * 262.2 * t)
+                                                 + 0.20 * std::sin(2.0 * 3.14159265 * 330.3 * t)) * std::exp(-0.8 * t));
+                    }
+                    writer->writeFromAudioSampleBuffer(sampleBuf, 0, numSamp);
+                    writer->flush();
+                }
+            }
+        }
+
+        // 2. Instantiate and connect Pure Data Control + Relativistic Nodes
+        auto soundfiler = RelativisticNodeFactory::createNode(1, "soundfiler");
+        auto lfoNode    = RelativisticNodeFactory::createNode(2, "time.lfo~ 0.3 0.6");
+        auto readsfNode = RelativisticNodeFactory::createNode(3, "readsf~ 2");
+        auto metroNode  = RelativisticNodeFactory::createNode(4, "metro 180 1");
+        auto countNode  = RelativisticNodeFactory::createNode(5, "counter 0 7 1");
+        auto selNode    = RelativisticNodeFactory::createNode(6, "sel 0 2 4 6");
+        auto lineNode   = RelativisticNodeFactory::createNode(7, "line~ 0.0");
+        auto filterNode = RelativisticNodeFactory::createNode(8, "ladder~ 2200 0.7");
+        auto driveNode  = RelativisticNodeFactory::createNode(9, "drive~ 1.8");
+        auto outNode    = RelativisticNodeFactory::createNode(10, "out~");
+
+        workstation.getNodeGraph().addNode(soundfiler);
+        workstation.getNodeGraph().addNode(lfoNode);
+        workstation.getNodeGraph().addNode(readsfNode);
+        workstation.getNodeGraph().addNode(metroNode);
+        workstation.getNodeGraph().addNode(countNode);
+        workstation.getNodeGraph().addNode(selNode);
+        workstation.getNodeGraph().addNode(lineNode);
+        workstation.getNodeGraph().addNode(filterNode);
+        workstation.getNodeGraph().addNode(driveNode);
+        workstation.getNodeGraph().addNode(outNode);
+
+        // Soundfiler load test
+        soundfiler->receiveMessage("read -resize artifacts/musical_sample_test.wav rhodes_array");
+
+        // Relativistic Time Connections
+        workstation.getNodeGraph().addConnection(2, 1, 3, 1); // time.lfo~ timeOut -> readsf~ timeIn
+        workstation.getNodeGraph().addConnection(2, 1, 4, 1); // time.lfo~ timeOut -> metro timeIn
+        workstation.getNodeGraph().addConnection(2, 1, 7, 1); // time.lfo~ timeOut -> line~ timeIn
+        workstation.getNodeGraph().addConnection(2, 1, 8, 1); // time.lfo~ timeOut -> ladder~ timeIn
+
+        // Control Routing Connections: metro -> counter -> sel -> line~
+        workstation.getNodeGraph().addConnection(4, 0, 5, 0); // metro bang -> counter bang
+        workstation.getNodeGraph().addConnection(5, 0, 6, 0); // counter step -> sel val
+        workstation.getNodeGraph().addConnection(6, 0, 7, 0); // sel match 0 -> line~ ramp trigger
+
+        // Audio Path: readsf~ -> ladder~ -> drive~ -> out~
+        workstation.getNodeGraph().addConnection(3, 2, 8, 2); // readsf~ L -> ladder~ in~
+        workstation.getNodeGraph().addConnection(8, 2, 9, 2); // ladder~ out~ -> drive~ in~
+        workstation.getNodeGraph().addConnection(9, 2, 10, 1); // drive~ out~ -> out~ L
+        workstation.getNodeGraph().addConnection(3, 3, 10, 2); // readsf~ R -> out~ R
+
+        // Start disk streaming
+        readsfNode->receiveMessage("open artifacts/musical_sample_test.wav");
+        readsfNode->receiveMessage("loop 1");
+        readsfNode->receiveMessage("start");
+
+        juce::File obs5Wav("artifacts/observation_5_pd_control_sample_synthesis.wav");
+        auto fileStream5 = obs5Wav.createOutputStream();
+        if (fileStream5 != nullptr)
+        {
+            juce::WavAudioFormat wavFormat;
+            std::unique_ptr<juce::AudioFormatWriter> writer5(wavFormat.createWriterFor(fileStream5.release(), sampleRate, 2, 16, {}, 0));
+            if (writer5 != nullptr)
+            {
+                int totalBlocks5 = static_cast<int>((6.0 * sampleRate) / blockSize); // 6-second rich render
+                for (int b = 0; b < totalBlocks5; ++b)
+                {
+                    // Every 24 blocks send envelope trigger into line~ to dynamically modulate filter
+                    if (b % 24 == 0)
+                    {
+                        lineNode->receiveMessage("1.0 15 0.1 250");
+                    }
+
+                    workstation.getNextAudioBlock(channelInfo);
+                    writer5->writeFromAudioSampleBuffer(masterBuffer, 0, blockSize);
+                }
+                writer5->flush();
+                std::cout << "[AgentTestRunner] Exported WAV Observation 5 (Pure Data Control + Sample Synthesis): " << obs5Wav.getFullPathName().toStdString() << "\n";
+            }
+        }
+    }
+
     int totalBlocks = static_cast<int>((5.0 * sampleRate) / blockSize);
     float maxPeak = masterBuffer.getMagnitude(0, blockSize);
     int activeNodes = static_cast<int>(workstation.getNodeGraph().getNodes().size());
