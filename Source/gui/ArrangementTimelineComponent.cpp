@@ -613,138 +613,78 @@ void ArrangementTimelineComponent::paint(juce::Graphics& g)
         g.drawText(c.name, clipRect.reduced(6.0f), juce::Justification::topLeft, true);
     }
 
-    // 6. Render Parameter Automation Curves & Step Trajectories
-    std::unordered_map<int, std::vector<TimelineMessageEvent>> trackEventGroups;
+    // 6. Render Discrete Message & Value Point Events (No connecting lines)
     for (const auto& ev : messageEvents)
     {
-        trackEventGroups[ev.trackIndex].push_back(ev);
-    }
+        int trackY = contentStartY + ev.trackIndex * trackHeight;
+        float x = trackHeaderWidth + static_cast<float>(ev.timeSec / totalDurationSec) * timelineW;
+        bool isSel = (selectedEventId == ev.eventId);
+        bool isTrigger = (ev.messageText == "play" || ev.messageText == "open" || ev.messageText == "bang" || ev.messageText == "trigger");
 
-    for (auto& pair : trackEventGroups)
-    {
-        int tIdx = pair.first;
-        auto& evList = pair.second;
-        std::sort(evList.begin(), evList.end(), [](const TimelineMessageEvent& a, const TimelineMessageEvent& b) {
-            return a.timeSec < b.timeSec;
-        });
-
-        int trackY = contentStartY + tIdx * trackHeight;
-
-        // Check if track is parameter automation (e.g. cutoff or feedback values)
-        bool isParamTrack = false;
-        std::vector<std::pair<float, float>> autoPoints; // x, normalized y [0, 1]
-
-        for (const auto& ev : evList)
+        if (isTrigger)
         {
-            if (ev.messageText.startsWith("cutoff ") || ev.messageText.startsWith("freq ") ||
-                ev.messageText.startsWith("feedback ") || ev.messageText.startsWith("drive "))
+            // Sleek Vertical Rhythm Trigger Tick (Drum sequencer / Piano roll style)
+            float tickH = static_cast<float>(trackHeight - 26);
+            float topY = static_cast<float>(trackY + 18);
+            float botY = topY + tickH;
+
+            juce::Colour pinCol = (ev.messageText == "open") ? CarbonGoldLookAndFeel::cyberCyan : (isSel ? juce::Colours::white : CarbonGoldLookAndFeel::goldAccent);
+
+            // Vertical Stem Line at exact trigger moment
+            g.setColour(pinCol.withAlpha(0.85f));
+            g.drawLine(x, topY + 4.0f, x, botY, isSel ? 2.5f : 1.5f);
+
+            // Glowing Pin Head (Diamond / Rounded Dot)
+            juce::Rectangle<float> headRect(x - 3.5f, topY - 1.0f, 7.0f, 7.0f);
+            g.setColour(pinCol);
+            g.fillEllipse(headRect);
+
+            if (isSel)
             {
-                isParamTrack = true;
-                float x = trackHeaderWidth + static_cast<float>(ev.timeSec / totalDurationSec) * timelineW;
-                float val = 0.5f;
-                if (ev.messageText.startsWith("cutoff ")) val = std::clamp((ev.messageText.substring(7).getFloatValue() - 200.0f) / 4800.0f, 0.05f, 0.95f);
-                else if (ev.messageText.startsWith("feedback ")) val = std::clamp(ev.messageText.substring(9).getFloatValue(), 0.05f, 0.95f);
-                autoPoints.push_back({ x, val });
+                // Floating Tooltip for Selected Trigger
+                juce::Rectangle<float> tagRect(x - 20.0f, topY - 14.0f, 40.0f, 13.0f);
+                g.setColour(CarbonGoldLookAndFeel::slatePanel.darker(0.5f));
+                g.fillRoundedRectangle(tagRect, 2.0f);
+                g.setColour(CarbonGoldLookAndFeel::goldAccent);
+                g.drawRoundedRectangle(tagRect, 2.0f, 1.0f);
+                g.setFont(8.5f);
+                g.drawText(ev.messageText, tagRect, juce::Justification::centred, false);
             }
         }
-
-        if (isParamTrack && autoPoints.size() >= 2)
+        else
         {
-            juce::Path curvePath;
+            // Discrete Point Event Marker (Exact scheduled moment)
+            float topY = static_cast<float>(trackY + 16);
             float botY = static_cast<float>(trackY + trackHeight - 8);
-            float h = static_cast<float>(trackHeight - 24);
 
-            for (size_t i = 0; i < autoPoints.size(); ++i)
-            {
-                float px = autoPoints[i].first;
-                float py = botY - autoPoints[i].second * h;
-                if (i == 0) curvePath.startNewSubPath(px, py);
-                else curvePath.lineTo(px, py);
-            }
-            g.setColour(CarbonGoldLookAndFeel::goldAccent.withAlpha(0.7f));
-            g.strokePath(curvePath, juce::PathStrokeType(1.6f));
-        }
+            // Subtle vertical timing marker
+            g.setColour(CarbonGoldLookAndFeel::goldAccent.withAlpha(isSel ? 0.6f : 0.25f));
+            g.drawVerticalLine(static_cast<int>(x), topY + 2.0f, botY);
 
-        // Render individual Events (Pins vs Badges)
-        for (const auto& ev : evList)
-        {
-            int y = trackY + 16;
-            float x = trackHeaderWidth + static_cast<float>(ev.timeSec / totalDurationSec) * timelineW;
-            bool isSel = (selectedEventId == ev.eventId);
-            bool isTrigger = (ev.messageText == "play" || ev.messageText == "open" || ev.messageText == "bang" || ev.messageText == "trigger");
+            // Point Handle Node
+            float nodeY = topY + (botY - topY) * 0.5f;
+            g.setColour(isSel ? juce::Colours::white : CarbonGoldLookAndFeel::goldAccent);
+            g.fillEllipse(x - 4.0f, nodeY - 4.0f, 8.0f, 8.0f);
+            g.setColour(CarbonGoldLookAndFeel::slatePanel.darker(0.8f));
+            g.drawEllipse(x - 4.0f, nodeY - 4.0f, 8.0f, 8.0f, 1.2f);
 
-            if (isTrigger)
-            {
-                // Sleek Vertical Rhythm Trigger Tick (Drum sequencer / Piano roll style)
-                float tickH = static_cast<float>(trackHeight - 26);
-                float topY = static_cast<float>(trackY + 18);
-                float botY = topY + tickH;
+            // Compact Point Value / Message Badge
+            juce::String labelText = ev.messageText;
+            if (ev.messageText.startsWith("cutoff ")) labelText = ev.messageText.substring(7) + "Hz";
+            else if (ev.messageText.startsWith("feedback ")) labelText = "fb " + ev.messageText.substring(9);
+            else if (ev.messageText.startsWith("notes ")) labelText = "notes [" + ev.messageText.substring(6, 12) + "..]";
 
-                juce::Colour pinCol = (ev.messageText == "open") ? CarbonGoldLookAndFeel::cyberCyan : (isSel ? juce::Colours::white : CarbonGoldLookAndFeel::goldAccent);
+            int badgeW = std::clamp(static_cast<int>(labelText.length() * 7 + 12), 36, 110);
+            juce::Rectangle<float> labelRect(x - (badgeW * 0.5f), nodeY - 18.0f, static_cast<float>(badgeW), 14.0f);
 
-                // Vertical Stem Line
-                g.setColour(pinCol.withAlpha(0.85f));
-                g.drawLine(x, topY + 4.0f, x, botY, isSel ? 2.5f : 1.5f);
+            g.setColour(CarbonGoldLookAndFeel::slatePanel.darker(0.7f));
+            g.fillRoundedRectangle(labelRect, 2.0f);
+            g.setColour(isSel ? juce::Colours::white : CarbonGoldLookAndFeel::goldAccent.withAlpha(0.8f));
+            g.drawRoundedRectangle(labelRect, 2.0f, 0.8f);
 
-                // Glowing Pin Head (Diamond / Rounded Dot)
-                juce::Rectangle<float> headRect(x - 3.5f, topY - 1.0f, 7.0f, 7.0f);
-                g.setColour(pinCol);
-                g.fillEllipse(headRect);
-
-                if (isSel)
-                {
-                    // Floating Tooltip for Selected Trigger
-                    juce::Rectangle<float> tagRect(x - 20.0f, topY - 14.0f, 40.0f, 13.0f);
-                    g.setColour(CarbonGoldLookAndFeel::slatePanel.darker(0.5f));
-                    g.fillRoundedRectangle(tagRect, 2.0f);
-                    g.setColour(CarbonGoldLookAndFeel::goldAccent);
-                    g.drawRoundedRectangle(tagRect, 2.0f, 1.0f);
-                    g.setFont(8.5f);
-                    g.drawText(ev.messageText, tagRect, juce::Justification::centred, false);
-                }
-            }
-            else if (isParamTrack)
-            {
-                // Automation Breakpoint Node (Circular Handle)
-                float val = 0.5f;
-                if (ev.messageText.startsWith("cutoff ")) val = std::clamp((ev.messageText.substring(7).getFloatValue() - 200.0f) / 4800.0f, 0.05f, 0.95f);
-                else if (ev.messageText.startsWith("feedback ")) val = std::clamp(ev.messageText.substring(9).getFloatValue(), 0.05f, 0.95f);
-
-                float botY = static_cast<float>(trackY + trackHeight - 8);
-                float h = static_cast<float>(trackHeight - 24);
-                float py = botY - val * h;
-
-                g.setColour(isSel ? juce::Colours::white : CarbonGoldLookAndFeel::goldAccent);
-                g.fillEllipse(x - 4.0f, py - 4.0f, 8.0f, 8.0f);
-                g.setColour(CarbonGoldLookAndFeel::slatePanel.darker(0.8f));
-                g.drawEllipse(x - 4.0f, py - 4.0f, 8.0f, 8.0f, 1.2f);
-
-                // Compact Value Label
-                juce::String labelText = ev.messageText;
-                if (ev.messageText.startsWith("cutoff ")) labelText = ev.messageText.substring(7) + "Hz";
-                else if (ev.messageText.startsWith("feedback ")) labelText = "fb " + ev.messageText.substring(9);
-
-                juce::Rectangle<float> labelRect(x - 24.0f, py - 15.0f, 48.0f, 12.0f);
-                g.setColour(isSel ? juce::Colours::white : CarbonGoldLookAndFeel::goldAccent.withAlpha(0.9f));
-                g.setFont(juce::Font(8.5f, juce::Font::bold));
-                g.drawText(labelText, labelRect, juce::Justification::centred, false);
-            }
-            else
-            {
-                // Compact Message Pill Badge (For complex chords / strings)
-                float badgeW = std::min(110.0f, timelineW * 0.22f);
-                juce::Rectangle<float> badgeRect(x, static_cast<float>(y + 12), badgeW, 20.0f);
-
-                g.setColour(isSel ? CarbonGoldLookAndFeel::goldAccent : CarbonGoldLookAndFeel::slatePanel.darker(0.5f));
-                g.fillRoundedRectangle(badgeRect, 3.0f);
-
-                g.setColour(isSel ? juce::Colours::white : CarbonGoldLookAndFeel::goldAccent);
-                g.drawRoundedRectangle(badgeRect, 3.0f, isSel ? 1.8f : 1.0f);
-
-                g.setColour(isSel ? juce::Colours::black : CarbonGoldLookAndFeel::goldAccent);
-                g.setFont(juce::Font(9.5f, juce::Font::bold));
-                g.drawText(ev.messageText, badgeRect.reduced(4.0f, 1.0f), juce::Justification::centredLeft, true);
-            }
+            g.setColour(isSel ? juce::Colours::white : CarbonGoldLookAndFeel::goldAccent);
+            g.setFont(juce::Font(8.5f, juce::Font::bold));
+            g.drawText(labelText, labelRect, juce::Justification::centred, false);
         }
     }
 
