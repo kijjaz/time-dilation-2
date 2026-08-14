@@ -31,6 +31,8 @@ target_sources(TimeDilationDAW
         Source/dsp/RelativisticSequencers.cpp
         Source/dsp/CompositeNode.h
         Source/dsp/CompositeNode.cpp
+        Source/dsp/PrintNode.h
+        Source/dsp/PrintNode.cpp
         Source/gui/CarbonGoldLookAndFeel.h
         Source/gui/CarbonGoldLookAndFeel.cpp
         Source/gui/RelativisticCanvasComponent.h
@@ -43,8 +45,11 @@ target_sources(TimeDilationDAW
         Source/gui/TrackViewComponent.cpp
         Source/gui/ArrangementTimelineComponent.h
         Source/gui/ArrangementTimelineComponent.cpp
+        Source/gui/ConsolePanelComponent.h
+        Source/gui/ConsolePanelComponent.cpp
         Source/gui/WorkstationContainerComponent.h
         Source/gui/WorkstationContainerComponent.cpp
+        Source/utils/ConsoleLogger.h
         Source/utils/AgentTestRunner.h
         Source/utils/AgentTestRunner.cpp
         Source/utils/TerminalCommandProcessor.h

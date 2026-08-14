@@ -843,6 +843,21 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         descLabel.setText("Shared Audio Sample Buffer Array & Reader for custom waveform playback and sequencing.", juce::dontSendNotification);
         templateMsgs = { "size 44100", "size 88200", "clear" };
     }
+    else if (sym == "print" || sym == "print~")
+    {
+        bool isAudio = (sym == "print~");
+        paramLabel1.setText("Prefix Tag: " + (selectedNode ? juce::String(selectedNode->getLabel()) : ""), juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setVisible(false);
+        paramLabel2.setVisible(false);
+        paramSlider2.setVisible(false);
+        optionLabel.setVisible(false);
+        optionSelector.setVisible(false);
+
+        descLabel.setText(isAudio ? "Real-time audio signal & envelope inspector. Analyzes signal Peak dBFS, RMS dBFS, dynamic envelope, and activity, logging periodic stats to the Terminal Console."
+                                  : "Message & number inspector. Prints all incoming control messages, list elements, or numeric triggers to the Terminal Console.", juce::dontSendNotification);
+        templateMsgs = { "probe", "bang", "stat", "prefix test", "1", "0" };
+    }
     else
     {
         paramSlider1.setVisible(false);
@@ -959,6 +974,15 @@ void NodeInspectorComponent::updateUIForSelectedNode()
                 if (index == 0) return "Message Output";
                 if (index == 1) return "MIDI Pitch Audio Outlet (Hz/Note)";
                 if (index == 2) return "Gate Trigger Audio Outlet (0 or 1)";
+            }
+        }
+        else if (sym == "print" || sym == "print~") {
+            if (!isOutlet) {
+                if (index == 0) return "Message / Number Input (logs to console)";
+                if (index == 1) return "Audio Signal Input for Peak/RMS/Envelope analysis (~)";
+            } else {
+                if (index == 0) return "Message Passthrough Output";
+                if (index == 1) return "Audio Passthrough Output (~)";
             }
         }
         return isOutlet ? ("Output Port: " + portName) : ("Input Port: " + portName);

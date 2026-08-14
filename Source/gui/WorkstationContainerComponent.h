@@ -8,6 +8,7 @@
 #include "NodeInspectorComponent.h"
 #include "TrackViewComponent.h"
 #include "ArrangementTimelineComponent.h"
+#include "ConsolePanelComponent.h"
 #include "CarbonGoldLookAndFeel.h"
 
 namespace TimeDilationDAW
@@ -22,6 +23,8 @@ public:
 
     void paint(juce::Graphics& g) override;
     void resized() override;
+
+    void toggleConsole();
 
     void mouseDown(const juce::MouseEvent& e) override;
     void mouseDrag(const juce::MouseEvent& e) override;
@@ -44,6 +47,9 @@ private:
     OscilloscopeComponent oscilloscopeComponent;
     juce::Viewport inspectorViewport;
     NodeInspectorComponent nodeInspectorComponent;
+    ConsolePanelComponent consolePanel;
+    bool isConsoleVisible = false;
+    int consoleHeight = 150;
 
     enum class ViewMode { TrackView, ModularCanvas, DualViewSplit };
     ViewMode currentViewMode = ViewMode::ModularCanvas;

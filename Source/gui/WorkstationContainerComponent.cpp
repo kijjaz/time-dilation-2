@@ -156,6 +156,9 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
         m.addItem(7, "time.warp Relativistic Time Dilation");
         m.addItem(8, "seq Step Sequencer");
         m.addItem(9, "patch~ Composite Sub-Graph");
+        m.addSeparator();
+        m.addItem(10, "print Message & Number Console Logger");
+        m.addItem(11, "print~ Audio Signal & Envelope Console Probe");
         m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&putMenuButton), [this](int result) {
             if (result == 1) { canvasComponent.spawnObjectEditorAt({ 200.0f, 200.0f }); }
             else if (result == 2) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "osc~ sin"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
@@ -166,6 +169,8 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
             else if (result == 7) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "time.warp 2.0"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
             else if (result == 8) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "seq 60 62 64 67"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
             else if (result == 9) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "patch~ synth.voice~"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 10) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "print"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 11) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "print~"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
             trackViewComponent.refreshTracks();
         });
     };
@@ -173,9 +178,13 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
     viewMenuButton.onClick = [this]() {
         juce::PopupMenu m;
         m.addItem(1, "Recenter Canvas (Cmd+0)");
-        m.addItem(2, "Toggle Oscilloscope", true, true);
+        m.addItem(2, "Toggle Oscilloscope", true, oscilloscopeComponent.isVisible());
+        m.addSeparator();
+        m.addItem(3, "Toggle Terminal Console (Cmd+K)", true, isConsoleVisible);
         m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&viewMenuButton), [this](int result) {
             if (result == 1) { canvasComponent.recenterView(); }
+            else if (result == 2) { oscilloscopeComponent.setVisible(!oscilloscopeComponent.isVisible()); }
+            else if (result == 3) { toggleConsole(); }
         });
     };
 
@@ -216,6 +225,14 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
     inspectorViewport.setViewedComponent(&nodeInspectorComponent, false);
     inspectorViewport.setScrollBarsShown(true, false, true, false);
     inspectorViewport.getVerticalScrollBar().setColour(juce::ScrollBar::thumbColourId, CarbonGoldLookAndFeel::goldAccent.withAlpha(0.6f));
+
+    addChildComponent(consolePanel);
+    consolePanel.onCloseRequested = [this]() {
+        isConsoleVisible = false;
+        consolePanel.setVisible(false);
+        resized();
+        repaint();
+    };
 
     trackViewComponent.onInspectNodePatch = [this](int nodeId) {
         juce::ignoreUnused(nodeId);
@@ -464,6 +481,15 @@ void WorkstationContainerComponent::loadExampleDrumGroove()
     trackViewComponent.refreshTracks();
 }
 
+void WorkstationContainerComponent::toggleConsole()
+{
+    isConsoleVisible = !isConsoleVisible;
+    consolePanel.setVisible(isConsoleVisible);
+    if (isConsoleVisible) consolePanel.refreshLogs();
+    resized();
+    repaint();
+}
+
 void WorkstationContainerComponent::paint(juce::Graphics& g)
 {
     g.fillAll(CarbonGoldLookAndFeel::carbonBg);
@@ -476,12 +502,15 @@ void WorkstationContainerComponent::paint(juce::Graphics& g)
     g.drawHorizontalLine(60, 0.0f, static_cast<float>(getWidth()));
 
     // Vertical Divider Line between canvas and inspector
+    int consoleH = isConsoleVisible ? consoleHeight : 0;
+    int availableH = getHeight() - 60 - consoleH;
+
     int dividerX = getWidth() - inspectorWidth;
     g.setColour(CarbonGoldLookAndFeel::slatePanel);
-    g.fillRect(dividerX, 60, inspectorWidth, getHeight() - 60);
+    g.fillRect(dividerX, 60, inspectorWidth, availableH);
 
     g.setColour(CarbonGoldLookAndFeel::goldAccent.withAlpha(0.4f));
-    g.drawVerticalLine(dividerX, 60.0f, static_cast<float>(getHeight()));
+    g.drawVerticalLine(dividerX, 60.0f, static_cast<float>(60 + availableH));
 }
 
 void WorkstationContainerComponent::mouseDown(const juce::MouseEvent& e)
@@ -551,8 +580,9 @@ void WorkstationContainerComponent::resized()
     oscilloscopeComponent.setBounds(menuX, 6, std::max(50, getWidth() - menuX - 15), 48);
 
     // Resizable layout (TrackView, ModularCanvas, or DualViewSplit)
+    int consoleH = isConsoleVisible ? consoleHeight : 0;
     int canvasW = getWidth() - inspectorWidth;
-    int contentH = getHeight() - 60;
+    int contentH = getHeight() - 60 - consoleH;
 
     if (currentViewMode == ViewMode::TrackView)
     {
@@ -584,6 +614,11 @@ void WorkstationContainerComponent::resized()
     int targetInspectorW = inspectorViewport.getViewWidth();
     nodeInspectorComponent.setBounds(0, 0, targetInspectorW, std::max(contentH, nodeInspectorComponent.getHeight()));
     nodeInspectorComponent.resized();
+
+    if (isConsoleVisible)
+    {
+        consolePanel.setBounds(0, getHeight() - consoleH, getWidth(), consoleH);
+    }
 }
 
 void WorkstationContainerComponent::prepareToPlay(int samplesPerBlockExpected, double sampleRate)
@@ -750,6 +785,11 @@ bool WorkstationContainerComponent::keyPressed(const juce::KeyPress& key)
         else if (key.getKeyCode() == 'N' || key.getKeyCode() == 'n')
         {
             newPatch();
+            return true;
+        }
+        else if (key.getKeyCode() == 'K' || key.getKeyCode() == 'k')
+        {
+            toggleConsole();
             return true;
         }
     }

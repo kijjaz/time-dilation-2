@@ -1,4 +1,5 @@
 #include "RelativisticNodeFactory.h"
+#include "PrintNode.h"
 #include <sstream>
 #include <vector>
 
@@ -268,6 +269,18 @@ std::shared_ptr<RelativisticNode> RelativisticNodeFactory::createNode(int nodeId
         std::string patchName = "synth.voice~";
         if (ss >> patchName) {}
         return std::make_shared<CompositeNode>(nodeId, "patch~", patchName);
+    }
+    else if (symbol == "print")
+    {
+        std::string prefix = "print";
+        if (ss >> prefix) {}
+        return std::make_shared<PrintNode>(nodeId, prefix, false);
+    }
+    else if (symbol == "print~")
+    {
+        std::string prefix = "print~";
+        if (ss >> prefix) {}
+        return std::make_shared<PrintNode>(nodeId, prefix, true);
     }
 
     // Default fallback to osc~
