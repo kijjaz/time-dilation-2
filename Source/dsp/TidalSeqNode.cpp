@@ -9,7 +9,8 @@ TidalSeqNode::TidalSeqNode(int id, const std::string& patternString, double cycl
     , cycleDurationSec(cycleDur)
 {
     // Inlets:
-    // 0: msgIn (set pattern / speed), 1: timeIn (TimeFrame)
+    // 0: msgIn (set pattern / speed / dur), 1: timeIn (TimeFrame)
+    addInlet("msgIn", PortDataType::Message);
     addInlet("timeIn", PortDataType::Time);
 
     // Outlets:
@@ -74,11 +75,28 @@ void TidalSeqNode::process(int numSamples)
     auto& audioTrig = getOutletBuffer(4);   // Outlet 4: audioTrig~
 
     // Only advance when connected to an active time/clock stream (e.g. time.transport~ / timeline~)!
-    bool isDriven = isInletConnected(0);
-    const auto& timeIn = getInletTimeFrame(0);
-    double currentGamma = isDriven ? std::max(0.0, timeIn.masterGamma) : 0.0;
+    bool isDriven = false;
+    TimePolyFrame timeIn;
+    for (size_t idx = 0; idx < getInlets().size(); ++idx)
+    {
+        if (getInlets()[idx].dataType == PortDataType::Time && isInletConnected(static_cast<int>(idx)))
+        {
+            isDriven = true;
+            timeIn = getInletTimeFrame(static_cast<int>(idx));
+            break;
+        }
+    }
+    // Fallback if connected to inlet 0
+    if (!isDriven && isInletConnected(0))
+    {
+        isDriven = true;
+        timeIn = getInletTimeFrame(0);
+    }
 
-    if (currentGamma <= 0.000001)
+    const bool hasSampleGamma = (timeIn.sampleGamma.size() >= static_cast<size_t>(numSamples));
+    double masterG = isDriven ? std::max(0.0, timeIn.masterGamma) : 0.0;
+
+    if (!isDriven || (masterG <= 0.000001 && !hasSampleGamma))
     {
         freqOut.clear();
         audioTrig.clear();
@@ -87,6 +105,7 @@ void TidalSeqNode::process(int numSamples)
 
     for (int i = 0; i < numSamples; ++i)
     {
+        double currentGamma = hasSampleGamma ? std::max(0.0, static_cast<double>(timeIn.sampleGamma[static_cast<size_t>(i)])) : masterG;
         double dt = (1.0 / currentSampleRate) * currentGamma;
         double dPhase = dt / cycleDurationSec;
 

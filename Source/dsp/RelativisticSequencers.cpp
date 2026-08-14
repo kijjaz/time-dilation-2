@@ -459,14 +459,30 @@ void TransportNode::process(int numSamples)
 
     double inputGamma = isInletConnected(0) ? timeInFrame.masterGamma : 1.0;
 
+    timeOutFrame.sampleGamma.resize(static_cast<size_t>(numSamples));
+    const bool hasInSampleGamma = (timeInFrame.sampleGamma.size() >= static_cast<size_t>(numSamples));
+
     if (isRunning)
     {
-        currentPlayheadSec += (static_cast<double>(numSamples) / currentSampleRate) * inputGamma;
+        for (int s = 0; s < numSamples; ++s)
+        {
+            double sampleG = hasInSampleGamma ? static_cast<double>(timeInFrame.sampleGamma[static_cast<size_t>(s)]) : inputGamma;
+            currentPlayheadSec += (1.0 / currentSampleRate) * sampleG;
+            timeOutFrame.sampleGamma[static_cast<size_t>(s)] = static_cast<float>(sampleG);
+            pushTimeScopeSample(static_cast<float>(sampleG));
+            pushTimeTauScopeSample(static_cast<float>(currentPlayheadSec));
+        }
         timeOutFrame.masterGamma = inputGamma;
         timeOutFrame.masterTau = currentPlayheadSec;
     }
     else
     {
+        for (int s = 0; s < numSamples; ++s)
+        {
+            timeOutFrame.sampleGamma[static_cast<size_t>(s)] = 0.0f;
+            pushTimeScopeSample(0.0f);
+            pushTimeTauScopeSample(static_cast<float>(currentPlayheadSec));
+        }
         timeOutFrame.masterGamma = 0.0;
         timeOutFrame.masterTau = currentPlayheadSec;
     }
