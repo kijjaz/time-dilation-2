@@ -505,6 +505,114 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         templateMsgs = { "play", "stop", "reset" };
     }
 
+    auto getPortFunctionDesc = [](const std::string& symbol, bool isOutlet, int index, const std::string& portName) -> std::string {
+        std::string sym = symbol;
+        std::transform(sym.begin(), sym.end(), sym.begin(), ::tolower);
+
+        if (sym == "osc~") {
+            if (!isOutlet) {
+                if (index == 0) return "Control Messages (freq <hz>, wave <shape>, vol <db>)";
+                if (index == 1) return "Relativistic Time Input (modulates pitch via Doppler \u03b3)";
+                if (index == 2) return "Frequency Modulation (FM) Audio Input (~)";
+            } else {
+                if (index == 0) return "Message Output";
+                if (index == 1) return "Time Frame Output (\u03b3)";
+                if (index == 2) return "Anti-aliased Audio Output (~)";
+            }
+        }
+        else if (sym == "ladder~") {
+            if (!isOutlet) {
+                if (index == 0) return "Control Messages (cutoff <hz>, res <q>, vol <db>)";
+                if (index == 1) return "Relativistic Time Input (modulates filter cutoff)";
+                if (index == 2) return "Audio Signal Input (~)";
+                if (index == 3) return "Cutoff Audio Modulation Input (~)";
+            } else {
+                if (index == 0) return "Message Output";
+                if (index == 1) return "Time Frame Output (\u03b3)";
+                if (index == 2) return "Filtered Moog 4-Pole Audio Output (~)";
+            }
+        }
+        else if (sym == "drive~" || sym == "saturate~") {
+            if (!isOutlet) {
+                if (index == 0) return "Control Messages (drive <gain>, vol <db>)";
+                if (index == 1) return "Relativistic Time Input";
+                if (index == 2) return "Audio Signal Input (~)";
+            } else {
+                if (index == 0) return "Message Output";
+                if (index == 1) return "Time Frame Output (\u03b3)";
+                if (index == 2) return "Tube Saturated Audio Output (~)";
+            }
+        }
+        else if (sym == "pluck~") {
+            if (!isOutlet) {
+                if (index == 0) return "Control Messages (set <freq>, play, vol <db>)";
+                if (index == 1) return "Relativistic Time Input";
+                if (index == 2) return "Exciter Trigger Audio Input (~)";
+            } else {
+                if (index == 0) return "Message Output";
+                if (index == 1) return "Time Frame Output (\u03b3)";
+                if (index == 2) return "Karplus-Strong String Audio Output (~)";
+            }
+        }
+        else if (sym == "out~") {
+            if (!isOutlet) {
+                if (index == 0) return "Control Messages (vol <dbFS>, play, stop)";
+                if (index == 1) return "Left Channel Audio Input (Strict Channel 0)";
+                if (index == 2) return "Right Channel Audio Input (Strict Channel 1)";
+            } else {
+                if (index == 0) return "Message Output";
+                if (index == 1) return "Stereo Audio Pass-Through Output (~)";
+            }
+        }
+        else if (sym == "meter~" || sym == "vu~") {
+            if (!isOutlet) {
+                if (index == 0) return "Control Messages (peak, rms, lufs)";
+                if (index == 1) return "Audio Input to Monitor (~)";
+            } else {
+                if (index == 0) return "Message Output";
+                if (index == 1) return "Pass-Through Audio Output (~)";
+            }
+        }
+        else if (sym == "spectrogram~" || sym == "spec~") {
+            if (!isOutlet) {
+                if (index == 0) return "Control Messages (freeze, resume, clear)";
+                if (index == 1) return "Audio Input for FFT Analysis (~)";
+            } else {
+                if (index == 0) return "Message Output";
+                if (index == 1) return "Pass-Through Audio Output (~)";
+            }
+        }
+        else if (sym == "time.lfo~" || sym == "time.lfo") {
+            if (!isOutlet) {
+                if (index == 0) return "Relativistic Time Input to Modulate";
+                if (index == 1) return "Control Messages (rate <hz>, depth <gamma>)";
+            } else {
+                if (index == 0) return "Message Output";
+                if (index == 1) return "Modulated Relativistic Time Output (\u03b3)";
+            }
+        }
+        else if (sym == "time.warp") {
+            if (!isOutlet) {
+                if (index == 0) return "Control Messages (factor <gamma>, warp <gamma>)";
+                if (index == 1) return "Relativistic Time Input";
+            } else {
+                if (index == 0) return "Message Output";
+                if (index == 1) return "Time-Warped Relativistic Output (\u03b3)";
+            }
+        }
+        else if (sym == "seq") {
+            if (!isOutlet) {
+                if (index == 0) return "Control Messages (notes <list>, bpm <val>)";
+                if (index == 1) return "Relativistic Time Clock Input";
+            } else {
+                if (index == 0) return "Message Output";
+                if (index == 1) return "MIDI Pitch Audio Outlet (Hz/Note)";
+                if (index == 2) return "Gate Trigger Audio Outlet (0 or 1)";
+            }
+        }
+        return isOutlet ? ("Output Port: " + portName) : ("Input Port: " + portName);
+    };
+
     // Dynamic Inlet & Outlet Description Format for ALL Node Types
     std::ostringstream ioSs;
     ioSs << "INLETS (" << selectedNode->getInlets().size() << "):\n";
@@ -513,15 +621,27 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         const auto& in = selectedNode->getInlets()[i];
         std::string typeStr = (in.dataType == PortDataType::Audio) ? "Audio~ (Cyan)" :
                               ((in.dataType == PortDataType::Time) ? "Time (Royal Violet)" : "Message (Gold)");
-        ioSs << "  In " << i << ": " << in.name << " \u2014 " << typeStr << "\n";
+        std::string fDesc = getPortFunctionDesc(sym, false, static_cast<int>(i), in.name);
+        ioSs << "  In " << i << " [" << in.name << "] (" << typeStr << "): " << fDesc << "\n";
     }
+
     ioSs << "\nOUTLETS (" << selectedNode->getOutlets().size() << "):\n";
     for (size_t o = 0; o < selectedNode->getOutlets().size(); ++o)
     {
         const auto& out = selectedNode->getOutlets()[o];
         std::string typeStr = (out.dataType == PortDataType::Audio) ? "Audio~ (Cyan)" :
                               ((out.dataType == PortDataType::Time) ? "Time (Royal Violet)" : "Message (Gold)");
-        ioSs << "  Out " << o << ": " << out.name << " \u2014 " << typeStr << "\n";
+        std::string fDesc = getPortFunctionDesc(sym, true, static_cast<int>(o), out.name);
+        ioSs << "  Out " << o << " [" << out.name << "] (" << typeStr << "): " << fDesc << "\n";
+    }
+
+    if (!templateMsgs.empty())
+    {
+        ioSs << "\nSUPPORTED MESSAGES & COMMANDS:\n";
+        for (const auto& msg : templateMsgs)
+        {
+            ioSs << "  \u2022 " << msg << "\n";
+        }
     }
 
     inletOutletLabel.setText(ioSs.str(), juce::dontSendNotification);
