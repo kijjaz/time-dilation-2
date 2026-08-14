@@ -223,6 +223,7 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
     };
 
     setupDefaultPatch();
+    arrangementTimelineComponent.refreshTimeline();
 
     if (enableAudioHardware)
     {

@@ -1760,7 +1760,8 @@ void KickNode::process(int numSamples)
         const float* trigIn = trigBuf.getReadPointer(0);
         for (int s = 0; s < numSamples; ++s)
         {
-            if (trigIn[s] > 0.5f && envPhase > 0.1) trigger();
+            if (trigIn[s] > 0.5f && lastTrigVal <= 0.5f) trigger();
+            lastTrigVal = trigIn[s];
         }
     }
 
@@ -1804,7 +1805,7 @@ void KickNode::receiveMessage(const std::string& msg)
     RelativisticNode::receiveMessage(msg);
     std::string s = msg;
     std::transform(s.begin(), s.end(), s.begin(), ::tolower);
-    if (s == "bang" || s == "play" || s == "1" || s == "trig") trigger();
+    if (s == "bang" || s == "play" || s == "1" || s == "trig") isTriggered.store(true);
     else if (s.rfind("pitch ", 0) == 0 || s.rfind("freq ", 0) == 0) baseFreq = std::stod(s.substr(6));
     else if (s.rfind("decay ", 0) == 0) decayTime = std::stod(s.substr(6));
 }
@@ -1827,6 +1828,7 @@ void SnareNode::prepare(double sampleRate, int samplesPerBlock)
     envPhase = 1.0;
     bodyPhase1 = 0.0;
     bodyPhase2 = 0.0;
+    lastTrigVal = 0.0f;
 }
 
 void SnareNode::trigger()
@@ -1848,7 +1850,8 @@ void SnareNode::process(int numSamples)
         const float* trigIn = trigBuf.getReadPointer(0);
         for (int s = 0; s < numSamples; ++s)
         {
-            if (trigIn[s] > 0.5f && envPhase > 0.1) trigger();
+            if (trigIn[s] > 0.5f && lastTrigVal <= 0.5f) trigger();
+            lastTrigVal = trigIn[s];
         }
     }
 
@@ -1892,7 +1895,7 @@ void SnareNode::receiveMessage(const std::string& msg)
     RelativisticNode::receiveMessage(msg);
     std::string s = msg;
     std::transform(s.begin(), s.end(), s.begin(), ::tolower);
-    if (s == "bang" || s == "play" || s == "1" || s == "trig") trigger();
+    if (s == "bang" || s == "play" || s == "1" || s == "trig") isTriggered.store(true);
     else if (s.rfind("tone ", 0) == 0 || s.rfind("freq ", 0) == 0) toneFrequency = std::stod(s.substr(5));
     else if (s.rfind("snappy ", 0) == 0) snappyAmount = std::stod(s.substr(7));
     else if (s.rfind("decay ", 0) == 0) decayTime = std::stod(s.substr(6));
@@ -1914,6 +1917,7 @@ void HiHatNode::prepare(double sampleRate, int samplesPerBlock)
 {
     RelativisticNode::prepare(sampleRate, samplesPerBlock);
     envPhase = 1.0;
+    lastTrigVal = 0.0f;
     std::fill(std::begin(phases), std::end(phases), 0.0);
 }
 
@@ -1935,7 +1939,8 @@ void HiHatNode::process(int numSamples)
         const float* trigIn = trigBuf.getReadPointer(0);
         for (int s = 0; s < numSamples; ++s)
         {
-            if (trigIn[s] > 0.5f && envPhase > 0.1) trigger(decayTime);
+            if (trigIn[s] > 0.5f && lastTrigVal <= 0.5f) trigger(decayTime);
+            lastTrigVal = trigIn[s];
         }
     }
 
@@ -1976,9 +1981,20 @@ void HiHatNode::receiveMessage(const std::string& msg)
     RelativisticNode::receiveMessage(msg);
     std::string s = msg;
     std::transform(s.begin(), s.end(), s.begin(), ::tolower);
-    if (s == "bang" || s == "play" || s == "1" || s == "trig" || s == "close") trigger(0.08);
-    else if (s == "open") trigger(0.35);
-    else if (s.rfind("decay ", 0) == 0) decayTime = std::stod(s.substr(6));
+    if (s == "bang" || s == "play" || s == "1" || s == "trig" || s == "close")
+    {
+        decayTime = 0.08;
+        isTriggered.store(true);
+    }
+    else if (s == "open")
+    {
+        decayTime = 0.35;
+        isTriggered.store(true);
+    }
+    else if (s.rfind("decay ", 0) == 0)
+    {
+        decayTime = std::stod(s.substr(6));
+    }
 }
 
 } // namespace TimeDilationDAW

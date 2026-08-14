@@ -491,6 +491,7 @@ private:
     double decayTime = 0.35;
     double envPhase = 1.0;
     double oscPhase = 0.0;
+    float lastTrigVal = 0.0f;
     std::atomic<bool> isTriggered{ false };
 };
 
@@ -511,6 +512,7 @@ private:
     double envPhase = 1.0;
     double bodyPhase1 = 0.0;
     double bodyPhase2 = 0.0;
+    float lastTrigVal = 0.0f;
     juce::Random random;
     std::atomic<bool> isTriggered{ false };
 };
@@ -528,6 +530,7 @@ public:
 private:
     double decayTime = 0.08;
     double envPhase = 1.0;
+    float lastTrigVal = 0.0f;
     double phases[6] = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
     static constexpr double freqs[6] = { 205.3, 304.4, 369.6, 522.7, 540.0, 800.0 };
     std::atomic<bool> isTriggered{ false };
