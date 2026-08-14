@@ -111,6 +111,9 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
         juce::PopupMenu examplesMenu;
         examplesMenu.addItem(101, "01: Full Workstation Ensemble (Synth + Drums + FX)");
         examplesMenu.addItem(102, "02: Analog Drum Machine & Groove (Focused Kick/Snare/Hat)");
+        examplesMenu.addItem(103, "03: Deterministic Tape Stop & Wobble Machine (Metro -> Select -> Time.Curve)");
+        examplesMenu.addItem(104, "04: Relativistic Delay & Pipe Synth (Doppler Delay + Proper Time Pipe)");
+        examplesMenu.addItem(105, "05: Multi-Branch Time Morph & Chaos Rig (Lorenz RK4 + Hermite Morph)");
         m.addSubMenu("Examples & Presets", examplesMenu);
 
         m.addSeparator();
@@ -129,6 +132,9 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
             else if (result == 6) juce::JUCEApplication::getInstance()->systemRequestedQuit();
             else if (result == 101) loadExampleFullEnsemble();
             else if (result == 102) loadExampleDrumGroove();
+            else if (result == 103) loadExampleTapeStopWobble();
+            else if (result == 104) loadExampleDelayPipeSynth();
+            else if (result == 105) loadExampleChaosMorph();
         });
     };
 
@@ -148,29 +154,86 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
         juce::PopupMenu m;
         m.addItem(1, "Object Box (Cmd+1 / Enter)");
         m.addSeparator();
-        m.addItem(2, "osc~ Atomic Oscillator");
-        m.addItem(3, "osc.patch~ Inspectable Composite Oscillator");
-        m.addItem(4, "pluck~ Karplus-Strong String");
-        m.addItem(5, "ladder~ Moog 4-Pole VA Ladder Filter");
-        m.addItem(6, "drive~ WaveShaper Distortion");
-        m.addItem(7, "time.warp Relativistic Time Dilation");
-        m.addItem(8, "seq Step Sequencer");
-        m.addItem(9, "patch~ Composite Sub-Graph");
+
+        juce::PopupMenu timeMenu;
+        timeMenu.addItem(201, "time.curve~ (Hermite S-Curve Accelerator / Tape Stop)");
+        timeMenu.addItem(202, "time.chaos~ (3D Lorenz / Rossler Chaotic Attractor)");
+        timeMenu.addItem(203, "time.crossfade~ (Relativistic Spacetime Morpher)");
+        timeMenu.addItem(204, "time.const~ (Static & Stepped Speed Dilation)");
+        timeMenu.addItem(205, "time.scale~ (Time Multiplier & Polyrhythmic Divider)");
+        timeMenu.addItem(206, "time.add~ (Time Bias & Groove Summer)");
+        timeMenu.addItem(207, "time.quantize~ (Continuous-to-Stepped Grid Quantizer)");
+        timeMenu.addItem(208, "time.split~ (Time Frame to Audio Signal Splitter)");
+        timeMenu.addItem(209, "time.merge~ (Audio Signals to Time Frame Merger)");
+        m.addSubMenu("Relativistic Time Sculptors", timeMenu);
+
+        juce::PopupMenu soundMenu;
+        soundMenu.addItem(301, "osc~ (Atomic Saw/Sin/Sqr/Tri Oscillator)");
+        soundMenu.addItem(302, "noise~ (White / Paul Kellet Pink Noise)");
+        soundMenu.addItem(303, "pluck~ (Karplus-Strong Physical Model)");
+        soundMenu.addItem(304, "readsf~ (Streaming Audio File Playback)");
+        soundMenu.addItem(305, "tabread~ (Table Array Player)");
+        m.addSubMenu("Sound Generators & Players", soundMenu);
+
+        juce::PopupMenu fxMenu;
+        fxMenu.addItem(401, "ladder~ (Moog 4-Pole 24dB Resonant Filter)");
+        fxMenu.addItem(402, "svf~ (State Variable Filter LP/HP/BP/Notch)");
+        fxMenu.addItem(403, "delwrite~ (Relativistic Delay Line Writer)");
+        fxMenu.addItem(404, "vd~ (Relativistic Doppler Variable Delay Reader)");
+        fxMenu.addItem(405, "drive~ (Warm WaveShaper Tube Distortion)");
+        fxMenu.addItem(406, "reverb~ (Feedback Delay Network Space Reverb)");
+        m.addSubMenu("Filters & Effects", fxMenu);
+
+        juce::PopupMenu ctrlMenu;
+        ctrlMenu.addItem(501, "metro (Relativistic Proper-Time Clock)");
+        ctrlMenu.addItem(502, "counter (Step Counter & Divider)");
+        ctrlMenu.addItem(503, "random (Deterministic / Stochastic Generator)");
+        ctrlMenu.addItem(504, "select (Value Matcher & Dispatcher)");
+        ctrlMenu.addItem(505, "route (Prefix / Channel Router)");
+        ctrlMenu.addItem(506, "t b b (Trigger Bangs in Right-to-Left Order)");
+        ctrlMenu.addItem(507, "pipe (Proper-Time Timestamped Event Queue)");
+        ctrlMenu.addItem(508, "timer (Relativistic Proper-Time Stopwatch)");
+        ctrlMenu.addItem(509, "snapshot~ (Instantaneous Signal & Time Sampler)");
+        m.addSubMenu("Control Logic & Pipes", ctrlMenu);
+
         m.addSeparator();
-        m.addItem(10, "print Message & Number Console Logger");
-        m.addItem(11, "print~ Audio Signal & Envelope Console Probe");
+        m.addItem(2, "osc~ Atomic Oscillator");
+        m.addItem(3, "ladder~ Moog Ladder Filter");
+        m.addItem(4, "delwrite~ + vd~ Tape Delay Line");
+        m.addItem(5, "out~ Stereo Master Output");
+
         m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&putMenuButton), [this](int result) {
             if (result == 1) { canvasComponent.spawnObjectEditorAt({ 200.0f, 200.0f }); }
-            else if (result == 2) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "osc~ sin"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
-            else if (result == 3) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "osc.patch~ sin"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
-            else if (result == 4) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "pluck~ 220"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
-            else if (result == 5) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "ladder~ 1000 0.5"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
-            else if (result == 6) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "drive~ 2.5"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
-            else if (result == 7) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "time.warp 2.0"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
-            else if (result == 8) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "seq 60 62 64 67"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
-            else if (result == 9) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "patch~ synth.voice~"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
-            else if (result == 10) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "print"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
-            else if (result == 11) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "print~"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 201) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "time.curve~ 1.0 500"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 202) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "time.chaos~ 0.5 lorenz"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 203) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "time.crossfade~ 0.5"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 204) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "time.const~ 1.0"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 205) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "time.scale~ 2.0"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 206) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "time.add~ 0.2"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 207) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "time.quantize~ 125"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 208) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "time.split~"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 209) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "time.merge~"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 301 || result == 2) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "osc~ saw"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 302) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "noise~ white"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 303) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "pluck~ 220"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 304) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "readsf~ 2"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 305) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "tabread~ array1"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 401 || result == 3) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "ladder~ 2200 0.65"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 402) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "svf~ 1500 0.707"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 403 || result == 4) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "delwrite~ del1 1000"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 404) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "vd~ del1 150"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 405) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "drive~ 2.0"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 406) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "reverb~ 0.75 0.4"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 501) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "metro 125 1"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 502) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "counter 0 15 1"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 503) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "random 100"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 504) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "select 0 4 8 12 15"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 505) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "route 1 2 3"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 506) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "t b b"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 507) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "pipe 150"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 508) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "timer"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 509) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "snapshot~"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 5) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "out~"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
             trackViewComponent.refreshTracks();
         });
     };
@@ -192,18 +255,24 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
         juce::PopupMenu m;
         m.addItem(1, "01: Full Workstation Ensemble (Synth + Drums + FX)");
         m.addItem(2, "02: Analog Drum Machine & Groove (Kick, Snare, Hi-Hat)");
+        m.addItem(3, "03: Deterministic Tape Stop & Wobble Machine (Metro -> Select -> Time.Curve)");
+        m.addItem(4, "04: Relativistic Delay & Pipe Synth (Doppler Delay + Proper Time Pipe)");
+        m.addItem(5, "05: Multi-Branch Time Morph & Chaos Rig (Lorenz RK4 + Hermite Morph)");
         m.addSeparator();
-        m.addItem(3, "Composer / Musician Mode (Synth Lead + Pluck String)");
-        m.addItem(4, "Sound Designer Mode (Moog Ladder Filter + WaveShaper)");
-        m.addItem(5, "Film & Game Sci-Fi Mode (Relativistic Doppler Wormhole)");
-        m.addItem(6, "Experimentalist Mode (Tarjan Feedback Chaos Loop)");
+        m.addItem(6, "Composer / Musician Mode (Synth Lead + Pluck String)");
+        m.addItem(7, "Sound Designer Mode (Moog Ladder Filter + WaveShaper)");
+        m.addItem(8, "Film & Game Sci-Fi Mode (Relativistic Doppler Wormhole)");
+        m.addItem(9, "Experimentalist Mode (Tarjan Feedback Chaos Loop)");
         m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&workflowMenuButton), [this](int result) {
             if (result == 1) loadExampleFullEnsemble();
             else if (result == 2) loadExampleDrumGroove();
-            else if (result == 3) setupComposerTemplate();
-            else if (result == 4) setupSoundDesignerTemplate();
-            else if (result == 5) setupFilmSciFiTemplate();
-            else if (result == 6) setupExperimentalistTemplate();
+            else if (result == 3) loadExampleTapeStopWobble();
+            else if (result == 4) loadExampleDelayPipeSynth();
+            else if (result == 5) loadExampleChaosMorph();
+            else if (result == 6) setupComposerTemplate();
+            else if (result == 7) setupSoundDesignerTemplate();
+            else if (result == 8) setupFilmSciFiTemplate();
+            else if (result == 9) setupExperimentalistTemplate();
             trackViewComponent.refreshTracks();
             canvasComponent.repaint();
         });
@@ -476,6 +545,291 @@ void WorkstationContainerComponent::loadExampleDrumGroove()
     nodeGraph.addConnection(7, 1, 8, 2);  // hihat~ -> out~ R
 
     nextNodeId = 9;
+    arrangementTimelineComponent.refreshTimeline();
+    canvasComponent.repaint();
+    trackViewComponent.refreshTracks();
+}
+
+void WorkstationContainerComponent::loadExampleTapeStopWobble()
+{
+    nodeGraph.clearGraph();
+
+    // Row 1: Spacetime Master & Clock Control
+    auto timeCurve  = RelativisticNodeFactory::createNode(1, "time.curve~ 1.0 400");
+    timeCurve->xPos = 60; timeCurve->yPos = 40;
+
+    auto metroClock = RelativisticNodeFactory::createNode(2, "metro 125 1");
+    metroClock->xPos = 240; metroClock->yPos = 40;
+
+    auto trig       = RelativisticNodeFactory::createNode(3, "t b b");
+    trig->xPos = 420; trig->yPos = 40;
+
+    auto counter    = RelativisticNodeFactory::createNode(4, "counter 0 15 1");
+    counter->xPos = 580; counter->yPos = 40;
+
+    auto rnd        = RelativisticNodeFactory::createNode(5, "random 100");
+    rnd->xPos = 740; rnd->yPos = 40;
+
+    // Row 2: State Machine & Sound Generators
+    auto sel        = RelativisticNodeFactory::createNode(6, "select 0 4 8 12 15");
+    sel->xPos = 60; sel->yPos = 200;
+
+    auto seq        = RelativisticNodeFactory::createNode(7, "seq 36 36 48 51 53 55 58 60 48 51 63 60 36 48 55 58");
+    seq->xPos = 240; seq->yPos = 200;
+
+    auto mtof       = RelativisticNodeFactory::createNode(8, "mtof");
+    mtof->xPos = 420; mtof->yPos = 200;
+
+    auto osc        = RelativisticNodeFactory::createNode(9, "osc~ saw");
+    osc->xPos = 580; osc->yPos = 200;
+    osc->setOutputVolume(0.85f);
+
+    auto noise      = RelativisticNodeFactory::createNode(10, "noise~ white");
+    noise->xPos = 740; noise->yPos = 200;
+    noise->setOutputVolume(0.35f);
+
+    // Row 3: Resonant Filter, Doppler Delay & Stereo Master
+    auto filter     = RelativisticNodeFactory::createNode(11, "ladder~ 2200 0.65");
+    filter->xPos = 60; filter->yPos = 360;
+
+    auto delwrite   = RelativisticNodeFactory::createNode(12, "delwrite~ tape_deck 2000");
+    delwrite->xPos = 240; delwrite->yPos = 360;
+
+    auto tapL       = RelativisticNodeFactory::createNode(13, "vd~ tape_deck 140");
+    tapL->xPos = 420; tapL->yPos = 360;
+
+    auto tapR       = RelativisticNodeFactory::createNode(14, "vd~ tape_deck 280");
+    tapR->xPos = 580; tapR->yPos = 360;
+
+    auto drive      = RelativisticNodeFactory::createNode(15, "drive~ 1.6");
+    drive->xPos = 740; drive->yPos = 360;
+
+    auto out        = RelativisticNodeFactory::createNode(16, "out~ master");
+    out->xPos = 920; out->yPos = 360;
+
+    nodeGraph.addNode(timeCurve);
+    nodeGraph.addNode(metroClock);
+    nodeGraph.addNode(trig);
+    nodeGraph.addNode(counter);
+    nodeGraph.addNode(rnd);
+    nodeGraph.addNode(sel);
+    nodeGraph.addNode(seq);
+    nodeGraph.addNode(mtof);
+    nodeGraph.addNode(osc);
+    nodeGraph.addNode(noise);
+    nodeGraph.addNode(filter);
+    nodeGraph.addNode(delwrite);
+    nodeGraph.addNode(tapL);
+    nodeGraph.addNode(tapR);
+    nodeGraph.addNode(drive);
+    nodeGraph.addNode(out);
+
+    // Relativistic Time Distribution
+    nodeGraph.addConnection(1, 1, 2, 1);  // timeCurve -> metro
+    nodeGraph.addConnection(1, 1, 9, 1);  // timeCurve -> osc
+    nodeGraph.addConnection(1, 1, 11, 1); // timeCurve -> filter
+    nodeGraph.addConnection(1, 1, 12, 2); // timeCurve -> delwrite
+    nodeGraph.addConnection(1, 1, 13, 2); // timeCurve -> tapL
+    nodeGraph.addConnection(1, 1, 14, 2); // timeCurve -> tapR
+
+    // Deterministic Control Flow (metro -> t b b -> counter + random -> select)
+    nodeGraph.addConnection(2, 0, 3, 0);  // metro -> trig
+    nodeGraph.addConnection(3, 0, 4, 0);  // trig -> counter
+    nodeGraph.addConnection(3, 1, 5, 0);  // trig -> random
+    nodeGraph.addConnection(4, 0, 6, 0);  // counter -> select
+    nodeGraph.addConnection(4, 0, 7, 0);  // counter -> seq
+    nodeGraph.addConnection(7, 1, 8, 1);  // seq -> mtof
+    nodeGraph.addConnection(8, 1, 9, 2);  // mtof -> osc freq
+
+    // Wire select state machine triggers
+    nodeGraph.addConnection(6, 0, 1, 0); // beat 0 -> resume / normal 1.0
+    nodeGraph.addConnection(6, 1, 1, 0); // beat 4 -> flutter speed up
+    nodeGraph.addConnection(6, 2, 1, 0); // beat 8 -> tape sag
+    nodeGraph.addConnection(6, 3, 1, 0); // beat 12 -> tape stop brake
+    nodeGraph.addConnection(6, 4, 1, 0); // beat 15 -> spin up start
+
+    // Audio & Tape Loop Connections
+    nodeGraph.addConnection(9, 2, 11, 2);  // osc saw -> ladder in
+    nodeGraph.addConnection(10, 2, 11, 2); // noise -> ladder in
+    nodeGraph.addConnection(11, 2, 12, 1); // ladder -> delwrite
+    nodeGraph.addConnection(11, 2, 15, 2); // ladder -> drive
+    nodeGraph.addConnection(15, 2, 16, 1); // drive -> out L
+    nodeGraph.addConnection(13, 2, 16, 1); // tapL -> out L
+    nodeGraph.addConnection(14, 2, 16, 2); // tapR -> out R
+
+    nextNodeId = 17;
+    titleLabel.setText("Time Dilation DAW 2 — Deterministic Tape Stop & Wobble Machine", juce::dontSendNotification);
+    arrangementTimelineComponent.refreshTimeline();
+    canvasComponent.repaint();
+    trackViewComponent.refreshTracks();
+}
+
+void WorkstationContainerComponent::loadExampleDelayPipeSynth()
+{
+    nodeGraph.clearGraph();
+
+    auto lfoTime   = RelativisticNodeFactory::createNode(1, "time.lfo 0.3 0.6");
+    lfoTime->xPos = 60; lfoTime->yPos = 40;
+
+    auto metro     = RelativisticNodeFactory::createNode(2, "metro 140 1");
+    metro->xPos = 240; metro->yPos = 40;
+
+    auto seq       = RelativisticNodeFactory::createNode(3, "seq 48 51 55 58 60 63 67 70");
+    seq->xPos = 420; seq->yPos = 40;
+
+    auto mtof      = RelativisticNodeFactory::createNode(4, "mtof");
+    mtof->xPos = 580; mtof->yPos = 40;
+
+    auto pipePitch = RelativisticNodeFactory::createNode(5, "pipe 180");
+    pipePitch->xPos = 740; pipePitch->yPos = 40;
+
+    auto osc       = RelativisticNodeFactory::createNode(6, "osc~ saw");
+    osc->xPos = 60; osc->yPos = 220;
+    osc->setOutputVolume(0.85f);
+
+    auto filter    = RelativisticNodeFactory::createNode(7, "ladder~ 2400 0.6");
+    filter->xPos = 240; filter->yPos = 220;
+
+    auto delwrite  = RelativisticNodeFactory::createNode(8, "delwrite~ space_echo 2000");
+    delwrite->xPos = 420; delwrite->yPos = 220;
+
+    auto tapL      = RelativisticNodeFactory::createNode(9, "vd~ space_echo 160");
+    tapL->xPos = 580; tapL->yPos = 220;
+
+    auto tapR      = RelativisticNodeFactory::createNode(10, "vd~ space_echo 320");
+    tapR->xPos = 740; tapR->yPos = 220;
+
+    auto out       = RelativisticNodeFactory::createNode(11, "out~ master");
+    out->xPos = 920; out->yPos = 220;
+
+    nodeGraph.addNode(lfoTime);
+    nodeGraph.addNode(metro);
+    nodeGraph.addNode(seq);
+    nodeGraph.addNode(mtof);
+    nodeGraph.addNode(pipePitch);
+    nodeGraph.addNode(osc);
+    nodeGraph.addNode(filter);
+    nodeGraph.addNode(delwrite);
+    nodeGraph.addNode(tapL);
+    nodeGraph.addNode(tapR);
+    nodeGraph.addNode(out);
+
+    nodeGraph.addConnection(1, 1, 2, 1);  // lfoTime -> metro
+    nodeGraph.addConnection(1, 1, 5, 1);  // lfoTime -> pipe
+    nodeGraph.addConnection(1, 1, 6, 1);  // lfoTime -> osc
+    nodeGraph.addConnection(1, 1, 7, 1);  // lfoTime -> filter
+    nodeGraph.addConnection(1, 1, 8, 2);  // lfoTime -> delwrite
+    nodeGraph.addConnection(1, 1, 9, 2);  // lfoTime -> tapL
+    nodeGraph.addConnection(1, 1, 10, 2); // lfoTime -> tapR
+
+    nodeGraph.addConnection(2, 0, 3, 0);  // metro -> seq
+    nodeGraph.addConnection(3, 1, 4, 1);  // seq -> mtof
+    nodeGraph.addConnection(4, 1, 5, 0);  // mtof -> pipe
+    nodeGraph.addConnection(5, 0, 6, 2);  // pipe -> osc freq
+
+    nodeGraph.addConnection(6, 2, 7, 2);  // osc -> filter
+    nodeGraph.addConnection(7, 2, 8, 1);  // filter -> delwrite
+    nodeGraph.addConnection(7, 2, 11, 1); // filter -> out L
+    nodeGraph.addConnection(7, 2, 11, 2); // filter -> out R
+    nodeGraph.addConnection(9, 2, 11, 1); // tapL -> out L
+    nodeGraph.addConnection(10, 2, 11, 2); // tapR -> out R
+
+    nextNodeId = 12;
+    titleLabel.setText("Time Dilation DAW 2 — Relativistic Delay & Pipe Synth", juce::dontSendNotification);
+    arrangementTimelineComponent.refreshTimeline();
+    canvasComponent.repaint();
+    trackViewComponent.refreshTracks();
+}
+
+void WorkstationContainerComponent::loadExampleChaosMorph()
+{
+    nodeGraph.clearGraph();
+
+    auto chaosTime  = RelativisticNodeFactory::createNode(1, "time.chaos~ 0.35 lorenz");
+    chaosTime->xPos = 60; chaosTime->yPos = 40;
+
+    auto curveTime  = RelativisticNodeFactory::createNode(2, "time.curve~ 1.5 2000");
+    curveTime->xPos = 240; curveTime->yPos = 40;
+
+    auto xfadeTime  = RelativisticNodeFactory::createNode(3, "time.crossfade~ 0.5");
+    xfadeTime->xPos = 420; xfadeTime->yPos = 40;
+
+    auto lfoMixMod  = RelativisticNodeFactory::createNode(4, "osc~ sin");
+    lfoMixMod->xPos = 600; lfoMixMod->yPos = 40;
+
+    auto metroClock = RelativisticNodeFactory::createNode(5, "metro 160 1");
+    metroClock->xPos = 60; metroClock->yPos = 200;
+
+    auto counter    = RelativisticNodeFactory::createNode(6, "counter 0 7 1");
+    counter->xPos = 240; counter->yPos = 200;
+
+    auto seqPitch   = RelativisticNodeFactory::createNode(7, "seq 48 51 55 58 60 63 67 70");
+    seqPitch->xPos = 420; seqPitch->yPos = 200;
+
+    auto mtofNode   = RelativisticNodeFactory::createNode(8, "mtof");
+    mtofNode->xPos = 600; mtofNode->yPos = 200;
+
+    auto oscNode    = RelativisticNodeFactory::createNode(9, "osc~ saw");
+    oscNode->xPos = 60; oscNode->yPos = 360;
+
+    auto filterNode = RelativisticNodeFactory::createNode(10, "ladder~ 1800 0.7");
+    filterNode->xPos = 240; filterNode->yPos = 360;
+
+    auto delwrite   = RelativisticNodeFactory::createNode(11, "delwrite~ chaos_tape 2500");
+    delwrite->xPos = 420; delwrite->yPos = 360;
+
+    auto tapL       = RelativisticNodeFactory::createNode(12, "vd~ chaos_tape 175");
+    tapL->xPos = 600; tapL->yPos = 360;
+
+    auto tapR       = RelativisticNodeFactory::createNode(13, "vd~ chaos_tape 350");
+    tapR->xPos = 760; tapR->yPos = 360;
+
+    auto driveNode  = RelativisticNodeFactory::createNode(14, "drive~ 1.8");
+    driveNode->xPos = 920; driveNode->yPos = 360;
+
+    auto outNode    = RelativisticNodeFactory::createNode(15, "out~ master");
+    outNode->xPos = 1080; outNode->yPos = 360;
+
+    nodeGraph.addNode(chaosTime);
+    nodeGraph.addNode(curveTime);
+    nodeGraph.addNode(xfadeTime);
+    nodeGraph.addNode(lfoMixMod);
+    nodeGraph.addNode(metroClock);
+    nodeGraph.addNode(counter);
+    nodeGraph.addNode(seqPitch);
+    nodeGraph.addNode(mtofNode);
+    nodeGraph.addNode(oscNode);
+    nodeGraph.addNode(filterNode);
+    nodeGraph.addNode(delwrite);
+    nodeGraph.addNode(tapL);
+    nodeGraph.addNode(tapR);
+    nodeGraph.addNode(driveNode);
+    nodeGraph.addNode(outNode);
+
+    nodeGraph.addConnection(1, 1, 3, 1);  // chaos timeOut -> xfade timeIn1
+    nodeGraph.addConnection(2, 1, 3, 2);  // curve timeOut -> xfade timeIn2
+    nodeGraph.addConnection(4, 2, 3, 3);  // LFO out~ -> xfade mixMod~
+
+    nodeGraph.addConnection(3, 1, 5, 1);  // xfade -> metro
+    nodeGraph.addConnection(3, 1, 9, 1);  // xfade -> osc
+    nodeGraph.addConnection(3, 1, 10, 1); // xfade -> ladder
+    nodeGraph.addConnection(3, 1, 11, 2); // xfade -> delwrite
+    nodeGraph.addConnection(3, 1, 12, 2); // xfade -> tapL
+    nodeGraph.addConnection(3, 1, 13, 2); // xfade -> tapR
+
+    nodeGraph.addConnection(5, 0, 6, 0);  // metro -> counter
+    nodeGraph.addConnection(6, 0, 7, 0);  // counter -> seq
+    nodeGraph.addConnection(7, 1, 8, 1);  // seq -> mtof
+    nodeGraph.addConnection(8, 1, 9, 2);  // mtof -> osc freq
+    nodeGraph.addConnection(9, 2, 10, 2); // osc -> ladder
+    nodeGraph.addConnection(10, 2, 11, 1); // ladder -> delwrite
+    nodeGraph.addConnection(10, 2, 14, 2); // ladder -> drive
+    nodeGraph.addConnection(14, 2, 15, 1); // drive -> out L
+    nodeGraph.addConnection(12, 2, 15, 1); // tapL -> out L
+    nodeGraph.addConnection(13, 2, 15, 2); // tapR -> out R
+
+    nextNodeId = 16;
+    titleLabel.setText("Time Dilation DAW 2 — Multi-Branch Time Morph & Chaos Rig", juce::dontSendNotification);
     arrangementTimelineComponent.refreshTimeline();
     canvasComponent.repaint();
     trackViewComponent.refreshTracks();

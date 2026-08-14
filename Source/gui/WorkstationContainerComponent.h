@@ -193,6 +193,9 @@ public:
     void setupDefaultPatch();
     void loadExampleFullEnsemble();
     void loadExampleDrumGroove();
+    void loadExampleTapeStopWobble();
+    void loadExampleDelayPipeSynth();
+    void loadExampleChaosMorph();
     void showAudioSettingsWindow();
 };
 
