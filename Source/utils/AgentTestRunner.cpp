@@ -504,6 +504,96 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
         }
     }
 
+    // =========================================================================
+    // WAV Observation 8: Multi-Branch Polyrhythmic Time Morph & Chaos Rig
+    // (Lorenz Chaos + Hermite Time Curve + Crossfade Morphing -> Saturated Doppler Delay)
+    // =========================================================================
+    {
+        workstation.getNodeGraph().clearGraph();
+
+        auto chaosTime  = RelativisticNodeFactory::createNode(1, "time.chaos~ 0.35 lorenz");
+        auto curveTime  = RelativisticNodeFactory::createNode(2, "time.curve~ 1.5 2000");
+        auto xfadeTime  = RelativisticNodeFactory::createNode(3, "time.crossfade~ 0.5");
+        auto lfoMixMod  = RelativisticNodeFactory::createNode(4, "osc~ sin"); // Audio-rate LFO for xfade morph
+        auto metroClock = RelativisticNodeFactory::createNode(5, "metro 160 1");
+        auto counter    = RelativisticNodeFactory::createNode(6, "counter 0 7 1");
+        auto seqPitch   = RelativisticNodeFactory::createNode(7, "seq 48 51 55 58 60 63 67 70");
+        auto mtofNode   = RelativisticNodeFactory::createNode(8, "mtof");
+        auto oscNode    = RelativisticNodeFactory::createNode(9, "osc~ saw");
+        auto filterNode = RelativisticNodeFactory::createNode(10, "ladder~ 1800 0.7");
+        auto delwrite   = RelativisticNodeFactory::createNode(11, "delwrite~ chaos_tape 2500");
+        auto tapL       = RelativisticNodeFactory::createNode(12, "vd~ chaos_tape 175");
+        auto tapR       = RelativisticNodeFactory::createNode(13, "vd~ chaos_tape 350");
+        auto driveNode  = RelativisticNodeFactory::createNode(14, "drive~ 1.8");
+        auto outNode    = RelativisticNodeFactory::createNode(15, "out~");
+
+        workstation.getNodeGraph().addNode(chaosTime);
+        workstation.getNodeGraph().addNode(curveTime);
+        workstation.getNodeGraph().addNode(xfadeTime);
+        workstation.getNodeGraph().addNode(lfoMixMod);
+        workstation.getNodeGraph().addNode(metroClock);
+        workstation.getNodeGraph().addNode(counter);
+        workstation.getNodeGraph().addNode(seqPitch);
+        workstation.getNodeGraph().addNode(mtofNode);
+        workstation.getNodeGraph().addNode(oscNode);
+        workstation.getNodeGraph().addNode(filterNode);
+        workstation.getNodeGraph().addNode(delwrite);
+        workstation.getNodeGraph().addNode(tapL);
+        workstation.getNodeGraph().addNode(tapR);
+        workstation.getNodeGraph().addNode(driveNode);
+        workstation.getNodeGraph().addNode(outNode);
+
+        // Time Crossfade Connections (Chaos A + Curve B)
+        workstation.getNodeGraph().addConnection(1, 1, 3, 1); // chaos timeOut -> xfade timeIn1
+        workstation.getNodeGraph().addConnection(2, 1, 3, 2); // curve timeOut -> xfade timeIn2
+        workstation.getNodeGraph().addConnection(4, 2, 3, 3); // LFO out~ -> xfade mixMod~
+
+        // Broadcast Blended Spacetime
+        workstation.getNodeGraph().addConnection(3, 1, 5, 1);  // xfade -> metro
+        workstation.getNodeGraph().addConnection(3, 1, 9, 1);  // xfade -> osc
+        workstation.getNodeGraph().addConnection(3, 1, 10, 1); // xfade -> ladder
+        workstation.getNodeGraph().addConnection(3, 1, 11, 2); // xfade -> delwrite
+        workstation.getNodeGraph().addConnection(3, 1, 12, 2); // xfade -> tapL
+        workstation.getNodeGraph().addConnection(3, 1, 13, 2); // xfade -> tapR
+
+        // Control & Audio Connections
+        workstation.getNodeGraph().addConnection(5, 0, 6, 0);  // metro -> counter
+        workstation.getNodeGraph().addConnection(6, 0, 7, 0);  // counter -> seq
+        workstation.getNodeGraph().addConnection(7, 1, 8, 1);  // seq -> mtof
+        workstation.getNodeGraph().addConnection(8, 1, 9, 2);  // mtof -> osc freq
+        workstation.getNodeGraph().addConnection(9, 2, 10, 2); // osc -> ladder
+        workstation.getNodeGraph().addConnection(10, 2, 11, 1); // ladder -> delwrite
+        workstation.getNodeGraph().addConnection(10, 2, 14, 2); // ladder -> drive
+        workstation.getNodeGraph().addConnection(14, 2, 15, 1); // drive -> out L
+        workstation.getNodeGraph().addConnection(12, 2, 15, 1); // tapL -> out L
+        workstation.getNodeGraph().addConnection(13, 2, 15, 2); // tapR -> out R
+
+        // Trigger dynamic Hermite curve sweeps mid-stream
+        curveTime->receiveMessage("ramp 3.0 1200");
+
+        juce::File obs8Wav("artifacts/observation_8_time_morph_chaos_synth.wav");
+        auto fileStream8 = obs8Wav.createOutputStream();
+        if (fileStream8 != nullptr)
+        {
+            juce::WavAudioFormat wavFormat;
+            std::unique_ptr<juce::AudioFormatWriter> writer8(wavFormat.createWriterFor(fileStream8.release(), sampleRate, 2, 16, {}, 0));
+            if (writer8 != nullptr)
+            {
+                int totalBlocks8 = static_cast<int>((6.0 * sampleRate) / blockSize); // 6-second render
+                for (int b = 0; b < totalBlocks8; ++b)
+                {
+                    if (b == totalBlocks8 / 3) curveTime->receiveMessage("ramp 0.25 1500");
+                    if (b == 2 * totalBlocks8 / 3) curveTime->receiveMessage("ramp 2.0 1000");
+
+                    workstation.getNextAudioBlock(channelInfo);
+                    writer8->writeFromAudioSampleBuffer(masterBuffer, 0, blockSize);
+                }
+                writer8->flush();
+                std::cout << "[AgentTestRunner] Exported WAV Observation 8 (Chaos & Curve Time Morph Synth): " << obs8Wav.getFullPathName().toStdString() << "\n";
+            }
+        }
+    }
+
     int totalBlocks = static_cast<int>((5.0 * sampleRate) / blockSize);
     float maxPeak = masterBuffer.getMagnitude(0, blockSize);
     int activeNodes = static_cast<int>(workstation.getNodeGraph().getNodes().size());
@@ -588,8 +678,9 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
     bool pdControlPass = testPdControlSuite();
     bool samplePlaybackPass = testAudioSamplePlayback();
     bool delayPipePass = testRelativisticDelayAndPipeSuite();
+    bool timeSculptPass = testRelativisticTimeSculptingSuite();
 
-    bool allPhasesPass = allPhase1Pass && gravPass && lorentzPass && tachyonPass && jsonPass && dynamicLatPass && pdControlPass && samplePlaybackPass && delayPipePass;
+    bool allPhasesPass = allPhase1Pass && gravPass && lorentzPass && tachyonPass && jsonPass && dynamicLatPass && pdControlPass && samplePlaybackPass && delayPipePass && timeSculptPass;
     std::cout << "\n[Full Test Suite] Overall Result: " << (allPhasesPass ? "PASSED" : "FAILED") << "\n\n";
 
     // Export artifacts/phase2_3_4_telemetry.json
@@ -604,7 +695,8 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
     fullOut << "  \"patchJSONSerialization\": " << (jsonPass ? "true" : "false") << ",\n";
     fullOut << "  \"pdControlSuite\": " << (pdControlPass ? "true" : "false") << ",\n";
     fullOut << "  \"audioSamplePlayback\": " << (samplePlaybackPass ? "true" : "false") << ",\n";
-    fullOut << "  \"relativisticDelayAndPipes\": " << (delayPipePass ? "true" : "false") << "\n";
+    fullOut << "  \"relativisticDelayAndPipes\": " << (delayPipePass ? "true" : "false") << ",\n";
+    fullOut << "  \"relativisticTimeSculpting\": " << (timeSculptPass ? "true" : "false") << "\n";
     fullOut << "}\n";
     fullOut.close();
 
@@ -1387,6 +1479,117 @@ bool AgentTestRunner::testRelativisticDelayAndPipeSuite()
     if (sampledVal.empty())
     {
         std::cout << "FAILED (snapshot~ did not emit sampled value)\n";
+        return false;
+    }
+
+    std::cout << "PASSED\n";
+    return true;
+}
+
+bool AgentTestRunner::testRelativisticTimeSculptingSuite()
+{
+    std::cout << "[Test 16] Relativistic Time Sculpting Suite (time.const~, time.scale~, time.add~, time.crossfade~, time.curve~, time.chaos~, time.split~, time.merge~)... ";
+    RelativisticNodeGraph graph;
+    graph.prepare(96000.0, 512);
+
+    juce::AudioBuffer<float> dummyBuf(2, 512);
+
+    // 1. Test [time.const~] and [time.scale~]
+    auto tConst = RelativisticNodeFactory::createNode(1, "time.const~ 1.5 50");
+    auto tScale = RelativisticNodeFactory::createNode(2, "time.scale~ 2.0 10");
+    graph.addNode(tConst);
+    graph.addNode(tScale);
+    graph.addConnection(1, 1, 2, 1); // tConst timeOut -> tScale timeIn
+
+    graph.process(dummyBuf, 512);
+
+    const auto& scaleOut = tScale->getTimeOutlet("timeOut");
+    if (std::abs(scaleOut.masterGamma - 3.0) > 0.01)
+    {
+        std::cout << "FAILED (time.scale~ gamma output incorrect: " << scaleOut.masterGamma << ", expected 3.0)\n";
+        return false;
+    }
+
+    // 2. Test [time.add~]
+    auto tAdd = RelativisticNodeFactory::createNode(3, "time.add~ 0.5 100");
+    graph.addNode(tAdd);
+    graph.addConnection(1, 1, 3, 1); // tConst (1.5) -> tAdd (+0.5)
+
+    graph.process(dummyBuf, 512);
+    const auto& addOut = tAdd->getTimeOutlet("timeOut");
+    if (std::abs(addOut.masterGamma - 2.0) > 0.01)
+    {
+        std::cout << "FAILED (time.add~ gamma output incorrect: " << addOut.masterGamma << ", expected 2.0)\n";
+        return false;
+    }
+
+    // 3. Test [time.crossfade~]
+    auto tConstA = RelativisticNodeFactory::createNode(4, "time.const~ 1.0");
+    auto tConstB = RelativisticNodeFactory::createNode(5, "time.const~ 3.0");
+    auto tXfade  = RelativisticNodeFactory::createNode(6, "time.crossfade~ 0.5");
+    graph.addNode(tConstA);
+    graph.addNode(tConstB);
+    graph.addNode(tXfade);
+    graph.addConnection(4, 1, 6, 1); // timeIn1
+    graph.addConnection(5, 1, 6, 2); // timeIn2
+
+    // Process a few blocks to allow smoothing
+    for (int b = 0; b < 10; ++b)
+    {
+        graph.process(dummyBuf, 512);
+    }
+    const auto& xfadeOut = tXfade->getTimeOutlet("timeOut");
+    if (std::abs(xfadeOut.masterGamma - 2.0) > 0.05)
+    {
+        std::cout << "FAILED (time.crossfade~ blended gamma incorrect: " << xfadeOut.masterGamma << ", expected 2.0)\n";
+        return false;
+    }
+
+    // 4. Test [time.curve~] Hermite S-Curve Acceleration
+    auto tCurve = RelativisticNodeFactory::createNode(7, "time.curve~ 1.0 100");
+    graph.addNode(tCurve);
+    tCurve->receiveMessage("ramp 4.0 50"); // 50ms ramp = ~4800 samples ~ 10 blocks
+
+    for (int b = 0; b < 12; ++b)
+    {
+        graph.process(dummyBuf, 512);
+    }
+    const auto& curveOut = tCurve->getTimeOutlet("timeOut");
+    if (std::abs(curveOut.masterGamma - 4.0) > 0.01)
+    {
+        std::cout << "FAILED (time.curve~ ramp did not reach target 4.0: " << curveOut.masterGamma << ")\n";
+        return false;
+    }
+
+    // 5. Test [time.chaos~] Lorenz Attractor RK4
+    auto tChaos = RelativisticNodeFactory::createNode(8, "time.chaos~ 0.5 lorenz");
+    graph.addNode(tChaos);
+    for (int b = 0; b < 10; ++b)
+    {
+        graph.process(dummyBuf, 512);
+    }
+    const auto& chaosOut = tChaos->getTimeOutlet("timeOut");
+    if (std::isnan(chaosOut.masterGamma) || chaosOut.masterGamma < 0.01 || chaosOut.masterGamma > 20.0)
+    {
+        std::cout << "FAILED (time.chaos~ produced invalid or unbounded gamma: " << chaosOut.masterGamma << ")\n";
+        return false;
+    }
+
+    // 6. Test [time.split~] and [time.merge~] Round-Trip Bridge
+    auto tSplit = RelativisticNodeFactory::createNode(9, "time.split~");
+    auto tMerge = RelativisticNodeFactory::createNode(10, "time.merge~");
+    graph.addNode(tSplit);
+    graph.addNode(tMerge);
+
+    graph.addConnection(7, 1, 9, 1);  // tCurve (gamma=4.0) -> tSplit timeIn
+    graph.addConnection(9, 2, 10, 1); // tSplit gamma~ (Outlet 2) -> tMerge gammaIn~ (Inlet 1)
+    graph.addConnection(9, 3, 10, 2); // tSplit tau~ (Outlet 3) -> tMerge tauIn~ (Inlet 2)
+
+    graph.process(dummyBuf, 512);
+    const auto& mergeOut = tMerge->getTimeOutlet("timeOut");
+    if (std::abs(mergeOut.masterGamma - 4.0) > 0.05)
+    {
+        std::cout << "FAILED (time.split~ -> time.merge~ roundtrip gamma mismatch: " << mergeOut.masterGamma << ", expected 4.0)\n";
         return false;
     }
 

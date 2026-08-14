@@ -26,6 +26,7 @@ public:
     static bool testPdControlSuite();
     static bool testAudioSamplePlayback();
     static bool testRelativisticDelayAndPipeSuite();
+    static bool testRelativisticTimeSculptingSuite();
 };
 
 } // namespace TimeDilationDAW

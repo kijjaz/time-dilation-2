@@ -3,6 +3,7 @@
 #include "PdControlNodes.h"
 #include "PdSampleNodes.h"
 #include "PdDelayNodes.h"
+#include "RelativisticTimeNodes.h"
 #include <sstream>
 #include <vector>
 
@@ -404,6 +405,64 @@ std::shared_ptr<RelativisticNode> RelativisticNodeFactory::createNode(int nodeId
         double divMs = 125.0;
         if (ss >> divMs) {}
         return std::make_shared<TimeQuantizeNode>(nodeId, divMs);
+    }
+    else if (symbol == "time.const~" || symbol == "time.speed~")
+    {
+        double g = 1.0, tau = 0.0;
+        if (ss >> g) {}
+        if (ss >> tau) {}
+        return std::make_shared<TimeConstNode>(nodeId, g, tau);
+    }
+    else if (symbol == "time.scale~" || symbol == "time.mul~")
+    {
+        double mult = 2.0, off = 0.0;
+        if (ss >> mult) {}
+        if (ss >> off) {}
+        return std::make_shared<TimeScaleNode>(nodeId, mult, off);
+    }
+    else if (symbol == "time.add~")
+    {
+        double dg = 0.0, dtau = 0.0;
+        if (ss >> dg) {}
+        if (ss >> dtau) {}
+        return std::make_shared<TimeAddNode>(nodeId, dg, dtau);
+    }
+    else if (symbol == "time.crossfade~" || symbol == "time.xfade~")
+    {
+        double mix = 0.5;
+        if (ss >> mix) {}
+        return std::make_shared<TimeCrossfadeNode>(nodeId, mix);
+    }
+    else if (symbol == "time.curve~" || symbol == "time.ramp~")
+    {
+        double g = 1.0, dur = 1000.0;
+        if (ss >> g) {}
+        if (ss >> dur) {}
+        return std::make_shared<TimeCurveNode>(nodeId, g, dur);
+    }
+    else if (symbol == "time.chaos~")
+    {
+        double r = 0.5;
+        std::string typeStr = "lorenz";
+        if (ss >> r) {}
+        if (ss >> typeStr) {}
+        auto type = (typeStr == "rossler") ? TimeChaosNode::AttractorType::Rossler : TimeChaosNode::AttractorType::Lorenz;
+        return std::make_shared<TimeChaosNode>(nodeId, r, type);
+    }
+    else if (symbol == "time.quantize~" || symbol == "time.grid~")
+    {
+        double divMs = 125.0, sw = 0.0;
+        if (ss >> divMs) {}
+        if (ss >> sw) {}
+        return std::make_shared<TimeGridQuantizeNode>(nodeId, divMs, sw);
+    }
+    else if (symbol == "time.split~")
+    {
+        return std::make_shared<TimeSplitNode>(nodeId);
+    }
+    else if (symbol == "time.merge~")
+    {
+        return std::make_shared<TimeMergeNode>(nodeId);
     }
 
     // Default fallback to osc~

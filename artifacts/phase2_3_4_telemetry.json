@@ -7,5 +7,6 @@
   "patchJSONSerialization": true,
   "pdControlSuite": true,
   "audioSamplePlayback": true,
-  "relativisticDelayAndPipes": true
+  "relativisticDelayAndPipes": true,
+  "relativisticTimeSculpting": true
 }

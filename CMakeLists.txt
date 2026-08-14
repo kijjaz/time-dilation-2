@@ -35,6 +35,8 @@ target_sources(TimeDilationDAW
         Source/dsp/PdSampleNodes.cpp
         Source/dsp/PdDelayNodes.h
         Source/dsp/PdDelayNodes.cpp
+        Source/dsp/RelativisticTimeNodes.h
+        Source/dsp/RelativisticTimeNodes.cpp
         Source/dsp/CompositeNode.h
         Source/dsp/CompositeNode.cpp
         Source/dsp/PrintNode.h

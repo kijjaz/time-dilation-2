@@ -1139,6 +1139,171 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         descLabel.setText("Relativistic temporal grid quantizer. Holds incoming control events and releases them strictly on proper-time rhythmic grid boundaries.", juce::dontSendNotification);
         templateMsgs = { "div 125", "div 250", "div 500", "bang", "pitch 60" };
     }
+    else if (sym == "time.const~" || sym == "time.speed~")
+    {
+        paramLabel1.setText("Time Speed (\u03b3)", juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setRange(-4.0, 8.0, 0.05);
+        paramSlider1.setValue(1.0, juce::dontSendNotification);
+        paramSlider1.setVisible(true);
+        paramSlider1.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("speed " + std::to_string(paramSlider1.getValue()));
+        };
+
+        paramLabel2.setText("Offset (\u03c4 ms)", juce::dontSendNotification);
+        paramLabel2.setVisible(true);
+        paramSlider2.setRange(-2000.0, 2000.0, 1.0);
+        paramSlider2.setValue(0.0, juce::dontSendNotification);
+        paramSlider2.setVisible(true);
+        paramSlider2.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("offset " + std::to_string(paramSlider2.getValue()));
+        };
+
+        optionLabel.setVisible(false); optionSelector.setVisible(false);
+
+        descLabel.setText("Static and stepped time dilation speed and proper-time offset generator. Supports frozen time (\u03b3 = 0) and time reversal (\u03b3 < 0).", juce::dontSendNotification);
+        templateMsgs = { "speed 1.0", "speed 2.0", "speed 0.5", "freeze", "resume", "reverse", "offset 200" };
+    }
+    else if (sym == "time.scale~" || sym == "time.mul~")
+    {
+        paramLabel1.setText("Multiplier Factor", juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setRange(-8.0, 8.0, 0.05);
+        paramSlider1.setValue(2.0, juce::dontSendNotification);
+        paramSlider1.setVisible(true);
+        paramSlider1.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("mult " + std::to_string(paramSlider1.getValue()));
+        };
+
+        paramLabel2.setText("Offset (ms)", juce::dontSendNotification);
+        paramLabel2.setVisible(true);
+        paramSlider2.setRange(-2000.0, 2000.0, 1.0);
+        paramSlider2.setValue(0.0, juce::dontSendNotification);
+        paramSlider2.setVisible(true);
+        paramSlider2.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("offset " + std::to_string(paramSlider2.getValue()));
+        };
+
+        optionLabel.setVisible(false); optionSelector.setVisible(false);
+
+        descLabel.setText("Relativistic time multiplier and polyrhythmic divider. Scales incoming \u03b3 to create nested metric modulations and polyrhythms.", juce::dontSendNotification);
+        templateMsgs = { "mult 2.0", "mult 0.5", "mult 1.5", "mult 0.75", "invert", "offset 100" };
+    }
+    else if (sym == "time.add~")
+    {
+        paramLabel1.setText("Delta Speed (\u0394\u03b3)", juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setRange(-4.0, 4.0, 0.01);
+        paramSlider1.setValue(0.0, juce::dontSendNotification);
+        paramSlider1.setVisible(true);
+        paramSlider1.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("gamma " + std::to_string(paramSlider1.getValue()));
+        };
+
+        paramLabel2.setText("Delta Proper Time (\u0394\u03c4 ms)", juce::dontSendNotification);
+        paramLabel2.setVisible(true);
+        paramSlider2.setRange(-2000.0, 2000.0, 1.0);
+        paramSlider2.setValue(0.0, juce::dontSendNotification);
+        paramSlider2.setVisible(true);
+        paramSlider2.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("offset " + std::to_string(paramSlider2.getValue()));
+        };
+
+        optionLabel.setVisible(false); optionSelector.setVisible(false);
+
+        descLabel.setText("Relativistic time summer. Adds bias to speed and temporal displacement to proper-time for groove and micro-timing adjustments.", juce::dontSendNotification);
+        templateMsgs = { "gamma 0.2", "gamma -0.2", "offset 50", "offset -50" };
+    }
+    else if (sym == "time.crossfade~" || sym == "time.xfade~")
+    {
+        paramLabel1.setText("Crossfade Mix (0=A, 1=B)", juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setRange(0.0, 1.0, 0.01);
+        paramSlider1.setValue(0.5, juce::dontSendNotification);
+        paramSlider1.setVisible(true);
+        paramSlider1.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("mix " + std::to_string(paramSlider1.getValue()));
+        };
+
+        paramSlider2.setVisible(false); paramLabel2.setVisible(false);
+        optionLabel.setVisible(false); optionSelector.setVisible(false);
+
+        descLabel.setText("Relativistic time frame morpher & crossfader. Smoothly interpolates between two independent time streams with audio-rate modulation support.", juce::dontSendNotification);
+        templateMsgs = { "mix 0.0", "mix 0.5", "mix 1.0" };
+    }
+    else if (sym == "time.curve~" || sym == "time.ramp~")
+    {
+        paramLabel1.setText("Target Speed (\u03b3)", juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setRange(0.0, 8.0, 0.05);
+        paramSlider1.setValue(1.0, juce::dontSendNotification);
+        paramSlider1.setVisible(true);
+        paramSlider1.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("ramp " + std::to_string(paramSlider1.getValue()) + " " + std::to_string(paramSlider2.getValue()));
+        };
+
+        paramLabel2.setText("Ramp Duration (ms)", juce::dontSendNotification);
+        paramLabel2.setVisible(true);
+        paramSlider2.setRange(10.0, 10000.0, 10.0);
+        paramSlider2.setValue(1000.0, juce::dontSendNotification);
+        paramSlider2.setVisible(true);
+
+        optionLabel.setVisible(false); optionSelector.setVisible(false);
+
+        descLabel.setText("C2-continuous Hermite S-curve time accelerator & decelerator. Simulates tape stops, vinyl brakes, and smooth tempo glides.", juce::dontSendNotification);
+        templateMsgs = { "stop", "start", "ramp 2.0 1500", "ramp 0.25 2000", "jump 1.0" };
+    }
+    else if (sym == "time.chaos~")
+    {
+        paramLabel1.setText("Evolution Rate", juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setRange(0.01, 5.0, 0.01);
+        paramSlider1.setValue(0.5, juce::dontSendNotification);
+        paramSlider1.setVisible(true);
+        paramSlider1.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("rate " + std::to_string(paramSlider1.getValue()));
+        };
+
+        paramLabel2.setText("Chaos Depth", juce::dontSendNotification);
+        paramLabel2.setVisible(true);
+        paramSlider2.setRange(0.0, 3.0, 0.05);
+        paramSlider2.setValue(1.0, juce::dontSendNotification);
+        paramSlider2.setVisible(true);
+        paramSlider2.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("chaos " + std::to_string(paramSlider2.getValue()));
+        };
+
+        optionLabel.setVisible(true); optionLabel.setText("Attractor System", juce::dontSendNotification);
+        optionSelector.setVisible(true); optionSelector.clear(juce::dontSendNotification);
+        optionSelector.addItem("Lorenz Attractor (Butterfly)", 1);
+        optionSelector.addItem("R\u00f6ssler Attractor (Spiral)", 2);
+        optionSelector.setSelectedId(1, juce::dontSendNotification);
+        optionSelector.onChange = [this]() {
+            if (!selectedNode) return;
+            selectedNode->receiveMessage(optionSelector.getSelectedId() == 2 ? "attractor rossler" : "attractor lorenz");
+        };
+
+        descLabel.setText("Strange Attractor 3D chaotic time modulator. Solves Lorenz and R\u00f6ssler differential equations via RK4 integration for organic, human-like tempo drift.", juce::dontSendNotification);
+        templateMsgs = { "rate 0.5", "chaos 1.0", "attractor lorenz", "attractor rossler", "reset" };
+    }
+    else if (sym == "time.split~")
+    {
+        paramSlider1.setVisible(false); paramLabel1.setVisible(false);
+        paramSlider2.setVisible(false); paramLabel2.setVisible(false);
+        optionLabel.setVisible(false); optionSelector.setVisible(false);
+
+        descLabel.setText("Relativistic time frame demultiplexer. Converts incoming TimePolyFrame into audio-rate signals: gamma~ (dilation speed) and tau~ (proper time).", juce::dontSendNotification);
+        templateMsgs = { "bang", "poll" };
+    }
+    else if (sym == "time.merge~")
+    {
+        paramSlider1.setVisible(false); paramLabel1.setVisible(false);
+        paramSlider2.setVisible(false); paramLabel2.setVisible(false);
+        optionLabel.setVisible(false); optionSelector.setVisible(false);
+
+        descLabel.setText("Relativistic time frame multiplexer. Converts raw audio signals (gammaIn~ and tauIn~) into a full relativistic TimePolyFrame.", juce::dontSendNotification);
+        templateMsgs = {};
+    }
     else
     {
         paramSlider1.setVisible(false);
