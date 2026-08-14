@@ -191,11 +191,15 @@ void TimeMathNode::process(int numSamples)
 SeqNode::SeqNode(int id, const std::string& patternStr)
     : RelativisticNode(id, "seq", "seq " + patternStr)
 {
-    addInlet("timeIn", PortDataType::Time);
-    addOutlet("note", PortDataType::Audio);
-    addOutlet("gate", PortDataType::Audio);
+    addInlet("msgIn", PortDataType::Message);   // Inlet 0: Message Input (Gold)
+    addInlet("timeIn", PortDataType::Time);     // Inlet 1: Relativistic Time Clock Input (Violet)
+    addOutlet("msgOut", PortDataType::Message); // Outlet 0: Message Output (Gold)
+    addOutlet("note", PortDataType::Audio);     // Outlet 1: MIDI Note Audio Output (Cyan)
+    addOutlet("gate", PortDataType::Audio);     // Outlet 2: Gate Trigger Audio Output (Cyan)
 
-    std::stringstream ss(patternStr);
+    std::string s = patternStr;
+    if (s.rfind("notes ", 0) == 0) s = s.substr(6);
+    std::stringstream ss(s);
     int n;
     while (ss >> n)
     {
@@ -203,7 +207,7 @@ SeqNode::SeqNode(int id, const std::string& patternStr)
     }
     if (notes.empty())
     {
-        notes = { 60, 62, 64, 65, 67, 69, 71, 72 };
+        notes = { 48, 55, 58, 60, 62, 65, 67, 70 };
     }
 }
 
@@ -227,41 +231,67 @@ void SeqNode::process(int numSamples)
     float* noteL = noteBuf.getWritePointer(0);
     float* gateL = gateBuf.getWritePointer(0);
 
-    double stepDurationSec = (60.0 / bpm) / 4.0; // 16th note step duration
-    double dtPerSample = (1.0 / currentSampleRate) * inFrame.masterGamma;
+    double stepDurationSec = (60.0 / std::max(20.0, bpm)) / 4.0; // 16th note step duration (125ms @ 120 BPM)
+    double baseGamma = (std::abs(inFrame.masterGamma) > 0.0001) ? inFrame.masterGamma : 1.0;
+    const bool hasAudioRateGamma = (inFrame.sampleGamma.size() >= static_cast<size_t>(numSamples));
 
     for (int s = 0; s < numSamples; ++s)
     {
-        accumulatedTime += dtPerSample;
+        double curGamma = hasAudioRateGamma ? static_cast<double>(inFrame.sampleGamma[static_cast<size_t>(s)]) : baseGamma;
+        accumulatedTime += (1.0 / currentSampleRate) * curGamma;
         if (accumulatedTime >= stepDurationSec)
         {
             accumulatedTime -= stepDurationSec;
             currentStep = (currentStep + 1) % static_cast<int>(notes.size());
+
+            char noteMsg[32];
+            std::snprintf(noteMsg, sizeof(noteMsg), "%d", notes[static_cast<size_t>(currentStep)]);
+            emitMessageOnMsgOut(noteMsg);
         }
 
-        int noteVal = notes[currentStep];
+        int noteVal = notes[static_cast<size_t>(currentStep)];
         noteL[s] = static_cast<float>(noteVal);
         gateL[s] = 1.0f;
+
+        pushTimeScopeSample(static_cast<float>(noteVal));
     }
 
-    noteBuf.copyFrom(1, 0, noteBuf, 0, 0, numSamples);
-    gateBuf.copyFrom(1, 0, gateBuf, 0, 0, numSamples);
+    if (noteBuf.getNumChannels() > 1) noteBuf.copyFrom(1, 0, noteBuf, 0, 0, numSamples);
+    if (gateBuf.getNumChannels() > 1) gateBuf.copyFrom(1, 0, gateBuf, 0, 0, numSamples);
 }
 
 void SeqNode::receiveMessage(const std::string& message)
 {
-    std::stringstream ss(message);
+    RelativisticNode::receiveMessage(message);
+    std::string s = message;
+    std::stringstream ss(s);
     std::string cmd;
     ss >> cmd;
+
     if (cmd == "bpm" && ss >> bpm)
     {
         bpm = std::clamp(bpm, 20.0, 400.0);
     }
-    else if ((cmd == "notes" || cmd == "set") && ss.good())
+    else if (cmd == "step" || cmd == "next" || cmd == "bang" || cmd == "play")
     {
+        currentStep = (currentStep + 1) % static_cast<int>(notes.size());
+        char noteMsg[32];
+        std::snprintf(noteMsg, sizeof(noteMsg), "%d", notes[static_cast<size_t>(currentStep)]);
+        emitMessageOnMsgOut(noteMsg);
+    }
+    else if (cmd == "reset" || cmd == "0")
+    {
+        currentStep = 0;
+        accumulatedTime = 0.0;
+    }
+    else
+    {
+        // Parse raw note list or "notes 48 55 58..."
+        std::string listStr = (cmd == "notes" || cmd == "set") ? s.substr(s.find(' ') + 1) : s;
+        std::stringstream noteSs(listStr);
         std::vector<int> newNotes;
         int n;
-        while (ss >> n)
+        while (noteSs >> n)
         {
             newNotes.push_back(n);
         }
@@ -269,6 +299,7 @@ void SeqNode::receiveMessage(const std::string& message)
         {
             notes = newNotes;
             currentStep = 0;
+            accumulatedTime = 0.0;
         }
     }
 }
