@@ -155,9 +155,10 @@ void OscNode::process(int numSamples)
         phase += phaseStep;
 
         float val = getSampleAtPhase(phase);
+        float vol = getOutputVolume();
 
-        outL[s] = val;
-        outR[s] = val;
+        outL[s] = val * vol;
+        outR[s] = val * vol;
     }
 }
 
@@ -382,8 +383,9 @@ void DelayNode::process(int numSamples)
 
         writeIndex = (writeIndex + 1) % maxSamps;
 
-        outL[s] = delayedSample;
-        outR[s] = delayedSample;
+        float vol = getOutputVolume();
+        outL[s] = delayedSample * vol;
+        outR[s] = delayedSample * vol;
     }
 }
 
@@ -1645,6 +1647,9 @@ void ReverbNode::process(int numSamples)
     juce::dsp::ProcessContextReplacing<float> context(block);
     reverbEngine.process(context);
 
+    float vol = getOutputVolume();
+    if (vol != 1.0f) tempStereo.applyGain(vol);
+
     outL.copyFrom(0, 0, tempStereo, 0, 0, numSamples);
     outR.copyFrom(0, 0, tempStereo, 1, 0, numSamples);
 }
@@ -1782,8 +1787,9 @@ void KickNode::process(int numSamples)
 
             // Click transient
             float click = (t < 0.005) ? static_cast<float>(1.0 - t / 0.005) * 0.4f : 0.0f;
+            float vol = getOutputVolume();
 
-            out[s] = std::clamp(static_cast<float>(sample * ampEnv) + click, -1.0f, 1.0f);
+            out[s] = std::clamp(static_cast<float>(sample * ampEnv) + click, -1.0f, 1.0f) * vol;
             envPhase += dt / std::max(0.05, decayTime);
         }
         else
@@ -1869,8 +1875,9 @@ void SnareNode::process(int numSamples)
             double noiseEnv = std::exp(-t * (8.0 / std::max(0.05, decayTime)));
             float white = (random.nextFloat() * 2.0f - 1.0f);
             float noise = white * static_cast<float>(noiseEnv * snappyAmount);
+            float vol = getOutputVolume();
 
-            out[s] = std::clamp((body * 0.5f + noise * 0.7f), -1.0f, 1.0f);
+            out[s] = std::clamp((body * 0.5f + noise * 0.7f), -1.0f, 1.0f) * vol;
             envPhase += dt / std::max(0.05, decayTime);
         }
         else
@@ -1953,7 +1960,8 @@ void HiHatNode::process(int numSamples)
 
             // Exponential amplitude decay
             double ampEnv = std::exp(-t * (18.0 / std::max(0.02, decayTime)));
-            out[s] = cluster * static_cast<float>(ampEnv);
+            float vol = getOutputVolume();
+            out[s] = cluster * static_cast<float>(ampEnv) * vol;
             envPhase += dt / std::max(0.02, decayTime);
         }
         else
