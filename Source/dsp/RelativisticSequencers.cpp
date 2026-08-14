@@ -24,12 +24,19 @@ void TimeWarpNode::prepare(double sampleRate, int samplesPerBlock)
 
 void TimeWarpNode::process(int numSamples)
 {
-    juce::ignoreUnused(numSamples);
     const auto& inFrame = getTimeInlet("timeIn");
     auto& outFrame = getTimeOutlet("timeOut");
 
     outFrame = inFrame;
     outFrame.masterGamma = inFrame.masterGamma * factor;
+
+    outFrame.sampleGamma.resize(static_cast<size_t>(numSamples));
+    const bool hasInSampleGamma = (inFrame.sampleGamma.size() >= static_cast<size_t>(numSamples));
+    for (int s = 0; s < numSamples; ++s)
+    {
+        float inG = hasInSampleGamma ? inFrame.sampleGamma[static_cast<size_t>(s)] : static_cast<float>(inFrame.masterGamma);
+        outFrame.sampleGamma[static_cast<size_t>(s)] = inG * static_cast<float>(factor);
+    }
 
     for (auto& stream : outFrame.streams)
     {
@@ -82,12 +89,19 @@ void TimeRetroNode::prepare(double sampleRate, int samplesPerBlock)
 
 void TimeRetroNode::process(int numSamples)
 {
-    juce::ignoreUnused(numSamples);
     const auto& inFrame = getInletTimeFrame(0);
     auto& outFrame = getOutletTimeFrame(0);
 
     outFrame = inFrame;
     outFrame.masterGamma = -inFrame.masterGamma;
+
+    outFrame.sampleGamma.resize(static_cast<size_t>(numSamples));
+    const bool hasInSampleGamma = (inFrame.sampleGamma.size() >= static_cast<size_t>(numSamples));
+    for (int s = 0; s < numSamples; ++s)
+    {
+        float inG = hasInSampleGamma ? inFrame.sampleGamma[static_cast<size_t>(s)] : static_cast<float>(inFrame.masterGamma);
+        outFrame.sampleGamma[static_cast<size_t>(s)] = -inG;
+    }
 
     for (auto& stream : outFrame.streams)
     {
@@ -454,6 +468,7 @@ void TimeLFONode::process(int numSamples)
     auto& timeOutFrame = getTimeOutlet("timeOut");
 
     timeOutFrame = timeInFrame; // Base time frame copy
+    timeOutFrame.sampleGamma.resize(static_cast<size_t>(numSamples));
 
     double currentRate = rateHz;
     double baseGamma = (timeInFrame.masterGamma != 0.0) ? timeInFrame.masterGamma : 1.0;
@@ -461,13 +476,19 @@ void TimeLFONode::process(int numSamples)
     double lfoVal = 0.0;
     double modulatedGamma = baseGamma;
 
+    const bool hasInSampleGamma = (timeInFrame.sampleGamma.size() >= static_cast<size_t>(numSamples));
+
     for (int s = 0; s < numSamples; ++s)
     {
         lfoVal = std::sin(phase);
         phase += phaseInc;
         if (phase >= 2.0 * 3.14159265358979323846) phase -= 2.0 * 3.14159265358979323846;
 
-        modulatedGamma = baseGamma * (1.0 + depth * lfoVal);
+        double inG = hasInSampleGamma ? static_cast<double>(timeInFrame.sampleGamma[static_cast<size_t>(s)]) : baseGamma;
+        modulatedGamma = inG * (1.0 + depth * lfoVal);
+
+        timeOutFrame.sampleGamma[static_cast<size_t>(s)] = static_cast<float>(modulatedGamma);
+
         pushTimeScopeSample(static_cast<float>(modulatedGamma));
         pushTimeTauScopeSample(static_cast<float>(depth * lfoVal));
     }

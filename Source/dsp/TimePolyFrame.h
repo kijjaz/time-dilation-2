@@ -49,10 +49,12 @@ struct TimePolyFrame
     double masterGamma = 1.0;
     double masterTau = 0.0;
     std::vector<TimePolyStream> streams;
+    std::vector<float> sampleGamma; // Continuous sample-by-sample audio-rate gamma stream
 
     TimePolyFrame()
     {
         streams.reserve(kMaxStreams);
+        sampleGamma.reserve(1024);
         // Default single stream
         TimePolyStream defaultStream;
         defaultStream.gamma = 1.0;
@@ -64,11 +66,27 @@ struct TimePolyFrame
     {
         masterGamma = 1.0;
         masterTau = 0.0;
+        sampleGamma.clear();
         streams.clear();
         TimePolyStream s;
         s.gamma = 1.0;
         s.duration = 1e9;
         streams.push_back(s);
+    }
+
+    void ensureSampleSize(size_t numSamples, float defaultVal = 1.0f)
+    {
+        if (sampleGamma.size() < numSamples)
+        {
+            sampleGamma.assign(numSamples, defaultVal);
+        }
+    }
+
+    inline float getSampleGamma(size_t sampleIndex) const noexcept
+    {
+        if (sampleIndex < sampleGamma.size())
+            return sampleGamma[sampleIndex];
+        return static_cast<float>(masterGamma);
     }
 
     void advanceFrame(double dt)

@@ -143,15 +143,15 @@ void OscNode::process(int numSamples)
     float* outR = outBuf.getWritePointer(1);
 
     const float* freqRead = freqBuf.getNumChannels() > 0 ? freqBuf.getReadPointer(0) : nullptr;
-
-    double gamma = timeFrame.masterGamma;
+    const bool hasAudioRateGamma = (timeFrame.sampleGamma.size() >= static_cast<size_t>(numSamples));
 
     for (int s = 0; s < numSamples; ++s)
     {
         double currentFreq = (freqRead && freqBuf.getMagnitude(0, numSamples) > 0.0001f) ? static_cast<double>(freqRead[s]) : frequency;
-        
-        // Doppler phase step modulated by local gamma clock
-        double phaseStep = (currentFreq / currentSampleRate) * gamma;
+        double currentGamma = hasAudioRateGamma ? static_cast<double>(timeFrame.sampleGamma[static_cast<size_t>(s)]) : timeFrame.masterGamma;
+
+        // Continuous audio-rate Doppler phase step modulated by local gamma clock
+        double phaseStep = (currentFreq / currentSampleRate) * currentGamma;
         phase += phaseStep;
 
         float val = getSampleAtPhase(phase);
@@ -1116,18 +1116,20 @@ void GravRedshiftOscNode::process(int numSamples)
     float* outR = outBuf.getWritePointer(1);
 
     // Gravitational Redshift Factor: z_factor = sqrt(1 - 2GM / (r * c^2))
-    double rs = 2.0 * 0.1 * massM; // Schwarzsild-like ratio
+    double rs = 2.0 * 0.1 * massM; // Schwarzschild-like ratio
     double redshiftFactor = std::sqrt(std::max(0.01, 1.0 - rs / std::max(0.1, radiusR)));
-    double gamma = (timeFrame.masterGamma > 0.0001) ? timeFrame.masterGamma : 1.0;
-    double effectiveFreq = baseFreq * redshiftFactor * gamma;
-
     double sRate = (currentSampleRate > 1.0) ? currentSampleRate : 96000.0;
-    double phaseStep = (effectiveFreq / sRate);
+    const bool hasAudioRateGamma = (timeFrame.sampleGamma.size() >= static_cast<size_t>(numSamples));
 
     for (int s = 0; s < numSamples; ++s)
     {
+        double currentGamma = hasAudioRateGamma ? static_cast<double>(timeFrame.sampleGamma[static_cast<size_t>(s)]) : timeFrame.masterGamma;
+        double effectiveFreq = baseFreq * redshiftFactor * currentGamma;
+        double phaseStep = (effectiveFreq / sRate);
+
         phase += phaseStep;
-        float val = static_cast<float>(std::sin(2.0 * 3.14159265358979323846 * phase));
+        double normP = phase - std::floor(phase);
+        float val = GlobalSineTable::getInstance().lookup(normP);
         outL[s] = val;
         outR[s] = val;
     }
