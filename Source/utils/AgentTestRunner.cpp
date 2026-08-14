@@ -471,6 +471,39 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
         }
     }
 
+    // =========================================================================
+    // WAV Observation 7: Full Example Patch (example_relativistic_delay_pipe_synth.pdil)
+    // ([time.lfo~] -> [metro] -> [counter] -> [pipe] -> [seq] -> [mtof] -> [osc~] -> [pipe] -> [ladder~] -> [drive~] -> [delwrite~] -> 2x [vd~] -> [out~])
+    // =========================================================================
+    {
+        workstation.getNodeGraph().clearGraph();
+        juce::File patchFile("patches/example_relativistic_delay_pipe_synth.pdil");
+        if (patchFile.existsAsFile())
+        {
+            std::string jsonStr = patchFile.loadFileAsString().toStdString();
+            workstation.getNodeGraph().deserializeFromJSON(jsonStr);
+
+            juce::File obs7Wav("artifacts/observation_7_delayline_pipe_synth_patch.wav");
+            auto fileStream7 = obs7Wav.createOutputStream();
+            if (fileStream7 != nullptr)
+            {
+                juce::WavAudioFormat wavFormat;
+                std::unique_ptr<juce::AudioFormatWriter> writer7(wavFormat.createWriterFor(fileStream7.release(), sampleRate, 2, 16, {}, 0));
+                if (writer7 != nullptr)
+                {
+                    int totalBlocks7 = static_cast<int>((6.0 * sampleRate) / blockSize); // 6-second render
+                    for (int b = 0; b < totalBlocks7; ++b)
+                    {
+                        workstation.getNextAudioBlock(channelInfo);
+                        writer7->writeFromAudioSampleBuffer(masterBuffer, 0, blockSize);
+                    }
+                    writer7->flush();
+                    std::cout << "[AgentTestRunner] Exported WAV Observation 7 (Example Synth Patch with DelayLine & Pipe): " << obs7Wav.getFullPathName().toStdString() << "\n";
+                }
+            }
+        }
+    }
+
     int totalBlocks = static_cast<int>((5.0 * sampleRate) / blockSize);
     float maxPeak = masterBuffer.getMagnitude(0, blockSize);
     int activeNodes = static_cast<int>(workstation.getNodeGraph().getNodes().size());
