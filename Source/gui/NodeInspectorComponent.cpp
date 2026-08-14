@@ -238,8 +238,9 @@ void NodeInspectorComponent::updateUIForSelectedNode()
     };
 
     std::string sym = selectedNode->getSymbol();
+    bool isTimeGenerator = (sym.rfind("time.transport", 0) == 0 || sym.rfind("transport", 0) == 0 || sym.rfind("timeline", 0) == 0);
     bool isSequencer = (sym.rfind("seq", 0) == 0 || sym == "tidal" || sym == "pattern" || sym == "auto~");
-    bool isControlNode = isSequencer ||
+    bool isControlNode = isSequencer || isTimeGenerator ||
                           (sym == "msg" || sym == "message" || sym == "bang" || sym == "bng" ||
                           sym == "toggle" || sym == "tgl" || sym == "number" || sym == "num" ||
                           sym == "symbol" || sym == "sym" || sym == "radio" || sym == "hradio" ||
@@ -249,6 +250,11 @@ void NodeInspectorComponent::updateUIForSelectedNode()
                           sym == "random" || sym == "counter" || sym == "soundfiler" ||
                           sym == "pipe" || sym == "time.pipe" || sym == "timer" || sym == "time.timer" ||
                           sym == "time.quantize" || sym == "quantize" || sym == "snapshot~" || sym == "time.snapshot~");
+
+    bool hasAudioOutlet = false;
+    for (const auto& out : selectedNode->getOutlets()) {
+        if (out.dataType == PortDataType::Audio) { hasAudioOutlet = true; break; }
+    }
 
     if (isControlNode)
     {
@@ -318,9 +324,9 @@ void NodeInspectorComponent::updateUIForSelectedNode()
                 if (selectedNode) selectedNode->setVolumeDb(static_cast<float>(volSlider.getValue()));
             };
         }
-        else
+        else if (hasAudioOutlet)
         {
-            // General Audio / DSP Nodes use Linear Gain Multiplier (e.g. 1.0x)
+            // General Audio / DSP Nodes with audio output use Linear Gain Multiplier (e.g. 1.0x)
             volLabel.setText("Output Level (Gain Multiplier)", juce::dontSendNotification);
             volLabel.setVisible(true);
             volSlider.setVisible(true);
@@ -330,6 +336,11 @@ void NodeInspectorComponent::updateUIForSelectedNode()
             volSlider.onValueChange = [this]() {
                 if (selectedNode) selectedNode->setOutputVolume(static_cast<float>(volSlider.getValue()));
             };
+        }
+        else
+        {
+            volLabel.setVisible(false);
+            volSlider.setVisible(false);
         }
     }
 
