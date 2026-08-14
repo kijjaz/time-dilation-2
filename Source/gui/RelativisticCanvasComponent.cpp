@@ -1199,8 +1199,16 @@ void RelativisticCanvasComponent::spawnObjectEditorForNode(int nodeId)
     editingNodeId = nodeId;
     lastMousePos = { node->xPos, node->yPos };
 
-    objectEditor.setText(node->getLabel());
-    objectEditor.setBounds(static_cast<int>(node->xPos), static_cast<int>(node->yPos), static_cast<int>(std::max(140.0f, static_cast<float>(node->getLabel().length()) * 9.0f + 30.0f)), 30);
+    juce::String editorText = node->getLabel();
+    if (auto tidalNode = std::dynamic_pointer_cast<TidalSeqNode>(node))
+    {
+        editorText = "seq.tidal " + juce::String(tidalNode->getPatternString());
+    }
+
+    objectEditor.setText(editorText);
+    auto b = getNodeBounds(*node);
+    int edW = std::max(static_cast<int>(b.getWidth()), static_cast<int>(editorText.length() * 9 + 40));
+    objectEditor.setBounds(static_cast<int>(b.getX()), static_cast<int>(b.getY()), edW, 30);
     objectEditor.setVisible(true);
     objectEditor.selectAll();
     objectEditor.grabKeyboardFocus();
@@ -1224,8 +1232,15 @@ void RelativisticCanvasComponent::commitObjectCreation()
             auto oldNode = getCurrentGraph().getNode(editingNodeId);
             if (oldNode)
             {
-                oldNode->setLabel(text.toStdString());
-                oldNode->receiveMessage(text.toStdString());
+                if (auto tidalNode = std::dynamic_pointer_cast<TidalSeqNode>(oldNode))
+                {
+                    tidalNode->setPattern(text.toStdString());
+                }
+                else
+                {
+                    oldNode->setLabel(text.toStdString());
+                    oldNode->receiveMessage(text.toStdString());
+                }
             }
         }
         else

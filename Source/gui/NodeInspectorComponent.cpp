@@ -1,5 +1,6 @@
 #include "NodeInspectorComponent.h"
 #include "CarbonGoldLookAndFeel.h"
+#include "../dsp/TidalSeqNode.h"
 
 namespace TimeDilationDAW
 {
@@ -113,6 +114,47 @@ NodeInspectorComponent::NodeInspectorComponent()
     offsetCouplingLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
     addAndMakeVisible(offsetCouplingLabel);
 
+    // Tidal Pattern Studio Controls
+    tidalPatternLabel.setFont(12.0f);
+    tidalPatternLabel.setColour(juce::Label::textColourId, CarbonGoldLookAndFeel::cyberCyan);
+    addAndMakeVisible(tidalPatternLabel);
+
+    tidalPatternEditor.setMultiLine(false);
+    tidalPatternEditor.setColour(juce::TextEditor::backgroundColourId, CarbonGoldLookAndFeel::carbonBg);
+    tidalPatternEditor.setColour(juce::TextEditor::textColourId, CarbonGoldLookAndFeel::cyberCyan);
+    tidalPatternEditor.setColour(juce::TextEditor::outlineColourId, CarbonGoldLookAndFeel::goldAccent.withAlpha(0.6f));
+    tidalPatternEditor.setFont(juce::Font(12.5f, juce::Font::bold));
+    addAndMakeVisible(tidalPatternEditor);
+
+    tidalPresetLabel.setFont(11.0f);
+    tidalPresetLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
+    addAndMakeVisible(tidalPresetLabel);
+
+    tidalPresetCombo.addItem("Select Template / Groove...", 1);
+    tidalPresetCombo.addItem("Melodic Subdivided Arp [60 [62 64] 67 [69 71 72]]", 2);
+    tidalPresetCombo.addItem("Polyphonic Stack Bass+Chord [60 64 67, 36 [~ 48]]", 3);
+    tidalPresetCombo.addItem("Tresillo 3+3+2 Euclidean [60(3,8), [~ 67]*2]", 4);
+    tidalPresetCombo.addItem("Drum Kit [36(5,16), 42*4, [~ 38]*2]", 5);
+    tidalPresetCombo.addItem("Alternating Cycles <60 62 65 67> [69 71]*2", 6);
+    tidalPresetCombo.addItem("Syncopated Funk [60 ~ 62 ~ [64 67] ~ 72 ~]", 7);
+    addAndMakeVisible(tidalPresetCombo);
+
+    auto styleMacroBtn = [](juce::TextButton& btn) {
+        btn.setColour(juce::TextButton::buttonColourId, CarbonGoldLookAndFeel::carbonBg);
+        btn.setColour(juce::TextButton::textColourOffId, CarbonGoldLookAndFeel::goldAccent);
+    };
+    styleMacroBtn(tidalSubdivideBtn); addAndMakeVisible(tidalSubdivideBtn);
+    styleMacroBtn(tidalTripletBtn); addAndMakeVisible(tidalTripletBtn);
+    styleMacroBtn(tidalStackBtn); addAndMakeVisible(tidalStackBtn);
+    styleMacroBtn(tidalEuclidBtn); addAndMakeVisible(tidalEuclidBtn);
+    styleMacroBtn(tidalAltBtn); addAndMakeVisible(tidalAltBtn);
+    styleMacroBtn(tidalSpeedBtn); addAndMakeVisible(tidalSpeedBtn);
+    styleMacroBtn(tidalDegradeBtn); addAndMakeVisible(tidalDegradeBtn);
+
+    tidalHelpBtn.setColour(juce::TextButton::buttonColourId, CarbonGoldLookAndFeel::royalViolet.withAlpha(0.5f));
+    tidalHelpBtn.setColour(juce::TextButton::textColourOffId, CarbonGoldLookAndFeel::cyberCyan);
+    addAndMakeVisible(tidalHelpBtn);
+
     // Documentation & Methods
     docTitleLabel.setFont(juce::Font(12.0f, juce::Font::bold));
     docTitleLabel.setColour(juce::Label::textColourId, CarbonGoldLookAndFeel::goldAccent);
@@ -153,6 +195,10 @@ void NodeInspectorComponent::updateUIForSelectedNode()
     paramSlider2.onValueChange = nullptr;
     optionSelector.onChange = nullptr;
 
+    tidalPatternEditor.onTextChange = nullptr;
+    tidalPatternEditor.onReturnKey = nullptr;
+    tidalPresetCombo.onChange = nullptr;
+
     methodButtons.clear();
 
     if (!selectedNode)
@@ -169,6 +215,14 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         paramSlider1.setVisible(false); paramLabel1.setVisible(false);
         paramSlider2.setVisible(false); paramLabel2.setVisible(false);
         optionSelector.setVisible(false); optionLabel.setVisible(false);
+        timeCouplingLabel.setVisible(false); timeCouplingCombo.setVisible(false);
+        offsetCouplingLabel.setVisible(false); offsetCouplingSlider.setVisible(false);
+        tidalPatternLabel.setVisible(false); tidalPatternEditor.setVisible(false);
+        tidalPresetLabel.setVisible(false); tidalPresetCombo.setVisible(false);
+        tidalSubdivideBtn.setVisible(false); tidalTripletBtn.setVisible(false);
+        tidalStackBtn.setVisible(false); tidalEuclidBtn.setVisible(false);
+        tidalAltBtn.setVisible(false); tidalSpeedBtn.setVisible(false);
+        tidalDegradeBtn.setVisible(false); tidalHelpBtn.setVisible(false);
         docTitleLabel.setVisible(false); descLabel.setVisible(false);
         inletOutletLabel.setVisible(false);
         return;
@@ -602,27 +656,129 @@ void NodeInspectorComponent::updateUIForSelectedNode()
     }
     else if (sym == "seq.tidal" || sym == "tidal" || sym == "pattern")
     {
+        auto tidalNode = std::dynamic_pointer_cast<TidalSeqNode>(selectedNode);
+
+        tidalPatternLabel.setVisible(true);
+        tidalPatternEditor.setVisible(true);
+        tidalPatternEditor.setText(tidalNode ? tidalNode->getPatternString() : "[60 [62 64] 67 [69 71 72]]", juce::dontSendNotification);
+        tidalPatternEditor.onTextChange = [this, tidalNode]() {
+            if (tidalNode)
+            {
+                tidalNode->setPattern(tidalPatternEditor.getText().toStdString());
+                if (getParentComponent()) getParentComponent()->repaint();
+            }
+        };
+        tidalPatternEditor.onReturnKey = [this, tidalNode]() {
+            if (tidalNode)
+            {
+                tidalNode->setPattern(tidalPatternEditor.getText().toStdString());
+                if (getParentComponent()) getParentComponent()->repaint();
+            }
+        };
+
+        tidalPresetLabel.setVisible(true);
+        tidalPresetCombo.setVisible(true);
+        tidalPresetCombo.setSelectedId(1, juce::dontSendNotification);
+        tidalPresetCombo.onChange = [this, tidalNode]() {
+            int id = tidalPresetCombo.getSelectedId();
+            std::string pat;
+            if (id == 2) pat = "[60 [62 64] 67 [69 71 72]]";
+            else if (id == 3) pat = "[60 64 67, 36 [~ 48]]";
+            else if (id == 4) pat = "[60(3,8), [~ 67]*2]";
+            else if (id == 5) pat = "[36(5,16), 42*4, [~ 38]*2]";
+            else if (id == 6) pat = "<60 62 65 67> [69 71]*2";
+            else if (id == 7) pat = "[60 ~ 62 ~ [64 67] ~ 72 ~]";
+
+            if (!pat.empty())
+            {
+                tidalPatternEditor.setText(pat);
+                if (tidalNode)
+                {
+                    tidalNode->setPattern(pat);
+                    if (getParentComponent()) getParentComponent()->repaint();
+                }
+            }
+        };
+
+        auto applyTransformation = [this, tidalNode](std::function<std::string(const std::string&)> transform) {
+            std::string current = tidalPatternEditor.getText().toStdString();
+            std::string next = transform(current);
+            tidalPatternEditor.setText(next);
+            if (tidalNode)
+            {
+                tidalNode->setPattern(next);
+                if (getParentComponent()) getParentComponent()->repaint();
+            }
+        };
+
+        tidalSubdivideBtn.setVisible(true);
+        tidalSubdivideBtn.onClick = [applyTransformation]() {
+            applyTransformation([](const std::string& p) { return "[" + p + " " + p + "]"; });
+        };
+
+        tidalTripletBtn.setVisible(true);
+        tidalTripletBtn.onClick = [applyTransformation]() {
+            applyTransformation([](const std::string& p) { return "[" + p + " " + p + " " + p + "]"; });
+        };
+
+        tidalStackBtn.setVisible(true);
+        tidalStackBtn.onClick = [applyTransformation]() {
+            applyTransformation([](const std::string& p) { return "[" + p + ", 36 [~ 48]]"; });
+        };
+
+        tidalEuclidBtn.setVisible(true);
+        tidalEuclidBtn.onClick = [applyTransformation]() {
+            applyTransformation([](const std::string& p) { return "[" + p + "(3,8), [~ 42]*2]"; });
+        };
+
+        tidalAltBtn.setVisible(true);
+        tidalAltBtn.onClick = [applyTransformation]() {
+            applyTransformation([](const std::string& p) { return "<" + p + " [60 67] [64 71]>"; });
+        };
+
+        tidalSpeedBtn.setVisible(true);
+        tidalSpeedBtn.onClick = [applyTransformation]() {
+            applyTransformation([](const std::string& p) { return p + "*2"; });
+        };
+
+        tidalDegradeBtn.setVisible(true);
+        tidalDegradeBtn.onClick = [applyTransformation]() {
+            applyTransformation([](const std::string& p) { return p + "?0.8"; });
+        };
+
+        tidalHelpBtn.setVisible(true);
+        tidalHelpBtn.onClick = []() {
+            juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::InfoIcon,
+                "TidalCycles Mini-Notation Guide",
+                "TidalCycles Mini-Notation Reference:\n\n"
+                "1. Nested Subdivisions:\n"
+                "   [60 [62 64] 67 [69 71 72]]\n\n"
+                "2. Polyphonic Stacking:\n"
+                "   [60 64 67, 36 [~ 48]]\n\n"
+                "3. Bjorklund Euclidean:\n"
+                "   60(3,8) -> Tresillo, 36(5,16) -> Cinquillo\n\n"
+                "4. Speed Multipliers: 60*2, [60 62]*4\n"
+                "5. Alternations: <60 62 65 67>\n"
+                "6. Rests: ~ (silent step)\n"
+                "7. Probability: 60?0.8 (80% chance)\n"
+                "8. Drums: bd, sn, cp, hh, oh, cb, rim");
+        };
+
         paramLabel1.setText("Cycle Duration (sec)", juce::dontSendNotification);
         paramLabel1.setVisible(true);
-        paramSlider1.setRange(0.2, 10.0, 0.1);
-        paramSlider1.setValue(2.0, juce::dontSendNotification);
+        paramSlider1.setRange(0.1, 10.0, 0.05);
+        paramSlider1.setValue(tidalNode ? tidalNode->getCycleDuration() : 2.0, juce::dontSendNotification);
         paramSlider1.setVisible(true);
-        paramSlider1.onValueChange = [this]() {
-            if (selectedNode) selectedNode->receiveMessage("dur " + std::to_string(paramSlider1.getValue()));
+        paramSlider1.onValueChange = [this, tidalNode]() {
+            if (tidalNode) tidalNode->setCycleDuration(paramSlider1.getValue());
         };
 
         paramSlider2.setVisible(false); paramLabel2.setVisible(false);
         optionSelector.setVisible(false); optionLabel.setVisible(false);
 
-        descLabel.setText("TidalCycles Mini-Notation Sequencer. Supports nested subdivisions [a [b c]], polyphony [a, b], Euclids (k,n), speed a*n, alternations <a b>, and rests ~.", juce::dontSendNotification);
-        templateMsgs = {
-            "pat [60 [62 64] 67 [69 71 72]]",
-            "pat [60 64 67, 36 [~ 48]]",
-            "pat [60(3,8), [~ 67]*2]",
-            "pat [<60 62 65 67> [69 71]*2]",
-            "pat [36(5,16), 42*4, [~ 39]*2]",
-            "dur 2.0", "dur 1.0", "dur 4.0"
-        };
+        descLabel.setText("TidalCycles Live-Coding Pattern Sequencer. Time-quantized to relativistic proper-time tau.", juce::dontSendNotification);
+        inletOutletLabel.setText("In 0: Msg/Dur | In 1: TimeFrame (tau)\nOut 0: Note Msg | Out 1: Freq Audio~ | Out 2: Gate Bang | Out 3: Ch2 Msg | Out 4: Trig Audio~", juce::dontSendNotification);
+        templateMsgs.clear();
     }
     else if (sym == "pluck~")
     {
@@ -1821,6 +1977,28 @@ void NodeInspectorComponent::resized()
 
         offsetCouplingLabel.setBounds(12, y, w, 18); y += 20;
         offsetCouplingSlider.setBounds(12, y, w, 24); y += 30;
+    }
+
+    if (tidalPatternEditor.isVisible())
+    {
+        tidalPatternLabel.setBounds(12, y, w, 18); y += 20;
+        tidalPatternEditor.setBounds(12, y, w, 28); y += 34;
+
+        tidalPresetLabel.setBounds(12, y, w, 18); y += 20;
+        tidalPresetCombo.setBounds(12, y, w, 26); y += 32;
+
+        int btnW = (w - 12) / 4;
+        tidalSubdivideBtn.setBounds(12, y, btnW, 24);
+        tidalTripletBtn.setBounds(16 + btnW, y, btnW, 24);
+        tidalStackBtn.setBounds(20 + btnW * 2, y, btnW, 24);
+        tidalEuclidBtn.setBounds(24 + btnW * 3, y, btnW, 24);
+        y += 28;
+
+        tidalAltBtn.setBounds(12, y, btnW, 24);
+        tidalSpeedBtn.setBounds(16 + btnW, y, btnW, 24);
+        tidalDegradeBtn.setBounds(20 + btnW * 2, y, btnW, 24);
+        tidalHelpBtn.setBounds(24 + btnW * 3, y, btnW, 24);
+        y += 32;
     }
 
     y += 10;

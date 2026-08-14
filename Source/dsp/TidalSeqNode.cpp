@@ -5,7 +5,7 @@ namespace TimeDilationDAW
 {
 
 TidalSeqNode::TidalSeqNode(int id, const std::string& patternString, double cycleDur)
-    : RelativisticNode(id, "seq.tidal", "TidalCycles Pattern Sequencer")
+    : RelativisticNode(id, "seq.tidal", "seq.tidal " + patternString)
     , cycleDurationSec(cycleDur)
 {
     // Inlets:
@@ -25,8 +25,24 @@ TidalSeqNode::TidalSeqNode(int id, const std::string& patternString, double cycl
 
 void TidalSeqNode::setPattern(const std::string& patternString)
 {
-    currentPatternStr = patternString;
-    compiledPattern = TidalParser::parse(patternString);
+    std::string cleanPat = patternString;
+    // Strip leading "seq.tidal ", "tidal ", "pattern ", "pat " or "set " if present
+    for (const auto& prefix : { "seq.tidal ", "tidal ", "pattern ", "pat ", "set " })
+    {
+        if (cleanPat.rfind(prefix, 0) == 0)
+        {
+            cleanPat = cleanPat.substr(std::string(prefix).length());
+            size_t first = cleanPat.find_first_not_of(" \t");
+            if (first != std::string::npos) cleanPat = cleanPat.substr(first);
+            break;
+        }
+    }
+
+    if (cleanPat.empty()) cleanPat = "[60 [62 64] 67 [69 71 72]]";
+
+    currentPatternStr = cleanPat;
+    setLabel("seq.tidal " + cleanPat);
+    compiledPattern = TidalParser::parse(cleanPat);
     evaluateCurrentCycle();
 }
 
@@ -118,11 +134,10 @@ void TidalSeqNode::receiveMessage(const std::string& message)
     std::string cmd;
     iss >> cmd;
 
-    if (cmd == "pattern" || cmd == "pat" || cmd == "set")
+    if (cmd == "pattern" || cmd == "pat" || cmd == "set" || cmd == "seq.tidal" || cmd == "tidal")
     {
         std::string pat;
         std::getline(iss, pat);
-        // Trim leading spaces
         size_t first = pat.find_first_not_of(" \t");
         if (first != std::string::npos) pat = pat.substr(first);
         if (!pat.empty()) setPattern(pat);
@@ -140,8 +155,7 @@ void TidalSeqNode::receiveMessage(const std::string& message)
     }
     else
     {
-        // Treat whole message as pattern if it contains brackets or spaces
-        if (message.find('[') != std::string::npos || message.find('<') != std::string::npos || message.find(' ') != std::string::npos)
+        if (!message.empty())
         {
             setPattern(message);
         }

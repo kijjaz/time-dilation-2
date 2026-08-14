@@ -67,6 +67,20 @@ private:
     juce::Slider offsetCouplingSlider;
     juce::Label offsetCouplingLabel{ "OffsetCouplingLabel", "Offset Factor (τ)" };
 
+    // TidalCycles Pattern Studio Controls
+    juce::Label tidalPatternLabel{ "TidalPatLabel", "Tidal Mini-Notation Pattern" };
+    juce::TextEditor tidalPatternEditor;
+    juce::Label tidalPresetLabel{ "TidalPresetLabel", "Pattern Presets" };
+    juce::ComboBox tidalPresetCombo;
+    juce::TextButton tidalSubdivideBtn{ "[a b] /2" };
+    juce::TextButton tidalTripletBtn{ "[a b c] /3" };
+    juce::TextButton tidalStackBtn{ "+ Stack Poly (,)" };
+    juce::TextButton tidalEuclidBtn{ "Euclid (3,8)" };
+    juce::TextButton tidalAltBtn{ "<a b> Alt" };
+    juce::TextButton tidalSpeedBtn{ "*2 Speed" };
+    juce::TextButton tidalDegradeBtn{ "? Degrade" };
+    juce::TextButton tidalHelpBtn{ "[?] Mini-Notation Guide" };
+
     // Documentation & Method Reference Section
     juce::Label docTitleLabel{ "DocTitle", "DOCUMENTATION & METHODS" };
     juce::Label descLabel;
