@@ -1025,71 +1025,72 @@ void NodeInspectorComponent::paint(juce::Graphics& g)
 
 void NodeInspectorComponent::resized()
 {
-    titleLabel.setBounds(10, 5, getWidth() - 20, 22);
-    nodeTypeLabel.setBounds(10, 32, getWidth() - 20, 20);
+    int w = std::max(120, getWidth() - 24);
+    int halfW = (w - 10) / 2;
+
+    titleLabel.setBounds(12, 5, w, 22);
+    nodeTypeLabel.setBounds(12, 32, w, 20);
 
     int y = 58;
-    int w = getWidth() - 20;
-    int halfW = (w - 10) / 2;
 
     if (posXLabel.isVisible())
     {
-        posXLabel.setBounds(10, y, halfW, 16);
-        posYLabel.setBounds(15 + halfW, y, halfW, 16);
+        posXLabel.setBounds(12, y, halfW, 16);
+        posYLabel.setBounds(18 + halfW, y, halfW, 16);
         y += 18;
 
-        posXSlider.setBounds(10, y, halfW, 22);
-        posYSlider.setBounds(15 + halfW, y, halfW, 22);
+        posXSlider.setBounds(12, y, halfW, 22);
+        posYSlider.setBounds(18 + halfW, y, halfW, 22);
         y += 26;
 
-        widthLabel.setBounds(10, y, halfW, 16);
-        heightLabel.setBounds(15 + halfW, y, halfW, 16);
+        widthLabel.setBounds(12, y, halfW, 16);
+        heightLabel.setBounds(18 + halfW, y, halfW, 16);
         y += 18;
 
-        widthSlider.setBounds(10, y, halfW, 22);
-        heightSlider.setBounds(15 + halfW, y, halfW, 22);
+        widthSlider.setBounds(12, y, halfW, 22);
+        heightSlider.setBounds(18 + halfW, y, halfW, 22);
         y += 28;
     }
 
     if (scopeVisibleToggle.isVisible())
     {
-        scopeVisibleToggle.setBounds(10, y, w, 22); y += 24;
+        scopeVisibleToggle.setBounds(12, y, w, 22); y += 24;
 
-        scopeTypeLabel.setBounds(10, y, w, 16); y += 18;
-        scopeTypeCombo.setBounds(10, y, w, 24); y += 28;
+        scopeTypeLabel.setBounds(12, y, w, 16); y += 18;
+        scopeTypeCombo.setBounds(12, y, w, 24); y += 28;
 
-        scopeEngineLabel.setBounds(10, y, w, 16); y += 18;
-        scopeEngineCombo.setBounds(10, y, w, 24); y += 28;
+        scopeEngineLabel.setBounds(12, y, w, 16); y += 18;
+        scopeEngineCombo.setBounds(12, y, w, 24); y += 28;
     }
 
     if (volLabel.isVisible())
     {
-        volLabel.setBounds(10, y, w, 18); y += 20;
-        volSlider.setBounds(10, y, w, 24); y += 30;
+        volLabel.setBounds(12, y, w, 18); y += 20;
+        volSlider.setBounds(12, y, w, 24); y += 30;
     }
 
     if (paramLabel1.isVisible())
     {
-        paramLabel1.setBounds(10, y, w, 18); y += 20;
-        paramSlider1.setBounds(10, y, w, 24); y += 30;
+        paramLabel1.setBounds(12, y, w, 18); y += 20;
+        paramSlider1.setBounds(12, y, w, 24); y += 30;
     }
 
     if (paramLabel2.isVisible())
     {
-        paramLabel2.setBounds(10, y, w, 18); y += 20;
-        paramSlider2.setBounds(10, y, w, 24); y += 30;
+        paramLabel2.setBounds(12, y, w, 18); y += 20;
+        paramSlider2.setBounds(12, y, w, 24); y += 30;
     }
 
     if (optionLabel.isVisible())
     {
-        optionLabel.setBounds(10, y, w, 18); y += 20;
-        optionSelector.setBounds(10, y, w, 26); y += 32;
+        optionLabel.setBounds(12, y, w, 18); y += 20;
+        optionSelector.setBounds(12, y, w, 26); y += 32;
     }
 
     y += 10;
     if (docTitleLabel.isVisible())
     {
-        docTitleLabel.setBounds(10, y, w, 20); y += 22;
+        docTitleLabel.setBounds(12, y, w, 20); y += 22;
 
         // Accurate multi-line text height calculation
         auto getDynamicTextHeight = [](const juce::String& text, const juce::Font& font, int width) -> int {
@@ -1103,22 +1104,22 @@ void NodeInspectorComponent::resized()
         };
 
         int descH = getDynamicTextHeight(descLabel.getText(), descLabel.getFont(), w);
-        descLabel.setBounds(10, y, w, descH);
+        descLabel.setBounds(12, y, w, descH);
         y += descH + 10;
 
         int ioH = getDynamicTextHeight(inletOutletLabel.getText(), inletOutletLabel.getFont(), w);
-        inletOutletLabel.setBounds(10, y, w, ioH);
+        inletOutletLabel.setBounds(12, y, w, ioH);
         y += ioH + 12;
 
         for (auto& btn : methodButtons)
         {
-            btn->setBounds(10, y, w, 26);
+            btn->setBounds(12, y, w, 26);
             y += 30;
         }
     }
 
     int totalRequiredH = y + 30;
-    if (getHeight() != totalRequiredH)
+    if (getHeight() < totalRequiredH)
     {
         setSize(getWidth(), totalRequiredH);
     }

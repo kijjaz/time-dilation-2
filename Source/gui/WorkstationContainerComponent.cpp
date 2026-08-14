@@ -374,6 +374,9 @@ void WorkstationContainerComponent::paint(juce::Graphics& g)
 
     // Vertical Divider Line between canvas and inspector
     int dividerX = getWidth() - inspectorWidth;
+    g.setColour(CarbonGoldLookAndFeel::slatePanel);
+    g.fillRect(dividerX, 60, inspectorWidth, getHeight() - 60);
+
     g.setColour(CarbonGoldLookAndFeel::goldAccent.withAlpha(0.4f));
     g.drawVerticalLine(dividerX, 60.0f, static_cast<float>(getHeight()));
 }
@@ -475,7 +478,8 @@ void WorkstationContainerComponent::resized()
         canvasComponent.setBounds(0, 60 + topH, canvasW, bottomH);
     }
     inspectorViewport.setBounds(canvasW + 2, 60, inspectorWidth - 2, contentH);
-    nodeInspectorComponent.setBounds(0, 0, std::max(120, inspectorViewport.getViewWidth()), std::max(contentH, nodeInspectorComponent.getHeight()));
+    int targetInspectorW = inspectorViewport.getViewWidth();
+    nodeInspectorComponent.setBounds(0, 0, targetInspectorW, std::max(contentH, nodeInspectorComponent.getHeight()));
     nodeInspectorComponent.resized();
 }
 
