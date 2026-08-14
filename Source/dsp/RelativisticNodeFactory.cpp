@@ -177,9 +177,13 @@ std::shared_ptr<RelativisticNode> RelativisticNodeFactory::createNode(int nodeId
         std::getline(ss, restOfLine);
         return std::make_shared<SeqNode>(nodeId, restOfLine);
     }
-    else if (symbol == "mtof")
+    else if (symbol == "mtof" || symbol == "mtof~")
     {
         return std::make_shared<MtofNode>(nodeId);
+    }
+    else if (symbol == "ftom" || symbol == "ftom~")
+    {
+        return std::make_shared<FtomNode>(nodeId);
     }
     else if (symbol == "time.grav.osc~" || symbol == "time.grav~" || symbol == "grav.osc~" || symbol == "grav.osc")
     {

@@ -69,13 +69,30 @@ private:
     double accumulatedTime = 0.0;
 };
 
-// mtof node
+// mtof / mtof~ node (MIDI Note to Frequency in Hz)
 class MtofNode : public RelativisticNode
 {
 public:
     MtofNode(int id);
     void prepare(double sampleRate, int samplesPerBlock) override;
     void process(int numSamples) override;
+    void receiveMessage(const std::string& message) override;
+
+private:
+    std::atomic<double> currentNote{ 69.0 };
+};
+
+// ftom / ftom~ node (Frequency in Hz to MIDI Note)
+class FtomNode : public RelativisticNode
+{
+public:
+    FtomNode(int id);
+    void prepare(double sampleRate, int samplesPerBlock) override;
+    void process(int numSamples) override;
+    void receiveMessage(const std::string& message) override;
+
+private:
+    std::atomic<double> currentFreq{ 440.0 };
 };
 
 // transport~ global project timeline object

@@ -265,10 +265,12 @@ void SeqNode::receiveMessage(const std::string& message)
 // ============================================================================
 
 MtofNode::MtofNode(int id)
-    : RelativisticNode(id, "mtof", "mtof")
+    : RelativisticNode(id, "mtof~", "mtof~")
 {
-    addInlet("note", PortDataType::Audio);
-    addOutlet("freq", PortDataType::Audio);
+    addInlet("msgIn", PortDataType::Message);  // Inlet 0: Message Input (Gold)
+    addInlet("note~", PortDataType::Audio);    // Inlet 1: MIDI Note Audio Input (Cyan)
+    addOutlet("msgOut", PortDataType::Message);// Outlet 0: Message Output (Gold)
+    addOutlet("freq~", PortDataType::Audio);   // Outlet 1: Frequency Audio Output in Hz (Cyan)
 }
 
 void MtofNode::prepare(double sampleRate, int samplesPerBlock)
@@ -278,23 +280,113 @@ void MtofNode::prepare(double sampleRate, int samplesPerBlock)
 
 void MtofNode::process(int numSamples)
 {
-    const auto& noteBuf = getAudioInlet("note");
-    auto& freqBuf = getAudioOutlet("freq");
+    const auto& noteBuf = getInletBuffer(1);
+    auto& freqBuf = getOutletBuffer(1);
     freqBuf.clear();
 
     const float* noteL = noteBuf.getReadPointer(0);
     float* freqL = freqBuf.getWritePointer(0);
-    float* freqR = freqBuf.getWritePointer(1);
+
+    double cNote = currentNote.load();
 
     for (int s = 0; s < numSamples; ++s)
     {
-        double m = static_cast<double>(noteL[s]);
+        double m = (noteL && noteBuf.getNumChannels() > 0 && std::abs(noteL[s]) > 0.0001f) ? static_cast<double>(noteL[s]) : cNote;
         // MIDI Note to Frequency in Hz: f = 440 * 2^((m - 69)/12)
         double freq = 440.0 * std::pow(2.0, (m - 69.0) / 12.0);
-
         freqL[s] = static_cast<float>(freq);
-        freqR[s] = static_cast<float>(freq);
     }
+
+    if (freqBuf.getNumChannels() > 1)
+    {
+        freqBuf.copyFrom(1, 0, freqBuf, 0, 0, numSamples);
+    }
+}
+
+void MtofNode::receiveMessage(const std::string& message)
+{
+    RelativisticNode::receiveMessage(message);
+    try
+    {
+        std::stringstream ss(message);
+        std::string cmd;
+        double val = 69.0;
+        if (ss >> val)
+        {
+            currentNote.store(val);
+        }
+        else if (ss >> cmd >> val)
+        {
+            currentNote.store(val);
+        }
+        double freq = 440.0 * std::pow(2.0, (currentNote.load() - 69.0) / 12.0);
+        char buf[64];
+        std::snprintf(buf, sizeof(buf), "%.2f", freq);
+        if (onMessageEmitted) onMessageEmitted(buf);
+    }
+    catch (...) {}
+}
+
+// ============================================================================
+// FtomNode Implementation (ftom / ftom~)
+// ============================================================================
+
+FtomNode::FtomNode(int id)
+    : RelativisticNode(id, "ftom~", "ftom~")
+{
+    addInlet("msgIn", PortDataType::Message);   // Inlet 0: Message Input (Gold)
+    addInlet("freq~", PortDataType::Audio);     // Inlet 1: Frequency Audio Input in Hz (Cyan)
+    addOutlet("msgOut", PortDataType::Message); // Outlet 0: Message Output (Gold)
+    addOutlet("note~", PortDataType::Audio);    // Outlet 1: MIDI Note Audio Output (Cyan)
+}
+
+void FtomNode::prepare(double sampleRate, int samplesPerBlock)
+{
+    RelativisticNode::prepare(sampleRate, samplesPerBlock);
+}
+
+void FtomNode::process(int numSamples)
+{
+    const auto& freqBuf = getInletBuffer(1);
+    auto& noteBuf = getOutletBuffer(1);
+    noteBuf.clear();
+
+    const float* freqL = freqBuf.getReadPointer(0);
+    float* noteL = noteBuf.getWritePointer(0);
+
+    double cFreq = currentFreq.load();
+
+    for (int s = 0; s < numSamples; ++s)
+    {
+        double f = (freqL && freqBuf.getNumChannels() > 0 && freqL[s] > 1.0f) ? static_cast<double>(freqL[s]) : cFreq;
+        // Frequency in Hz to MIDI Note: m = 69 + 12 * log2(f / 440)
+        double note = 69.0 + 12.0 * std::log2(std::max(1e-5, f) / 440.0);
+        noteL[s] = static_cast<float>(note);
+    }
+
+    if (noteBuf.getNumChannels() > 1)
+    {
+        noteBuf.copyFrom(1, 0, noteBuf, 0, 0, numSamples);
+    }
+}
+
+void FtomNode::receiveMessage(const std::string& message)
+{
+    RelativisticNode::receiveMessage(message);
+    try
+    {
+        std::stringstream ss(message);
+        double val = 440.0;
+        if (ss >> val)
+        {
+            currentFreq.store(val);
+        }
+        double note = 69.0 + 12.0 * std::log2(std::max(1e-5, currentFreq.load()) / 440.0);
+        char buf[64];
+        std::snprintf(buf, sizeof(buf), "%.1f", note);
+        if (onMessageEmitted) onMessageEmitted(buf);
+    }
+    catch (...) {}
 }
 
 // ============================================================================

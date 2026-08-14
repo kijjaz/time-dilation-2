@@ -61,7 +61,10 @@ RelativisticCanvasComponent::RelativisticCanvasComponent(RelativisticNodeGraph& 
         { "delay~ 2.0", "Feedback Delay Line (Max 2.0 seconds)" },
         { "svf~ 1000 0.707", "State Variable Filter (Cutoff: 1000Hz, Q: 0.707)" },
         { "seq notes 60 62 64 67", "Relativistic Step Sequencer" },
-        { "mtof", "MIDI Note to Frequency Converter" },
+        { "mtof 69", "MIDI Note Number to Frequency in Hz (e.g. 69 \u2192 440 Hz)" },
+        { "mtof~ 60", "Signal-Rate MIDI Note to Frequency Converter" },
+        { "ftom 440", "Frequency in Hz to MIDI Note Number (e.g. 440 Hz \u2192 69)" },
+        { "ftom~ 220", "Signal-Rate Frequency to MIDI Note Converter" },
         { "msg play", "Parameter Control Message Box ('play')" },
         { "msg cutoff 1200", "Parameter Control Message Box ('cutoff 1200')" }
     };
