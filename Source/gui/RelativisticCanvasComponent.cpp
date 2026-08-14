@@ -456,15 +456,46 @@ void RelativisticCanvasComponent::paint(juce::Graphics& g)
             g.setColour(CarbonGoldLookAndFeel::slatePanel.brighter(0.3f));
             g.drawRoundedRectangle(scopeBox, 3.0f, 1.0f);
 
-            // Fetch live TimePolyFrame data from first time inlet or outlet
+            // Fetch live TimePolyFrame data across all outlets (first) or inlets
             const TimePolyFrame* frame = nullptr;
-            if (!node->getInlets().empty() && node->getInlets()[0].dataType == PortDataType::Time)
-                frame = &node->getInletTimeFrame(0);
-            else if (!node->getOutlets().empty() && node->getOutlets()[0].dataType == PortDataType::Time)
-                frame = &node->getOutletTimeFrame(0);
+            for (size_t i = 0; i < node->getOutlets().size(); ++i)
+            {
+                if (node->getOutlets()[i].dataType == PortDataType::Time)
+                {
+                    frame = &node->getOutletTimeFrame(static_cast<int>(i));
+                    break;
+                }
+            }
+            if (!frame)
+            {
+                for (size_t i = 0; i < node->getInlets().size(); ++i)
+                {
+                    if (node->getInlets()[i].dataType == PortDataType::Time)
+                    {
+                        frame = &node->getInletTimeFrame(static_cast<int>(i));
+                        break;
+                    }
+                }
+            }
 
             double currentGamma = frame ? frame->masterGamma : 1.0;
             double currentTau = (frame && !frame->streams.empty()) ? frame->streams[0].tau : 0.0;
+
+            // Sample latest instantaneous audio-rate telemetry from timeScopeBuffers
+            if (!node->timeScopeBuffer.empty())
+            {
+                size_t len = node->timeScopeBuffer.size();
+                size_t lastIdx = (node->timeScopeWriteIdx + len - 1) % len;
+                float lastVal = node->timeScopeBuffer[lastIdx];
+                if (std::abs(lastVal) > 0.0001f) currentGamma = static_cast<double>(lastVal);
+            }
+            if (!node->timeTauScopeBuffer.empty())
+            {
+                size_t len = node->timeTauScopeBuffer.size();
+                size_t lastIdx = (node->timeTauScopeWriteIdx + len - 1) % len;
+                currentTau = static_cast<double>(node->timeTauScopeBuffer[lastIdx]);
+            }
+
             double tHiRes = juce::Time::getMillisecondCounterHiRes() * 0.001;
 
             if (auto outNode = std::dynamic_pointer_cast<OutNode>(node))
@@ -808,11 +839,10 @@ void RelativisticCanvasComponent::paint(juce::Graphics& g)
                 g.setColour(CarbonGoldLookAndFeel::goldAccent);
                 g.strokePath(path3D, juce::PathStrokeType(1.5f));
 
-                char valBuf[64];
-                std::snprintf(valBuf, sizeof(valBuf), "γ: %.3fx  τ: %+.2fs", currentGamma, currentTau);
+                juce::String valStr = "Speed: " + juce::String(currentGamma, 3) + "x  Offset: " + juce::String(currentTau, 2) + "s";
                 g.setColour(CarbonGoldLookAndFeel::goldAccent);
-                g.setFont(10.0f);
-                g.drawText(valBuf, scopeBox.reduced(4.0f, 2.0f), juce::Justification::topRight, false);
+                g.setFont(9.0f);
+                g.drawText(valStr, scopeBox.reduced(4.0f, 2.0f), juce::Justification::topRight, false);
             }
         }
 
