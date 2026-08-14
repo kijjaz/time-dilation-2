@@ -711,6 +711,124 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         descLabel.setText("Multi-Channel Audio Splitter. Splits 1 multichannel audio cable into " + std::to_string(chs) + " discrete mono audio outlets.", juce::dontSendNotification);
         templateMsgs = { "channels " + std::to_string(chs) };
     }
+    else if (sym == "reverb~" || sym == "freeverb~" || sym == "rev1~")
+    {
+        paramLabel1.setText("Room Size (0.0 - 1.0)", juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setRange(0.0, 1.0, 0.01);
+        paramSlider1.setValue(0.7, juce::dontSendNotification);
+        paramSlider1.setVisible(true);
+        paramSlider1.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("room " + std::to_string(paramSlider1.getValue()));
+        };
+
+        paramLabel2.setText("Wet Mix (0.0 - 1.0)", juce::dontSendNotification);
+        paramLabel2.setVisible(true);
+        paramSlider2.setRange(0.0, 1.0, 0.01);
+        paramSlider2.setValue(0.35, juce::dontSendNotification);
+        paramSlider2.setVisible(true);
+        paramSlider2.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("wet " + std::to_string(paramSlider2.getValue()));
+        };
+
+        optionSelector.setVisible(false);
+        optionLabel.setVisible(false);
+
+        descLabel.setText("Stereo Algorithmic Reverb with 8-comb / 4-allpass Freeverb topology and HF damping.", juce::dontSendNotification);
+        templateMsgs = { "room 0.8", "damp 0.5", "wet 0.4", "wet 0.1", "dry 0.9" };
+    }
+    else if (sym == "kick~" || sym == "drum.kick~")
+    {
+        paramLabel1.setText("Base Pitch (Hz)", juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setRange(20.0, 120.0, 0.5);
+        paramSlider1.setValue(50.0, juce::dontSendNotification);
+        paramSlider1.setVisible(true);
+        paramSlider1.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("pitch " + std::to_string(paramSlider1.getValue()));
+        };
+
+        paramLabel2.setText("Decay Time (sec)", juce::dontSendNotification);
+        paramLabel2.setVisible(true);
+        paramSlider2.setRange(0.05, 1.5, 0.01);
+        paramSlider2.setValue(0.35, juce::dontSendNotification);
+        paramSlider2.setVisible(true);
+        paramSlider2.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("decay " + std::to_string(paramSlider2.getValue()));
+        };
+
+        optionSelector.setVisible(false);
+        optionLabel.setVisible(false);
+
+        descLabel.setText("Analog Sub-Bass Kick Drum with pitch envelope sweep and punchy transient click.", juce::dontSendNotification);
+        templateMsgs = { "play", "pitch 45", "pitch 60", "decay 0.25", "decay 0.6" };
+    }
+    else if (sym == "snare~" || sym == "drum.snare~")
+    {
+        paramLabel1.setText("Tone Frequency (Hz)", juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setRange(100.0, 350.0, 1.0);
+        paramSlider1.setValue(185.0, juce::dontSendNotification);
+        paramSlider1.setVisible(true);
+        paramSlider1.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("tone " + std::to_string(paramSlider1.getValue()));
+        };
+
+        paramLabel2.setText("Snappy Noise Amount", juce::dontSendNotification);
+        paramLabel2.setVisible(true);
+        paramSlider2.setRange(0.0, 1.0, 0.01);
+        paramSlider2.setValue(0.65, juce::dontSendNotification);
+        paramSlider2.setVisible(true);
+        paramSlider2.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("snappy " + std::to_string(paramSlider2.getValue()));
+        };
+
+        optionSelector.setVisible(false);
+        optionLabel.setVisible(false);
+
+        descLabel.setText("Analog Snare Drum with dual harmonic body resonators and filtered noise burst.", juce::dontSendNotification);
+        templateMsgs = { "play", "tone 200", "snappy 0.8", "decay 0.2", "decay 0.4" };
+    }
+    else if (sym == "hihat~" || sym == "drum.hat~")
+    {
+        paramLabel1.setText("Decay Time (sec)", juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setRange(0.02, 0.8, 0.01);
+        paramSlider1.setValue(0.08, juce::dontSendNotification);
+        paramSlider1.setVisible(true);
+        paramSlider1.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("decay " + std::to_string(paramSlider1.getValue()));
+        };
+
+        paramSlider2.setVisible(false);
+        paramLabel2.setVisible(false);
+        optionSelector.setVisible(false);
+        optionLabel.setVisible(false);
+
+        descLabel.setText("Metallic Multi-Pulse Closed/Open Hi-Hat synthesizer.", juce::dontSendNotification);
+        templateMsgs = { "play", "close", "open", "decay 0.05", "decay 0.35" };
+    }
+    else if (sym == "noise~")
+    {
+        paramSlider1.setVisible(false);
+        paramLabel1.setVisible(false);
+        paramSlider2.setVisible(false);
+        paramLabel2.setVisible(false);
+
+        optionLabel.setText("Noise Mode", juce::dontSendNotification);
+        optionLabel.setVisible(true);
+        optionSelector.clear();
+        optionSelector.addItem("White Noise", 1);
+        optionSelector.addItem("Pink Noise (1/f)", 2);
+        optionSelector.setSelectedId(1, juce::dontSendNotification);
+        optionSelector.setVisible(true);
+        optionSelector.onChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage(optionSelector.getSelectedId() == 2 ? "pink" : "white");
+        };
+
+        descLabel.setText("White & 1/f Pink Noise generator for synth percussion and atmospheric sound design.", juce::dontSendNotification);
+        templateMsgs = { "white", "pink" };
+    }
     else if (sym == "table" || sym == "tabread~")
     {
         paramSlider1.setVisible(false);

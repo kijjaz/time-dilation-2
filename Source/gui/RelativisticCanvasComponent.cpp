@@ -67,6 +67,11 @@ RelativisticCanvasComponent::RelativisticCanvasComponent(RelativisticNodeGraph& 
         { "ftom~ 220", "Signal-Rate Frequency to MIDI Note Converter" },
         { "pack~ 2", "Bundle N Mono Audio Inlets into 1 Multichannel Audio Cable" },
         { "unpack~ 2", "Split 1 Multichannel Audio Cable into N Mono Outlets" },
+        { "reverb~ 0.7 0.4 0.35", "Stereo Algorithmic Reverberator (Room, Damp, Wet)" },
+        { "noise~", "White & Pink Noise Audio Generator" },
+        { "kick~ 50 0.35", "Analog Pitch-Sweep Sub-Bass Kick Drum" },
+        { "snare~ 185 0.65 0.28", "Analog Dual-Tone & Filtered Noise Snare Drum" },
+        { "hihat~ 0.08", "Metallic Multi-Pulse Closed/Open Hi-Hat" },
         { "msg play", "Parameter Control Message Box ('play')" },
         { "msg cutoff 1200", "Parameter Control Message Box ('cutoff 1200')" }
     };

@@ -437,4 +437,90 @@ private:
     int channelCount = 2;
 };
 
+// reverb~ / freeverb~ node (Stereo algorithmic algorithmic reverberator)
+class ReverbNode : public RelativisticNode
+{
+public:
+    ReverbNode(int id, float roomSize = 0.7f, float damping = 0.4f, float wetLevel = 0.35f);
+    void prepare(double sampleRate, int samplesPerBlock) override;
+    void process(int numSamples) override;
+    void receiveMessage(const std::string& message) override;
+
+private:
+    juce::dsp::Reverb reverbEngine;
+    juce::dsp::Reverb::Parameters reverbParams;
+};
+
+// noise~ node (White / Pink Noise Generator)
+class NoiseNode : public RelativisticNode
+{
+public:
+    NoiseNode(int id);
+    void prepare(double sampleRate, int samplesPerBlock) override;
+    void process(int numSamples) override;
+    void receiveMessage(const std::string& message) override;
+
+private:
+    juce::Random random;
+    float pinkB0 = 0.0f, pinkB1 = 0.0f, pinkB2 = 0.0f;
+    std::string noiseMode = "white";
+};
+
+// kick~ / drum.kick~ node (Analog Pitch-Sweep Sub-Bass Kick Drum)
+class KickNode : public RelativisticNode
+{
+public:
+    KickNode(int id, double basePitch = 50.0, double decaySec = 0.35);
+    void prepare(double sampleRate, int samplesPerBlock) override;
+    void process(int numSamples) override;
+    void receiveMessage(const std::string& message) override;
+    void trigger();
+
+private:
+    double baseFreq = 50.0;
+    double decayTime = 0.35;
+    double envPhase = 1.0;
+    double oscPhase = 0.0;
+    std::atomic<bool> isTriggered{ false };
+};
+
+// snare~ / drum.snare~ node (Analog Dual-Resonator & Filtered Noise Snare Drum)
+class SnareNode : public RelativisticNode
+{
+public:
+    SnareNode(int id, double toneFreq = 185.0, double snappy = 0.65, double decaySec = 0.28);
+    void prepare(double sampleRate, int samplesPerBlock) override;
+    void process(int numSamples) override;
+    void receiveMessage(const std::string& message) override;
+    void trigger();
+
+private:
+    double toneFrequency = 185.0;
+    double snappyAmount = 0.65;
+    double decayTime = 0.28;
+    double envPhase = 1.0;
+    double bodyPhase1 = 0.0;
+    double bodyPhase2 = 0.0;
+    juce::Random random;
+    std::atomic<bool> isTriggered{ false };
+};
+
+// hihat~ / drum.hat~ node (Metallic Multi-Pulse Closed/Open Hi-Hat)
+class HiHatNode : public RelativisticNode
+{
+public:
+    HiHatNode(int id, double decaySec = 0.08);
+    void prepare(double sampleRate, int samplesPerBlock) override;
+    void process(int numSamples) override;
+    void receiveMessage(const std::string& message) override;
+    void trigger(double decay = 0.08);
+
+private:
+    double decayTime = 0.08;
+    double envPhase = 1.0;
+    double phases[6] = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+    static constexpr double freqs[6] = { 205.3, 304.4, 369.6, 522.7, 540.0, 800.0 };
+    std::atomic<bool> isTriggered{ false };
+};
+
 } // namespace TimeDilationDAW

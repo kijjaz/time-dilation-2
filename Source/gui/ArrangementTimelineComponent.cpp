@@ -165,39 +165,95 @@ void ArrangementTimelineComponent::commitEventEditor()
 void ArrangementTimelineComponent::refreshTimeline()
 {
     clips.clear();
+    messageEvents.clear();
+    loopStartSec = 0.0;
+    loopEndSec = 8.0;
+
     const auto& nodes = nodeGraph.getNodes();
     int trackIdx = 0;
+    std::unordered_map<std::string, int> nodeTrackMap;
+
     for (const auto& node : nodes)
     {
         if (node->getSymbol() == "out~") continue;
 
         TimelineClip c;
         c.clipId = node->getId();
-        c.trackIndex = trackIdx++;
-        c.startTimeSec = static_cast<double>((c.clipId * 2) % 12);
-        c.durationSec = 6.0;
+        c.trackIndex = trackIdx;
+        c.startTimeSec = 0.0;
+        c.durationSec = 8.0;
         c.name = juce::String(node->getLabel());
 
-        if (node->getSymbol() == "osc~") c.color = CarbonGoldLookAndFeel::cyberCyan;
-        else if (node->getSymbol() == "pluck~") c.color = CarbonGoldLookAndFeel::goldAccent;
-        else if (node->getSymbol() == "ladder~") c.color = CarbonGoldLookAndFeel::royalViolet;
-        else if (node->getSymbol() == "time.warp") c.color = juce::Colours::deeppink;
+        std::string sym = node->getSymbol();
+        if (sym == "osc~") c.color = CarbonGoldLookAndFeel::cyberCyan;
+        else if (sym == "seq" || sym == "mtof~") c.color = CarbonGoldLookAndFeel::goldAccent;
+        else if (sym == "ladder~" || sym == "svf~") c.color = CarbonGoldLookAndFeel::royalViolet;
+        else if (sym == "kick~" || sym == "snare~" || sym == "hihat~") c.color = juce::Colours::deeppink;
+        else if (sym == "reverb~" || sym == "delay~") c.color = juce::Colours::mediumseagreen;
         else c.color = juce::Colours::darkgrey;
 
         clips.push_back(c);
+        nodeTrackMap[node->getSymbol() + "_" + std::to_string(node->getId())] = trackIdx;
+        trackIdx++;
     }
 
-    // Add demo timeline message events if graph has active nodes
-    if (messageEvents.empty() && !nodes.empty())
+    // Populate Musical 4-Bar Rhythm & Melodic Groove Events (120 BPM: 0.5s = quarter note, 0.25s = 8th note)
+    for (const auto& node : nodes)
     {
-        int tIdx = 0;
-        for (const auto& node : nodes)
+        std::string sym = node->getSymbol();
+        int id = node->getId();
+        std::string key = sym + "_" + std::to_string(id);
+        int tIdx = nodeTrackMap.count(key) ? nodeTrackMap[key] : 0;
+
+        if (sym == "kick~")
         {
-            if (node->getSymbol() == "out~") continue;
-            if (node->getSymbol() == "ladder~") addMessageEvent(node->getId(), tIdx, 4.0, "cutoff 2200");
-            else if (node->getSymbol() == "osc~") addMessageEvent(node->getId(), tIdx, 8.0, "freq 550");
-            else if (node->getSymbol() == "drive~") addMessageEvent(node->getId(), tIdx, 12.0, "drive 3.5");
-            tIdx++;
+            // 4-on-the-floor groove + syncopated pulses
+            double kickTimes[] = { 0.0, 1.0, 2.0, 2.75, 3.0, 4.0, 5.0, 6.0, 6.75, 7.0 };
+            for (double t : kickTimes)
+            {
+                addMessageEvent(id, tIdx, t, "play");
+            }
+        }
+        else if (sym == "snare~")
+        {
+            // Backbeat on beats 2 and 4 + ghost note fills
+            double snareTimes[] = { 0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.25, 7.5 };
+            for (double t : snareTimes)
+            {
+                addMessageEvent(id, tIdx, t, "play");
+            }
+        }
+        else if (sym == "hihat~")
+        {
+            // 8th-note driving groove with open hats on the off-beats
+            for (double t = 0.0; t < 8.0; t += 0.25)
+            {
+                bool isOpen = (std::fmod(t + 0.25, 1.0) < 0.01);
+                addMessageEvent(id, tIdx, t, isOpen ? "open" : "play");
+            }
+        }
+        else if (sym == "ladder~")
+        {
+            // Dynamic progressive filter cutoff sweep across the 4 bars
+            addMessageEvent(id, tIdx, 0.0, "cutoff 900");
+            addMessageEvent(id, tIdx, 2.0, "cutoff 1600");
+            addMessageEvent(id, tIdx, 4.0, "cutoff 2800");
+            addMessageEvent(id, tIdx, 6.0, "cutoff 4200");
+            addMessageEvent(id, tIdx, 7.5, "cutoff 1200");
+        }
+        else if (sym == "delay~")
+        {
+            // Dub delay feedback build-up
+            addMessageEvent(id, tIdx, 0.0, "feedback 0.35");
+            addMessageEvent(id, tIdx, 4.0, "feedback 0.55");
+            addMessageEvent(id, tIdx, 6.5, "feedback 0.78");
+            addMessageEvent(id, tIdx, 7.5, "feedback 0.35");
+        }
+        else if (sym == "seq")
+        {
+            // Harmonic progression modulation
+            addMessageEvent(id, tIdx, 0.0, "notes 48 55 58 60 62 65 67 70");
+            addMessageEvent(id, tIdx, 4.0, "notes 51 55 58 63 67 70 72 75");
         }
     }
 

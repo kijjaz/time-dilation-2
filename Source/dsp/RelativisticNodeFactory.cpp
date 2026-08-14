@@ -230,6 +230,39 @@ std::shared_ptr<RelativisticNode> RelativisticNodeFactory::createNode(int nodeId
         if (ss >> chs) {}
         return std::make_shared<UnpackNode>(nodeId, chs);
     }
+    else if (symbol == "reverb~" || symbol == "freeverb~" || symbol == "rev1~")
+    {
+        float room = 0.7f, damp = 0.4f, wet = 0.35f;
+        if (ss >> room) {}
+        if (ss >> damp) {}
+        if (ss >> wet) {}
+        return std::make_shared<ReverbNode>(nodeId, room, damp, wet);
+    }
+    else if (symbol == "noise~")
+    {
+        return std::make_shared<NoiseNode>(nodeId);
+    }
+    else if (symbol == "kick~" || symbol == "drum.kick~" || symbol == "kick")
+    {
+        double pitch = 50.0, dec = 0.35;
+        if (ss >> pitch) {}
+        if (ss >> dec) {}
+        return std::make_shared<KickNode>(nodeId, pitch, dec);
+    }
+    else if (symbol == "snare~" || symbol == "drum.snare~" || symbol == "snare")
+    {
+        double tone = 185.0, snap = 0.65, dec = 0.28;
+        if (ss >> tone) {}
+        if (ss >> snap) {}
+        if (ss >> dec) {}
+        return std::make_shared<SnareNode>(nodeId, tone, snap, dec);
+    }
+    else if (symbol == "hihat~" || symbol == "drum.hat~" || symbol == "hat~" || symbol == "hihat")
+    {
+        double dec = 0.08;
+        if (ss >> dec) {}
+        return std::make_shared<HiHatNode>(nodeId, dec);
+    }
     else if (symbol == "patch~")
     {
         std::string patchName = "synth.voice~";

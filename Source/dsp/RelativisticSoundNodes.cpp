@@ -1559,4 +1559,391 @@ void UnpackNode::receiveMessage(const std::string& message)
     if (onMessageEmitted) onMessageEmitted("channels " + std::to_string(channelCount));
 }
 
+// ============================================================================
+// ReverbNode Implementation (reverb~ / freeverb~)
+// ============================================================================
+ReverbNode::ReverbNode(int id, float roomSize, float damping, float wetLevel)
+    : RelativisticNode(id, "reverb~", "reverb~")
+{
+    addInlet("msgIn", PortDataType::Message);   // Inlet 0: Message Input (Gold)
+    addInlet("in1~", PortDataType::Audio);      // Inlet 1: Left Audio Input (Cyan)
+    addInlet("in2~", PortDataType::Audio);      // Inlet 2: Right Audio Input (Cyan)
+    addOutlet("msgOut", PortDataType::Message); // Outlet 0: Message Output (Gold)
+    addOutlet("out1~", PortDataType::Audio);    // Outlet 1: Left Reverb Output (Cyan)
+    addOutlet("out2~", PortDataType::Audio);    // Outlet 2: Right Reverb Output (Cyan)
+
+    reverbParams.roomSize = roomSize;
+    reverbParams.damping = damping;
+    reverbParams.wetLevel = wetLevel;
+    reverbParams.dryLevel = 1.0f - wetLevel * 0.5f;
+    reverbParams.width = 1.0f;
+    reverbEngine.setParameters(reverbParams);
+}
+
+void ReverbNode::prepare(double sampleRate, int samplesPerBlock)
+{
+    RelativisticNode::prepare(sampleRate, samplesPerBlock);
+    juce::dsp::ProcessSpec spec;
+    spec.sampleRate = sampleRate > 1.0 ? sampleRate : 96000.0;
+    spec.maximumBlockSize = static_cast<juce::uint32>(std::max(64, samplesPerBlock));
+    spec.numChannels = 2;
+    reverbEngine.prepare(spec);
+    reverbEngine.reset();
+}
+
+void ReverbNode::process(int numSamples)
+{
+    const auto& inL = getInletBuffer(1);
+    const auto& inR = getInletBuffer(2);
+
+    auto& outL = getOutletBuffer(1);
+    auto& outR = getOutletBuffer(2);
+
+    if (outL.getNumChannels() < 1 || outL.getNumSamples() < numSamples) outL.setSize(1, numSamples, false, false, true);
+    if (outR.getNumChannels() < 1 || outR.getNumSamples() < numSamples) outR.setSize(1, numSamples, false, false, true);
+
+    outL.clear();
+    outR.clear();
+
+    if (numSamples <= 0) return;
+
+    juce::AudioBuffer<float> tempStereo(2, numSamples);
+    tempStereo.clear();
+
+    if (inL.getNumChannels() > 0) tempStereo.copyFrom(0, 0, inL, 0, 0, numSamples);
+    if (inR.getNumChannels() > 0) tempStereo.copyFrom(1, 0, inR, 0, 0, numSamples);
+    else if (inL.getNumChannels() > 0) tempStereo.copyFrom(1, 0, inL, 0, 0, numSamples);
+
+    juce::dsp::AudioBlock<float> block(tempStereo);
+    juce::dsp::ProcessContextReplacing<float> context(block);
+    reverbEngine.process(context);
+
+    outL.copyFrom(0, 0, tempStereo, 0, 0, numSamples);
+    outR.copyFrom(0, 0, tempStereo, 1, 0, numSamples);
+}
+
+void ReverbNode::receiveMessage(const std::string& msg)
+{
+    RelativisticNode::receiveMessage(msg);
+    std::stringstream ss(msg);
+    std::string key;
+    float val = 0.0f;
+    if (ss >> key >> val)
+    {
+        if (key == "room" || key == "size") reverbParams.roomSize = std::clamp(val, 0.0f, 1.0f);
+        else if (key == "damp" || key == "damping") reverbParams.damping = std::clamp(val, 0.0f, 1.0f);
+        else if (key == "wet") reverbParams.wetLevel = std::clamp(val, 0.0f, 1.0f);
+        else if (key == "dry") reverbParams.dryLevel = std::clamp(val, 0.0f, 1.0f);
+        else if (key == "width") reverbParams.width = std::clamp(val, 0.0f, 1.0f);
+        reverbEngine.setParameters(reverbParams);
+    }
+}
+
+// ============================================================================
+// NoiseNode Implementation (noise~)
+// ============================================================================
+NoiseNode::NoiseNode(int id)
+    : RelativisticNode(id, "noise~", "noise~")
+{
+    addInlet("msgIn", PortDataType::Message);   // Inlet 0: Message Input (Gold)
+    addOutlet("msgOut", PortDataType::Message); // Outlet 0: Message Output (Gold)
+    addOutlet("out~", PortDataType::Audio);     // Outlet 1: Noise Audio Output (Cyan)
+}
+
+void NoiseNode::prepare(double sampleRate, int samplesPerBlock)
+{
+    RelativisticNode::prepare(sampleRate, samplesPerBlock);
+    pinkB0 = pinkB1 = pinkB2 = 0.0f;
+}
+
+void NoiseNode::process(int numSamples)
+{
+    auto& outBuf = getOutletBuffer(1);
+    if (outBuf.getNumChannels() < 1 || outBuf.getNumSamples() < numSamples) outBuf.setSize(1, numSamples, false, false, true);
+    float* out = outBuf.getWritePointer(0);
+
+    bool isPink = (noiseMode == "pink");
+    for (int s = 0; s < numSamples; ++s)
+    {
+        float white = random.nextFloat() * 2.0f - 1.0f;
+        if (isPink)
+        {
+            // Paul Kellet's filtered pink noise approximation
+            pinkB0 = 0.99765f * pinkB0 + white * 0.0990460f;
+            pinkB1 = 0.96300f * pinkB1 + white * 0.2965164f;
+            pinkB2 = 0.57000f * pinkB2 + white * 1.0526913f;
+            float pink = (pinkB0 + pinkB1 + pinkB2 + white * 0.1848f) * 0.15f;
+            out[s] = std::clamp(pink, -1.0f, 1.0f);
+        }
+        else
+        {
+            out[s] = white;
+        }
+    }
+}
+
+void NoiseNode::receiveMessage(const std::string& message)
+{
+    RelativisticNode::receiveMessage(message);
+    std::string s = message;
+    std::transform(s.begin(), s.end(), s.begin(), ::tolower);
+    if (s.find("pink") != std::string::npos) noiseMode = "pink";
+    else if (s.find("white") != std::string::npos) noiseMode = "white";
+}
+
+// ============================================================================
+// KickNode Implementation (kick~ / drum.kick~)
+// ============================================================================
+KickNode::KickNode(int id, double basePitch, double decaySec)
+    : RelativisticNode(id, "kick~", "kick~"), baseFreq(basePitch), decayTime(decaySec)
+{
+    addInlet("msgIn", PortDataType::Message);   // Inlet 0: Message Input (Gold)
+    addInlet("trig~", PortDataType::Audio);     // Inlet 1: Audio Trigger (Cyan)
+    addOutlet("msgOut", PortDataType::Message); // Outlet 0: Message Output (Gold)
+    addOutlet("out~", PortDataType::Audio);     // Outlet 1: Kick Audio Output (Cyan)
+}
+
+void KickNode::prepare(double sampleRate, int samplesPerBlock)
+{
+    RelativisticNode::prepare(sampleRate, samplesPerBlock);
+    envPhase = 1.0;
+    oscPhase = 0.0;
+}
+
+void KickNode::trigger()
+{
+    envPhase = 0.0;
+    oscPhase = 0.0;
+}
+
+void KickNode::process(int numSamples)
+{
+    auto& outBuf = getOutletBuffer(1);
+    if (outBuf.getNumChannels() < 1 || outBuf.getNumSamples() < numSamples) outBuf.setSize(1, numSamples, false, false, true);
+    float* out = outBuf.getWritePointer(0);
+
+    const auto& trigBuf = getInletBuffer(1);
+    if (trigBuf.getNumChannels() > 0 && numSamples > 0)
+    {
+        const float* trigIn = trigBuf.getReadPointer(0);
+        for (int s = 0; s < numSamples; ++s)
+        {
+            if (trigIn[s] > 0.5f && envPhase > 0.1) trigger();
+        }
+    }
+
+    if (isTriggered.exchange(false)) trigger();
+
+    double sRate = (currentSampleRate > 1.0) ? currentSampleRate : 96000.0;
+    double dt = 1.0 / sRate;
+
+    for (int s = 0; s < numSamples; ++s)
+    {
+        if (envPhase < 1.0)
+        {
+            double t = envPhase * decayTime;
+            // Pitch Envelope: rapid drop from (baseFreq * 4.5) to baseFreq
+            double pitchEnv = std::exp(-t * 28.0);
+            double curFreq = baseFreq + baseFreq * 3.5 * pitchEnv;
+            // Amplitude Envelope: punchy exponential decay
+            double ampEnv = std::exp(-t * (4.5 / std::max(0.05, decayTime)));
+
+            // Phase accumulation
+            oscPhase += (curFreq / sRate);
+            double normP = oscPhase - std::floor(oscPhase);
+            float sample = GlobalSineTable::getInstance().lookup(normP);
+
+            // Click transient
+            float click = (t < 0.005) ? static_cast<float>(1.0 - t / 0.005) * 0.4f : 0.0f;
+
+            out[s] = std::clamp(static_cast<float>(sample * ampEnv) + click, -1.0f, 1.0f);
+            envPhase += dt / std::max(0.05, decayTime);
+        }
+        else
+        {
+            out[s] = 0.0f;
+        }
+    }
+}
+
+void KickNode::receiveMessage(const std::string& msg)
+{
+    RelativisticNode::receiveMessage(msg);
+    std::string s = msg;
+    std::transform(s.begin(), s.end(), s.begin(), ::tolower);
+    if (s == "bang" || s == "play" || s == "1" || s == "trig") trigger();
+    else if (s.rfind("pitch ", 0) == 0 || s.rfind("freq ", 0) == 0) baseFreq = std::stod(s.substr(6));
+    else if (s.rfind("decay ", 0) == 0) decayTime = std::stod(s.substr(6));
+}
+
+// ============================================================================
+// SnareNode Implementation (snare~ / drum.snare~)
+// ============================================================================
+SnareNode::SnareNode(int id, double toneFreq, double snappy, double decaySec)
+    : RelativisticNode(id, "snare~", "snare~"), toneFrequency(toneFreq), snappyAmount(snappy), decayTime(decaySec)
+{
+    addInlet("msgIn", PortDataType::Message);   // Inlet 0: Message Input (Gold)
+    addInlet("trig~", PortDataType::Audio);     // Inlet 1: Audio Trigger (Cyan)
+    addOutlet("msgOut", PortDataType::Message); // Outlet 0: Message Output (Gold)
+    addOutlet("out~", PortDataType::Audio);     // Outlet 1: Snare Audio Output (Cyan)
+}
+
+void SnareNode::prepare(double sampleRate, int samplesPerBlock)
+{
+    RelativisticNode::prepare(sampleRate, samplesPerBlock);
+    envPhase = 1.0;
+    bodyPhase1 = 0.0;
+    bodyPhase2 = 0.0;
+}
+
+void SnareNode::trigger()
+{
+    envPhase = 0.0;
+    bodyPhase1 = 0.0;
+    bodyPhase2 = 0.0;
+}
+
+void SnareNode::process(int numSamples)
+{
+    auto& outBuf = getOutletBuffer(1);
+    if (outBuf.getNumChannels() < 1 || outBuf.getNumSamples() < numSamples) outBuf.setSize(1, numSamples, false, false, true);
+    float* out = outBuf.getWritePointer(0);
+
+    const auto& trigBuf = getInletBuffer(1);
+    if (trigBuf.getNumChannels() > 0 && numSamples > 0)
+    {
+        const float* trigIn = trigBuf.getReadPointer(0);
+        for (int s = 0; s < numSamples; ++s)
+        {
+            if (trigIn[s] > 0.5f && envPhase > 0.1) trigger();
+        }
+    }
+
+    if (isTriggered.exchange(false)) trigger();
+
+    double sRate = (currentSampleRate > 1.0) ? currentSampleRate : 96000.0;
+    double dt = 1.0 / sRate;
+
+    for (int s = 0; s < numSamples; ++s)
+    {
+        if (envPhase < 1.0)
+        {
+            double t = envPhase * decayTime;
+            // Snare Body dual-tone resonators (toneFrequency + higher overtone)
+            double bodyEnv = std::exp(-t * 18.0);
+            bodyPhase1 += (toneFrequency / sRate);
+            bodyPhase2 += ((toneFrequency * 1.62) / sRate);
+
+            float body1 = GlobalSineTable::getInstance().lookup(bodyPhase1 - std::floor(bodyPhase1));
+            float body2 = GlobalSineTable::getInstance().lookup(bodyPhase2 - std::floor(bodyPhase2));
+            float body = (body1 * 0.6f + body2 * 0.4f) * static_cast<float>(bodyEnv);
+
+            // Snappy noise burst with crisp decay
+            double noiseEnv = std::exp(-t * (8.0 / std::max(0.05, decayTime)));
+            float white = (random.nextFloat() * 2.0f - 1.0f);
+            float noise = white * static_cast<float>(noiseEnv * snappyAmount);
+
+            out[s] = std::clamp((body * 0.5f + noise * 0.7f), -1.0f, 1.0f);
+            envPhase += dt / std::max(0.05, decayTime);
+        }
+        else
+        {
+            out[s] = 0.0f;
+        }
+    }
+}
+
+void SnareNode::receiveMessage(const std::string& msg)
+{
+    RelativisticNode::receiveMessage(msg);
+    std::string s = msg;
+    std::transform(s.begin(), s.end(), s.begin(), ::tolower);
+    if (s == "bang" || s == "play" || s == "1" || s == "trig") trigger();
+    else if (s.rfind("tone ", 0) == 0 || s.rfind("freq ", 0) == 0) toneFrequency = std::stod(s.substr(5));
+    else if (s.rfind("snappy ", 0) == 0) snappyAmount = std::stod(s.substr(7));
+    else if (s.rfind("decay ", 0) == 0) decayTime = std::stod(s.substr(6));
+}
+
+// ============================================================================
+// HiHatNode Implementation (hihat~ / drum.hat~)
+// ============================================================================
+HiHatNode::HiHatNode(int id, double decaySec)
+    : RelativisticNode(id, "hihat~", "hihat~"), decayTime(decaySec)
+{
+    addInlet("msgIn", PortDataType::Message);   // Inlet 0: Message Input (Gold)
+    addInlet("trig~", PortDataType::Audio);     // Inlet 1: Audio Trigger (Cyan)
+    addOutlet("msgOut", PortDataType::Message); // Outlet 0: Message Output (Gold)
+    addOutlet("out~", PortDataType::Audio);     // Outlet 1: Hi-Hat Audio Output (Cyan)
+}
+
+void HiHatNode::prepare(double sampleRate, int samplesPerBlock)
+{
+    RelativisticNode::prepare(sampleRate, samplesPerBlock);
+    envPhase = 1.0;
+    std::fill(std::begin(phases), std::end(phases), 0.0);
+}
+
+void HiHatNode::trigger(double decay)
+{
+    decayTime = decay;
+    envPhase = 0.0;
+}
+
+void HiHatNode::process(int numSamples)
+{
+    auto& outBuf = getOutletBuffer(1);
+    if (outBuf.getNumChannels() < 1 || outBuf.getNumSamples() < numSamples) outBuf.setSize(1, numSamples, false, false, true);
+    float* out = outBuf.getWritePointer(0);
+
+    const auto& trigBuf = getInletBuffer(1);
+    if (trigBuf.getNumChannels() > 0 && numSamples > 0)
+    {
+        const float* trigIn = trigBuf.getReadPointer(0);
+        for (int s = 0; s < numSamples; ++s)
+        {
+            if (trigIn[s] > 0.5f && envPhase > 0.1) trigger(decayTime);
+        }
+    }
+
+    if (isTriggered.exchange(false)) trigger(decayTime);
+
+    double sRate = (currentSampleRate > 1.0) ? currentSampleRate : 96000.0;
+    double dt = 1.0 / sRate;
+
+    for (int s = 0; s < numSamples; ++s)
+    {
+        if (envPhase < 1.0)
+        {
+            double t = envPhase * decayTime;
+            // Metallic 6-oscillator cluster
+            float cluster = 0.0f;
+            for (int i = 0; i < 6; ++i)
+            {
+                phases[i] += (freqs[i] / sRate);
+                double normP = phases[i] - std::floor(phases[i]);
+                cluster += (normP < 0.5 ? 0.16f : -0.16f);
+            }
+
+            // Exponential amplitude decay
+            double ampEnv = std::exp(-t * (18.0 / std::max(0.02, decayTime)));
+            out[s] = cluster * static_cast<float>(ampEnv);
+            envPhase += dt / std::max(0.02, decayTime);
+        }
+        else
+        {
+            out[s] = 0.0f;
+        }
+    }
+}
+
+void HiHatNode::receiveMessage(const std::string& msg)
+{
+    RelativisticNode::receiveMessage(msg);
+    std::string s = msg;
+    std::transform(s.begin(), s.end(), s.begin(), ::tolower);
+    if (s == "bang" || s == "play" || s == "1" || s == "trig" || s == "close") trigger(0.08);
+    else if (s == "open") trigger(0.35);
+    else if (s.rfind("decay ", 0) == 0) decayTime = std::stod(s.substr(6));
+}
+
 } // namespace TimeDilationDAW
