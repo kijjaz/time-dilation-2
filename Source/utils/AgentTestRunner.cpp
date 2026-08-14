@@ -776,6 +776,40 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
         }
     }
 
+    // =========================================================================
+    // WAV Observation 12: Customizable TidalCycles Subdivisions & Stacking
+    // (Nested Subdivisions [60 [62 [64 65]] 67 [69 71 72]] + Stacked Voices + Euclids)
+    // =========================================================================
+    {
+        workstation.loadExampleTidalCyclesRig();
+
+        // Mutate pattern live via timeline pattern updater
+        auto tidalLead = workstation.getNodeGraph().getNode(2);
+        if (tidalLead)
+        {
+            tidalLead->receiveMessage("pat [60 [62 [65 67]] 71 [72 74 76], 36 [~ 48]]");
+        }
+
+        juce::File obs12Wav("artifacts/observation_12_custom_tidal_subdivisions.wav");
+        auto fileStream12 = obs12Wav.createOutputStream();
+        if (fileStream12 != nullptr)
+        {
+            juce::WavAudioFormat wavFormat;
+            std::unique_ptr<juce::AudioFormatWriter> writer12(wavFormat.createWriterFor(fileStream12.release(), sampleRate, 2, 16, {}, 0));
+            if (writer12 != nullptr)
+            {
+                int totalBlocks12 = static_cast<int>((6.0 * sampleRate) / blockSize);
+                for (int b = 0; b < totalBlocks12; ++b)
+                {
+                    workstation.getNextAudioBlock(channelInfo);
+                    writer12->writeFromAudioSampleBuffer(masterBuffer, 0, blockSize);
+                }
+                writer12->flush();
+                std::cout << "[AgentTestRunner] Exported WAV Observation 12 (Customizable Tidal Subdivisions Suite): " << obs12Wav.getFullPathName().toStdString() << "\n";
+            }
+        }
+    }
+
     int totalBlocks = static_cast<int>((5.0 * sampleRate) / blockSize);
     float maxPeak = masterBuffer.getMagnitude(0, blockSize);
     int activeNodes = static_cast<int>(workstation.getNodeGraph().getNodes().size());
@@ -863,8 +897,9 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
     bool timeSculptPass = testRelativisticTimeSculptingSuite();
     bool seqTimelinePass = testRelativisticSequencersAndTimelineSuite();
     bool tidalPass = testTidalCyclesPatternEngine();
+    bool tidalDrawerPass = testTidalDynamicSubdivisionDrawer();
 
-    bool allPhasesPass = allPhase1Pass && gravPass && lorentzPass && tachyonPass && jsonPass && dynamicLatPass && pdControlPass && samplePlaybackPass && delayPipePass && timeSculptPass && seqTimelinePass && tidalPass;
+    bool allPhasesPass = allPhase1Pass && gravPass && lorentzPass && tachyonPass && jsonPass && dynamicLatPass && pdControlPass && samplePlaybackPass && delayPipePass && timeSculptPass && seqTimelinePass && tidalPass && tidalDrawerPass;
     std::cout << "\n[Full Test Suite] Overall Result: " << (allPhasesPass ? "PASSED" : "FAILED") << "\n\n";
 
     // Export artifacts/phase2_3_4_telemetry.json
@@ -882,7 +917,8 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
     fullOut << "  \"relativisticDelayAndPipes\": " << (delayPipePass ? "true" : "false") << ",\n";
     fullOut << "  \"relativisticTimeSculpting\": " << (timeSculptPass ? "true" : "false") << ",\n";
     fullOut << "  \"relativisticSequencersAndTimeline\": " << (seqTimelinePass ? "true" : "false") << ",\n";
-    fullOut << "  \"tidalCyclesPatternEngine\": " << (tidalPass ? "true" : "false") << "\n";
+    fullOut << "  \"tidalCyclesPatternEngine\": " << (tidalPass ? "true" : "false") << ",\n";
+    fullOut << "  \"tidalDynamicSubdivisionDrawer\": " << (tidalDrawerPass ? "true" : "false") << "\n";
     fullOut << "}\n";
     fullOut.close();
 
@@ -1955,6 +1991,70 @@ bool AgentTestRunner::testTidalCyclesPatternEngine()
     if (tidalNode->getCycleCount() < 1)
     {
         std::cout << "FAILED (TidalSeqNode cycle did not advance under DSP clock)\n";
+        return false;
+    }
+
+    std::cout << "PASSED\n";
+    return true;
+}
+
+bool AgentTestRunner::testTidalDynamicSubdivisionDrawer()
+{
+    std::cout << "[Test 19] TidalCycles Dynamic Non-Uniform Subdivision Drawer Suite (AST Layout, Stacking, Live Sync)... ";
+    RelativisticNodeGraph graph;
+    graph.prepare(96000.0, 512);
+
+    ArrangementTimelineComponent timeline(graph);
+
+    // 1. Test Clip with Deeply Nested Subdivisions: [60 [62 [64 65]] 67 [69 71 72]]
+    timeline.addClip(0, 0.0, 4.0, "Nested Tidal Clip", ClipType::Pattern);
+    const auto& clips = timeline.getClips();
+    if (clips.empty())
+    {
+        std::cout << "FAILED (No clips in timeline)\n";
+        return false;
+    }
+
+    int clipId = clips.front().clipId;
+    timeline.setClipTidalPattern(clipId, "[60 [62 [64 65]] 67 [69 71 72]]");
+
+    const auto& updatedClips = timeline.getClips();
+    const auto& testClip = updatedClips.front();
+
+    if (testClip.cachedEvents.empty())
+    {
+        std::cout << "FAILED (Tidal events not cached in TimelineClip)\n";
+        return false;
+    }
+
+    // Expected 8 distinct non-uniform subdivision events (1 + 3 + 1 + 3 = 8)
+    if (testClip.cachedEvents.size() != 8)
+    {
+        std::cout << "FAILED (Cached event count mismatch: " << testClip.cachedEvents.size() << ", expected 8)\n";
+        return false;
+    }
+
+    // Verify non-uniform time widths (first note 60 is 0.25 duration, 64 is 0.0625 duration)
+    double dur60 = testClip.cachedEvents[0].endCycle - testClip.cachedEvents[0].startCycle;
+    double dur64 = testClip.cachedEvents[2].endCycle - testClip.cachedEvents[2].startCycle;
+
+    if (std::abs(dur60 - 0.25) > 0.001 || std::abs(dur64 - 0.0625) > 0.001)
+    {
+        std::cout << "FAILED (Non-uniform duration calculation error: dur60=" << dur60 << ", dur64=" << dur64 << ")\n";
+        return false;
+    }
+
+    // 2. Test Stacked Polyphonic Macro: [melody, bass]
+    timeline.applyStackMacro();
+    const auto& stackedClips = timeline.getClips();
+    const auto& stackedClip = stackedClips.front();
+
+    int maxChannel = 0;
+    for (const auto& ev : stackedClip.cachedEvents) maxChannel = std::max(maxChannel, ev.channel);
+
+    if (maxChannel < 1)
+    {
+        std::cout << "FAILED (Stacked polyphonic voice channel not detected)\n";
         return false;
     }
 

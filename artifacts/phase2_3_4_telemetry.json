@@ -10,5 +10,6 @@
   "relativisticDelayAndPipes": true,
   "relativisticTimeSculpting": true,
   "relativisticSequencersAndTimeline": true,
-  "tidalCyclesPatternEngine": true
+  "tidalCyclesPatternEngine": true,
+  "tidalDynamicSubdivisionDrawer": true
 }

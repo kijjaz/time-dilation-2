@@ -2,6 +2,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "../dsp/RelativisticNodeGraph.h"
+#include "../dsp/TidalPatternEngine.h"
 #include <vector>
 #include <string>
 
@@ -25,7 +26,22 @@ struct TimelineClip
     juce::String name;
     juce::Colour color;
 
-    // Pattern Data (Notes & Gates)
+    // TidalCycles-Style Customizable Pattern & Nested Subdivisions
+    std::string tidalPattern = "[60 [62 64] 67 [69 71 72]]";
+    std::vector<TidalEvent> cachedEvents;
+
+    void updateTidalPattern(const std::string& pat)
+    {
+        tidalPattern = pat;
+        auto ast = TidalParser::parse(tidalPattern);
+        cachedEvents.clear();
+        if (ast)
+        {
+            ast->query(0.0, 1.0, 0, cachedEvents);
+        }
+    }
+
+    // Pattern Data (Notes & Gates fallback)
     std::vector<int> stepPitches{ 60, 62, 64, 65, 67, 69, 71, 72 };
     std::vector<bool> stepGates{ true, false, true, false, true, false, true, false };
     std::vector<float> stepVelocities{ 0.85f, 0.85f, 0.85f, 0.85f, 0.85f, 0.85f, 0.85f, 0.85f };
@@ -72,6 +88,16 @@ public:
     void deleteClip(int clipId);
     void duplicateSelectedClip();
     void splitClipAtPlayhead();
+    void setClipTidalPattern(int clipId, const std::string& pat);
+
+    // TidalCycles-Style Transformation Macros
+    void applySubdivisionMacro(int division);
+    void applyEuclideanMacro(int k, int n);
+    void applyStackMacro();
+    void applyAlternateMacro();
+    void applySpeedMacro(double mult);
+    void applyDegradeMacro();
+    void commitTidalPattern();
 
     // Message Event Operations
     void addMessageEvent(int targetNodeId, int trackIdx, double timeSec, const juce::String& msgText);
@@ -100,6 +126,7 @@ public:
 
 private:
     void drawPianoRollDrawer(juce::Graphics& g, const juce::Rectangle<float>& bounds);
+    void drawTidalSubdivisionBlocks(juce::Graphics& g, const TimelineClip& clip, const juce::Rectangle<float>& clipRect);
     void drawAutomationCurves(juce::Graphics& g, const TimelineClip& clip, const juce::Rectangle<float>& clipRect);
 
     RelativisticNodeGraph& nodeGraph;
@@ -119,12 +146,23 @@ private:
     bool isEditingEvent = false;
     bool isDraggingEvent = false;
 
-    // Piano Roll & Step Grid Drawer State
+    // Piano Roll & Tidal Pattern Drawer State
     bool isPianoRollVisible = true;
-    int pianoRollHeight = 160;
+    int pianoRollHeight = 175;
     int selectedStepIndex = -1;
 
     juce::TextEditor eventEditor;
+
+    // Tidal Pattern Editor UI Controls
+    juce::TextEditor tidalPatternEditor;
+    juce::TextButton subdivideBtn{ "[a b] /2" };
+    juce::TextButton tripletBtn{ "[a b c] /3" };
+    juce::TextButton stackBtn{ "+ Stack Poly (,)" };
+    juce::TextButton euclidBtn{ "Euclid (3,8)" };
+    juce::TextButton alternateBtn{ "<a b> Alt" };
+    juce::TextButton speed2Btn{ "*2 Speed" };
+    juce::TextButton degradeBtn{ "? Degrade" };
+    juce::TextButton applyPatternBtn{ "APPLY PATTERN" };
 
     // Transport & Playback State
     bool isTimelinePlaying = false;
@@ -149,7 +187,7 @@ private:
     juce::TextButton rewindButton{ "REWIND" };
     juce::TextButton loopButton{ "LOOP ON" };
     juce::TextButton addClipButton{ "+ ADD CLIP" };
-    juce::TextButton togglePianoRollBtn{ "PIANO ROLL" };
+    juce::TextButton togglePianoRollBtn{ "TIDAL DRAWER" };
     juce::Label timeDisplayLabel{ "TimeDisplay", "Bar 1.1 | 00:00.00" };
 };
 

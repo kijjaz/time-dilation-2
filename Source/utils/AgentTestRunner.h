@@ -29,6 +29,7 @@ public:
     static bool testRelativisticTimeSculptingSuite();
     static bool testRelativisticSequencersAndTimelineSuite();
     static bool testTidalCyclesPatternEngine();
+    static bool testTidalDynamicSubdivisionDrawer();
 };
 
 } // namespace TimeDilationDAW
