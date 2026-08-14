@@ -1,0 +1,163 @@
+{
+  "name": "Deterministic Tape Stop & Wobble Rig",
+  "description": "Demonstrates deterministic control logic (metro -> counter + random -> select) driving relativistic time acceleration, tape stops, and pitch wobble on an oscillator + noise source with Doppler tape delay.",
+  "sampleRate": 96000.0,
+  "nodes": [
+    {
+      "id": 1,
+      "symbol": "time.curve~ 1.0 600",
+      "x": 80,
+      "y": 80,
+      "timeCouplingMode": "Both",
+      "offsetCouplingFactor": 1.0
+    },
+    {
+      "id": 2,
+      "symbol": "metro 125 1",
+      "x": 80,
+      "y": 240,
+      "timeCouplingMode": "Both",
+      "offsetCouplingFactor": 1.0
+    },
+    {
+      "id": 3,
+      "symbol": "t b b",
+      "x": 80,
+      "y": 380,
+      "timeCouplingMode": "Bypassed",
+      "offsetCouplingFactor": 1.0
+    },
+    {
+      "id": 4,
+      "symbol": "counter 0 15 1",
+      "x": 40,
+      "y": 500,
+      "timeCouplingMode": "Bypassed",
+      "offsetCouplingFactor": 1.0
+    },
+    {
+      "id": 5,
+      "symbol": "random 100",
+      "x": 200,
+      "y": 500,
+      "timeCouplingMode": "Bypassed",
+      "offsetCouplingFactor": 1.0
+    },
+    {
+      "id": 6,
+      "symbol": "select 0 4 8 12 15",
+      "x": 40,
+      "y": 640,
+      "timeCouplingMode": "Bypassed",
+      "offsetCouplingFactor": 1.0
+    },
+    {
+      "id": 7,
+      "symbol": "seq 36 36 48 51 53 55 58 60 48 51 63 60 36 48 55 58",
+      "x": 380,
+      "y": 500,
+      "timeCouplingMode": "Bypassed",
+      "offsetCouplingFactor": 1.0
+    },
+    {
+      "id": 8,
+      "symbol": "mtof",
+      "x": 380,
+      "y": 620,
+      "timeCouplingMode": "Bypassed",
+      "offsetCouplingFactor": 1.0
+    },
+    {
+      "id": 9,
+      "symbol": "osc~ saw",
+      "x": 560,
+      "y": 220,
+      "timeCouplingMode": "Both",
+      "offsetCouplingFactor": 1.0
+    },
+    {
+      "id": 10,
+      "symbol": "noise~ white",
+      "x": 560,
+      "y": 360,
+      "timeCouplingMode": "Bypassed",
+      "offsetCouplingFactor": 1.0
+    },
+    {
+      "id": 11,
+      "symbol": "ladder~ 2200 0.65",
+      "x": 740,
+      "y": 280,
+      "timeCouplingMode": "Both",
+      "offsetCouplingFactor": 1.0
+    },
+    {
+      "id": 12,
+      "symbol": "delwrite~ tape_deck 2000",
+      "x": 920,
+      "y": 280,
+      "timeCouplingMode": "Both",
+      "offsetCouplingFactor": 1.0
+    },
+    {
+      "id": 13,
+      "symbol": "vd~ tape_deck 140",
+      "x": 920,
+      "y": 420,
+      "timeCouplingMode": "Both",
+      "offsetCouplingFactor": 1.0
+    },
+    {
+      "id": 14,
+      "symbol": "vd~ tape_deck 280",
+      "x": 920,
+      "y": 560,
+      "timeCouplingMode": "Both",
+      "offsetCouplingFactor": 1.0
+    },
+    {
+      "id": 15,
+      "symbol": "drive~ 1.6",
+      "x": 1100,
+      "y": 280,
+      "timeCouplingMode": "Bypassed",
+      "offsetCouplingFactor": 1.0
+    },
+    {
+      "id": 16,
+      "symbol": "out~",
+      "x": 1260,
+      "y": 380,
+      "timeCouplingMode": "Bypassed",
+      "offsetCouplingFactor": 1.0
+    }
+  ],
+  "connections": [
+    { "sourceNodeId": 1, "sourcePortIndex": 1, "destNodeId": 2, "destPortIndex": 1 },
+    { "sourceNodeId": 1, "sourcePortIndex": 1, "destNodeId": 9, "destPortIndex": 1 },
+    { "sourceNodeId": 1, "sourcePortIndex": 1, "destNodeId": 11, "destPortIndex": 1 },
+    { "sourceNodeId": 1, "sourcePortIndex": 1, "destNodeId": 12, "destPortIndex": 2 },
+    { "sourceNodeId": 1, "sourcePortIndex": 1, "destNodeId": 13, "destPortIndex": 2 },
+    { "sourceNodeId": 1, "sourcePortIndex": 1, "destNodeId": 14, "destPortIndex": 2 },
+
+    { "sourceNodeId": 2, "sourcePortIndex": 0, "destNodeId": 3, "destPortIndex": 0 },
+    { "sourceNodeId": 3, "sourcePortIndex": 0, "destNodeId": 4, "destPortIndex": 0 },
+    { "sourceNodeId": 3, "sourcePortIndex": 1, "destNodeId": 5, "destPortIndex": 0 },
+
+    { "sourceNodeId": 4, "sourcePortIndex": 0, "destNodeId": 6, "destPortIndex": 0 },
+    { "sourceNodeId": 4, "sourcePortIndex": 0, "destNodeId": 7, "destPortIndex": 0 },
+
+    { "sourceNodeId": 7, "sourcePortIndex": 1, "destNodeId": 8, "destPortIndex": 1 },
+    { "sourceNodeId": 8, "sourcePortIndex": 1, "destNodeId": 9, "destPortIndex": 2 },
+
+    { "sourceNodeId": 9, "sourcePortIndex": 2, "destNodeId": 11, "destPortIndex": 2 },
+    { "sourceNodeId": 10, "sourcePortIndex": 2, "destNodeId": 11, "destPortIndex": 2 },
+
+    { "sourceNodeId": 11, "sourcePortIndex": 2, "destNodeId": 12, "destPortIndex": 1 },
+    { "sourceNodeId": 11, "sourcePortIndex": 2, "destNodeId": 15, "destPortIndex": 2 },
+
+    { "sourceNodeId": 15, "sourcePortIndex": 2, "destNodeId": 16, "destPortIndex": 1 },
+    { "sourceNodeId": 13, "sourcePortIndex": 2, "destNodeId": 16, "destPortIndex": 1 },
+    { "sourceNodeId": 14, "sourcePortIndex": 2, "destNodeId": 16, "destPortIndex": 2 }
+  ]
+}

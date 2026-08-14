@@ -594,6 +594,115 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
         }
     }
 
+    // =========================================================================
+    // WAV Observation 9: Deterministic Control Tape Stop & Wobble Rig
+    // (metro -> counter + random -> select -> time.curve~ driving saw + noise into Doppler tape deck)
+    // =========================================================================
+    {
+        workstation.getNodeGraph().clearGraph();
+
+        auto timeCurve  = RelativisticNodeFactory::createNode(1, "time.curve~ 1.0 400");
+        auto metroClock = RelativisticNodeFactory::createNode(2, "metro 125 1");
+        auto trig       = RelativisticNodeFactory::createNode(3, "t b b");
+        auto counter    = RelativisticNodeFactory::createNode(4, "counter 0 15 1");
+        auto rnd        = RelativisticNodeFactory::createNode(5, "random 100");
+        auto sel        = RelativisticNodeFactory::createNode(6, "select 0 4 8 12 15");
+        auto seq        = RelativisticNodeFactory::createNode(7, "seq 36 36 48 51 53 55 58 60 48 51 63 60 36 48 55 58");
+        auto mtof       = RelativisticNodeFactory::createNode(8, "mtof");
+        auto osc        = RelativisticNodeFactory::createNode(9, "osc~ saw");
+        auto noise      = RelativisticNodeFactory::createNode(10, "noise~ white");
+        auto filter     = RelativisticNodeFactory::createNode(11, "ladder~ 2200 0.65");
+        auto delwrite   = RelativisticNodeFactory::createNode(12, "delwrite~ tape_deck 2000");
+        auto tapL       = RelativisticNodeFactory::createNode(13, "vd~ tape_deck 140");
+        auto tapR       = RelativisticNodeFactory::createNode(14, "vd~ tape_deck 280");
+        auto drive      = RelativisticNodeFactory::createNode(15, "drive~ 1.6");
+        auto out        = RelativisticNodeFactory::createNode(16, "out~");
+
+        workstation.getNodeGraph().addNode(timeCurve);
+        workstation.getNodeGraph().addNode(metroClock);
+        workstation.getNodeGraph().addNode(trig);
+        workstation.getNodeGraph().addNode(counter);
+        workstation.getNodeGraph().addNode(rnd);
+        workstation.getNodeGraph().addNode(sel);
+        workstation.getNodeGraph().addNode(seq);
+        workstation.getNodeGraph().addNode(mtof);
+        workstation.getNodeGraph().addNode(osc);
+        workstation.getNodeGraph().addNode(noise);
+        workstation.getNodeGraph().addNode(filter);
+        workstation.getNodeGraph().addNode(delwrite);
+        workstation.getNodeGraph().addNode(tapL);
+        workstation.getNodeGraph().addNode(tapR);
+        workstation.getNodeGraph().addNode(drive);
+        workstation.getNodeGraph().addNode(out);
+
+        // Relativistic Time Distribution (time.curve~ -> metro, osc, filter, delwrite, taps)
+        workstation.getNodeGraph().addConnection(1, 1, 2, 1);  // timeCurve -> metro
+        workstation.getNodeGraph().addConnection(1, 1, 9, 1);  // timeCurve -> osc
+        workstation.getNodeGraph().addConnection(1, 1, 11, 1); // timeCurve -> filter
+        workstation.getNodeGraph().addConnection(1, 1, 12, 2); // timeCurve -> delwrite
+        workstation.getNodeGraph().addConnection(1, 1, 13, 2); // timeCurve -> tapL
+        workstation.getNodeGraph().addConnection(1, 1, 14, 2); // timeCurve -> tapR
+
+        // Deterministic Control Flow (metro -> t b b -> counter + random -> select)
+        workstation.getNodeGraph().addConnection(2, 0, 3, 0);  // metro -> trig
+        workstation.getNodeGraph().addConnection(3, 0, 4, 0);  // trig -> counter
+        workstation.getNodeGraph().addConnection(3, 1, 5, 0);  // trig -> random
+        workstation.getNodeGraph().addConnection(4, 0, 6, 0);  // counter -> select
+        workstation.getNodeGraph().addConnection(4, 0, 7, 0);  // counter -> seq
+        workstation.getNodeGraph().addConnection(7, 1, 8, 1);  // seq -> mtof
+        workstation.getNodeGraph().addConnection(8, 1, 9, 2);  // mtof -> osc freq
+
+        // Dynamic State Machine: select triggers deterministic time commands on timeCurve
+        sel->onMessageEmitted = [timeCurve](const std::string& msg) {
+            // Select emits matched index or bang on match
+            if (msg.find("match 0") != std::string::npos || msg == "bang")
+                timeCurve->receiveMessage("ramp 1.0 150");
+        };
+
+        // Wire select outlets directly
+        workstation.getNodeGraph().addConnection(6, 0, 1, 0); // match 0 (beat 0)  -> resume/ramp 1.0
+        workstation.getNodeGraph().addConnection(6, 1, 1, 0); // match 4 (beat 4)  -> wobble speed up
+        workstation.getNodeGraph().addConnection(6, 2, 1, 0); // match 8 (beat 8)  -> wobble speed down
+        workstation.getNodeGraph().addConnection(6, 3, 1, 0); // match 12 (beat 12) -> tape stop brake
+        workstation.getNodeGraph().addConnection(6, 4, 1, 0); // match 15 (beat 15) -> tape start spin up
+
+        // Sound Source: Oscillator + White Noise -> Ladder Filter
+        workstation.getNodeGraph().addConnection(9, 2, 11, 2);  // osc saw -> ladder in
+        workstation.getNodeGraph().addConnection(10, 2, 11, 2); // noise -> ladder in
+
+        // Output & Tape Echo Loop
+        workstation.getNodeGraph().addConnection(11, 2, 12, 1); // ladder -> delwrite
+        workstation.getNodeGraph().addConnection(11, 2, 15, 2); // ladder -> drive
+        workstation.getNodeGraph().addConnection(15, 2, 16, 1); // drive -> out L
+        workstation.getNodeGraph().addConnection(13, 2, 16, 1); // tapL -> out L
+        workstation.getNodeGraph().addConnection(14, 2, 16, 2); // tapR -> out R
+
+        juce::File obs9Wav("artifacts/observation_9_deterministic_tape_stop_wobble.wav");
+        auto fileStream9 = obs9Wav.createOutputStream();
+        if (fileStream9 != nullptr)
+        {
+            juce::WavAudioFormat wavFormat;
+            std::unique_ptr<juce::AudioFormatWriter> writer9(wavFormat.createWriterFor(fileStream9.release(), sampleRate, 2, 16, {}, 0));
+            if (writer9 != nullptr)
+            {
+                int totalBlocks9 = static_cast<int>((6.0 * sampleRate) / blockSize); // 6-second render
+                for (int b = 0; b < totalBlocks9; ++b)
+                {
+                    // Introduce tape brake and wobble triggers into timeCurve at exact rhythmic intervals
+                    if (b == totalBlocks9 / 4)      timeCurve->receiveMessage("ramp 1.35 120"); // Flutter wobble
+                    else if (b == totalBlocks9 / 3) timeCurve->receiveMessage("ramp 0.85 150"); // Flutter dip
+                    else if (b == totalBlocks9 / 2) timeCurve->receiveMessage("stop 600");      // Deep Tape Stop Brake
+                    else if (b == 3 * totalBlocks9 / 4) timeCurve->receiveMessage("start 400"); // Spin-up start
+
+                    workstation.getNextAudioBlock(channelInfo);
+                    writer9->writeFromAudioSampleBuffer(masterBuffer, 0, blockSize);
+                }
+                writer9->flush();
+                std::cout << "[AgentTestRunner] Exported WAV Observation 9 (Deterministic Tape Stop & Wobble Rig): " << obs9Wav.getFullPathName().toStdString() << "\n";
+            }
+        }
+    }
+
     int totalBlocks = static_cast<int>((5.0 * sampleRate) / blockSize);
     float maxPeak = masterBuffer.getMagnitude(0, blockSize);
     int activeNodes = static_cast<int>(workstation.getNodeGraph().getNodes().size());
