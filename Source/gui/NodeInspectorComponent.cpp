@@ -183,65 +183,100 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         if (selectedNode) { selectedNode->height = static_cast<float>(heightSlider.getValue()); if (getParentComponent()) getParentComponent()->repaint(); }
     };
 
-    // Bind Scope Controls
-    scopeVisibleToggle.setVisible(true);
-    scopeVisibleToggle.setToggleState(selectedNode->showRealtimeDisplay, juce::dontSendNotification);
-    scopeVisibleToggle.onClick = [this]() {
-        if (selectedNode) { selectedNode->showRealtimeDisplay = scopeVisibleToggle.getToggleState(); if (getParentComponent()) getParentComponent()->repaint(); }
-    };
+    std::string sym = selectedNode->getSymbol();
+    std::transform(sym.begin(), sym.end(), sym.begin(), ::tolower);
+    bool isControlNode = (sym == "msg" || sym == "message" || sym == "bang" || sym == "bng" ||
+                          sym == "toggle" || sym == "tgl" || sym == "number" || sym == "num" ||
+                          sym == "symbol" || sym == "sym" || sym == "radio" || sym == "hradio" ||
+                          sym == "vradio" || sym == "display" || sym == "disp" || sym == "print");
 
-    scopeTypeLabel.setVisible(true); scopeTypeCombo.setVisible(true);
-    int typeIdx = 1;
-    if (selectedNode->displayType == RelativisticNode::ScopeDisplayType::AudioWaveform) typeIdx = 1;
-    else if (selectedNode->timeVarMode == RelativisticNode::TimeScopeVariable::SpeedGamma) typeIdx = 2;
-    else if (selectedNode->timeVarMode == RelativisticNode::TimeScopeVariable::OffsetTau) typeIdx = 3;
-    else if (selectedNode->timeVarMode == RelativisticNode::TimeScopeVariable::CouplingC) typeIdx = 4;
-    else if (selectedNode->timeVarMode == RelativisticNode::TimeScopeVariable::MultiTime) typeIdx = 5;
-    scopeTypeCombo.setSelectedId(typeIdx, juce::dontSendNotification);
-    scopeTypeCombo.onChange = [this]() {
-        if (!selectedNode) return;
-        int id = scopeTypeCombo.getSelectedId();
-        if (id == 1) { selectedNode->displayType = RelativisticNode::ScopeDisplayType::AudioWaveform; }
-        else {
-            selectedNode->displayType = RelativisticNode::ScopeDisplayType::TimeFrame;
-            if (id == 2) selectedNode->timeVarMode = RelativisticNode::TimeScopeVariable::SpeedGamma;
-            else if (id == 3) selectedNode->timeVarMode = RelativisticNode::TimeScopeVariable::OffsetTau;
-            else if (id == 4) selectedNode->timeVarMode = RelativisticNode::TimeScopeVariable::CouplingC;
-            else if (id == 5) selectedNode->timeVarMode = RelativisticNode::TimeScopeVariable::MultiTime;
+    if (isControlNode)
+    {
+        // Control & message objects do not process audio signals: hide scope & volume controls
+        scopeVisibleToggle.setVisible(false);
+        scopeTypeLabel.setVisible(false); scopeTypeCombo.setVisible(false);
+        scopeEngineLabel.setVisible(false); scopeEngineCombo.setVisible(false);
+        volLabel.setVisible(false);
+        volSlider.setVisible(false);
+    }
+    else
+    {
+        // Bind Scope Controls for Audio / Time DSP Nodes
+        scopeVisibleToggle.setVisible(true);
+        scopeVisibleToggle.setToggleState(selectedNode->showRealtimeDisplay, juce::dontSendNotification);
+        scopeVisibleToggle.onClick = [this]() {
+            if (selectedNode) { selectedNode->showRealtimeDisplay = scopeVisibleToggle.getToggleState(); if (getParentComponent()) getParentComponent()->repaint(); }
+        };
+
+        scopeTypeLabel.setVisible(true); scopeTypeCombo.setVisible(true);
+        int typeIdx = 1;
+        if (selectedNode->displayType == RelativisticNode::ScopeDisplayType::AudioWaveform) typeIdx = 1;
+        else if (selectedNode->timeVarMode == RelativisticNode::TimeScopeVariable::SpeedGamma) typeIdx = 2;
+        else if (selectedNode->timeVarMode == RelativisticNode::TimeScopeVariable::OffsetTau) typeIdx = 3;
+        else if (selectedNode->timeVarMode == RelativisticNode::TimeScopeVariable::CouplingC) typeIdx = 4;
+        else if (selectedNode->timeVarMode == RelativisticNode::TimeScopeVariable::MultiTime) typeIdx = 5;
+        scopeTypeCombo.setSelectedId(typeIdx, juce::dontSendNotification);
+        scopeTypeCombo.onChange = [this]() {
+            if (!selectedNode) return;
+            int id = scopeTypeCombo.getSelectedId();
+            if (id == 1) { selectedNode->displayType = RelativisticNode::ScopeDisplayType::AudioWaveform; }
+            else {
+                selectedNode->displayType = RelativisticNode::ScopeDisplayType::TimeFrame;
+                if (id == 2) selectedNode->timeVarMode = RelativisticNode::TimeScopeVariable::SpeedGamma;
+                else if (id == 3) selectedNode->timeVarMode = RelativisticNode::TimeScopeVariable::OffsetTau;
+                else if (id == 4) selectedNode->timeVarMode = RelativisticNode::TimeScopeVariable::CouplingC;
+                else if (id == 5) selectedNode->timeVarMode = RelativisticNode::TimeScopeVariable::MultiTime;
+            }
+            if (getParentComponent()) getParentComponent()->repaint();
+        };
+
+        scopeEngineLabel.setVisible(true); scopeEngineCombo.setVisible(true);
+        int engIdx = 1;
+        if (selectedNode->scopeMode == RelativisticNode::ScopeRenderMode::Waveform2D) engIdx = 1;
+        else if (selectedNode->scopeMode == RelativisticNode::ScopeRenderMode::ScopeXY) engIdx = 2;
+        else if (selectedNode->scopeMode == RelativisticNode::ScopeRenderMode::Scope3D) engIdx = 3;
+        scopeEngineCombo.setSelectedId(engIdx, juce::dontSendNotification);
+        scopeEngineCombo.onChange = [this]() {
+            if (!selectedNode) return;
+            int id = scopeEngineCombo.getSelectedId();
+            if (id == 1) selectedNode->scopeMode = RelativisticNode::ScopeRenderMode::Waveform2D;
+            else if (id == 2) selectedNode->scopeMode = RelativisticNode::ScopeRenderMode::ScopeXY;
+            else if (id == 3) selectedNode->scopeMode = RelativisticNode::ScopeRenderMode::Scope3D;
+            if (getParentComponent()) getParentComponent()->repaint();
+        };
+
+        if (sym == "out~")
+        {
+            // Master Output Node uses Volume in dB (e.g. -6.0 dB)
+            volLabel.setText("Master Output Volume (dB)", juce::dontSendNotification);
+            volLabel.setVisible(true);
+            volSlider.setVisible(true);
+            volSlider.setRange(-100.0, 6.0, 0.1);
+            volSlider.setValue(selectedNode->getVolumeDb(), juce::dontSendNotification);
+            volSlider.setTextValueSuffix(" dB");
+            volSlider.onValueChange = [this]() {
+                if (selectedNode) selectedNode->setVolumeDb(static_cast<float>(volSlider.getValue()));
+            };
         }
-        if (getParentComponent()) getParentComponent()->repaint();
-    };
-
-    scopeEngineLabel.setVisible(true); scopeEngineCombo.setVisible(true);
-    int engIdx = 1;
-    if (selectedNode->scopeMode == RelativisticNode::ScopeRenderMode::Waveform2D) engIdx = 1;
-    else if (selectedNode->scopeMode == RelativisticNode::ScopeRenderMode::ScopeXY) engIdx = 2;
-    else if (selectedNode->scopeMode == RelativisticNode::ScopeRenderMode::Scope3D) engIdx = 3;
-    scopeEngineCombo.setSelectedId(engIdx, juce::dontSendNotification);
-    scopeEngineCombo.onChange = [this]() {
-        if (!selectedNode) return;
-        int id = scopeEngineCombo.getSelectedId();
-        if (id == 1) selectedNode->scopeMode = RelativisticNode::ScopeRenderMode::Waveform2D;
-        else if (id == 2) selectedNode->scopeMode = RelativisticNode::ScopeRenderMode::ScopeXY;
-        else if (id == 3) selectedNode->scopeMode = RelativisticNode::ScopeRenderMode::Scope3D;
-        if (getParentComponent()) getParentComponent()->repaint();
-    };
-
-    volLabel.setText("Output Volume (dBFS)", juce::dontSendNotification);
-    volLabel.setVisible(true);
-    volSlider.setVisible(true);
-    volSlider.setRange(-100.0, 6.0, 0.1);
-    volSlider.setValue(selectedNode->getVolumeDb(), juce::dontSendNotification);
-    volSlider.setTextValueSuffix(" dB");
-    volSlider.onValueChange = [this]() {
-        if (selectedNode) selectedNode->setVolumeDb(static_cast<float>(volSlider.getValue()));
-    };
+        else
+        {
+            // General Audio / DSP Nodes use Linear Gain Multiplier (e.g. 1.0x)
+            volLabel.setText("Output Level (Gain Multiplier)", juce::dontSendNotification);
+            volLabel.setVisible(true);
+            volSlider.setVisible(true);
+            volSlider.setRange(0.0, 4.0, 0.01);
+            volSlider.setValue(selectedNode->getOutputVolume(), juce::dontSendNotification);
+            volSlider.setTextValueSuffix("x");
+            volSlider.onValueChange = [this]() {
+                if (selectedNode) selectedNode->setOutputVolume(static_cast<float>(volSlider.getValue()));
+            };
+        }
+    }
 
     docTitleLabel.setVisible(true);
     descLabel.setVisible(true);
     inletOutletLabel.setVisible(true);
 
-    std::string sym = selectedNode->getSymbol();
     juce::String titleText = "[" + sym + "] \u2014 " + selectedNode->getLabel();
     if (selectedNode->getRmsLevel() > 0.0001f || selectedNode->getPeakLevel() > 0.0001f)
     {

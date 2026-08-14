@@ -391,7 +391,12 @@ void RelativisticCanvasComponent::paint(juce::Graphics& g)
             g.setFont(juce::Font(12.0f, juce::Font::bold));
             g.drawText("disp: " + dispStr, b.reduced(8.0f, 4.0f), juce::Justification::centredLeft, true);
         }
-        else
+        bool isControlGuiObject = (sym == "msg" || sym == "message" || sym == "bang" || sym == "bng" ||
+                                   sym == "toggle" || sym == "tgl" || sym == "number" || sym == "num" ||
+                                   sym == "symbol" || sym == "sym" || sym == "radio" || sym == "hradio" ||
+                                   sym == "vradio" || sym == "display" || sym == "disp" || sym == "print");
+
+        if (!isControlGuiObject)
         {
             // Standard Processing / DSP Node Card
             g.setColour(isSelected ? CarbonGoldLookAndFeel::slatePanel.brighter(0.2f) : CarbonGoldLookAndFeel::slatePanel);
@@ -399,45 +404,44 @@ void RelativisticCanvasComponent::paint(juce::Graphics& g)
 
             g.setColour(isSelected ? CarbonGoldLookAndFeel::goldAccent : CarbonGoldLookAndFeel::slatePanel.brighter(0.4f));
             g.drawRoundedRectangle(b, 5.0f, isSelected ? 2.5f : 1.0f);
-        }
 
-        // Header Title Label with Wrapping Support
-        auto headerRect = b.removeFromTop(22.0f);
+            // Header Title Label with Wrapping Support
+            auto headerRect = b.removeFromTop(22.0f);
 
-        // Realtime Display Toggle Button [👁]
-        auto toggleBtnRect = headerRect.removeFromRight(22.0f).reduced(2.0f);
+            // Realtime Display Toggle Button [👁]
+            auto toggleBtnRect = headerRect.removeFromRight(22.0f).reduced(2.0f);
 
-        // Scope Mode Toggle Button
-        auto modeBtnRect = headerRect.removeFromRight(46.0f).reduced(2.0f);
+            // Scope Mode Toggle Button
+            auto modeBtnRect = headerRect.removeFromRight(46.0f).reduced(2.0f);
 
-        g.setColour(juce::Colours::white);
-        g.setFont(juce::Font(12.0f, juce::Font::bold));
-        g.drawFittedText(node->getLabel(), headerRect.reduced(6.0f, 0.0f).toNearestInt(), juce::Justification::left, 2, 0.9f);
+            g.setColour(juce::Colours::white);
+            g.setFont(juce::Font(12.0f, juce::Font::bold));
+            g.drawFittedText(node->getLabel(), headerRect.reduced(6.0f, 0.0f).toNearestInt(), juce::Justification::left, 2, 0.9f);
 
-        g.setColour(node->showRealtimeDisplay ? CarbonGoldLookAndFeel::goldAccent : juce::Colours::grey);
-        g.drawRoundedRectangle(toggleBtnRect, 3.0f, 1.0f);
-        g.setFont(10.0f);
-        g.drawText("👁", toggleBtnRect, juce::Justification::centred, false);
+            g.setColour(node->showRealtimeDisplay ? CarbonGoldLookAndFeel::goldAccent : juce::Colours::grey);
+            g.drawRoundedRectangle(toggleBtnRect, 3.0f, 1.0f);
+            g.setFont(10.0f);
+            g.drawText("👁", toggleBtnRect, juce::Justification::centred, false);
 
-        g.setColour((node->displayType == RelativisticNode::ScopeDisplayType::AudioWaveform) ? CarbonGoldLookAndFeel::cyberCyan : CarbonGoldLookAndFeel::royalViolet);
-        g.drawRoundedRectangle(modeBtnRect, 3.0f, 1.0f);
-        g.setFont(9.0f);
-        juce::String modeStr;
-        if (node->displayType == RelativisticNode::ScopeDisplayType::AudioWaveform)
-        {
-            modeStr = "Audio";
-        }
-        else
-        {
-            if (node->timeVarMode == RelativisticNode::TimeScopeVariable::SpeedGamma) modeStr = "Speed";
-            else if (node->timeVarMode == RelativisticNode::TimeScopeVariable::OffsetTau) modeStr = "Offset";
-            else if (node->timeVarMode == RelativisticNode::TimeScopeVariable::CouplingC) modeStr = "Flex";
-            else modeStr = "Multi";
-        }
-        g.drawText(modeStr, modeBtnRect, juce::Justification::centred, false);
+            g.setColour((node->displayType == RelativisticNode::ScopeDisplayType::AudioWaveform) ? CarbonGoldLookAndFeel::cyberCyan : CarbonGoldLookAndFeel::royalViolet);
+            g.drawRoundedRectangle(modeBtnRect, 3.0f, 1.0f);
+            g.setFont(9.0f);
+            juce::String modeStr;
+            if (node->displayType == RelativisticNode::ScopeDisplayType::AudioWaveform)
+            {
+                modeStr = "Audio";
+            }
+            else
+            {
+                if (node->timeVarMode == RelativisticNode::TimeScopeVariable::SpeedGamma) modeStr = "Speed";
+                else if (node->timeVarMode == RelativisticNode::TimeScopeVariable::OffsetTau) modeStr = "Offset";
+                else if (node->timeVarMode == RelativisticNode::TimeScopeVariable::CouplingC) modeStr = "Flex";
+                else modeStr = "Multi";
+            }
+            g.drawText(modeStr, modeBtnRect, juce::Justification::centred, false);
 
-        // Realtime Scope & Value Display Area
-        if (node->showRealtimeDisplay && b.getHeight() > 30.0f)
+            // Realtime Scope & Value Display Area
+            if (node->showRealtimeDisplay && b.getHeight() > 30.0f)
         {
             auto scopeBox = b.reduced(4.0f, 4.0f);
             g.setColour(juce::Colour::fromRGB(0x10, 0x12, 0x18));
@@ -810,6 +814,7 @@ void RelativisticCanvasComponent::paint(juce::Graphics& g)
             g.setColour(CarbonGoldLookAndFeel::royalViolet);
             g.drawText("[🔍 drill-down]", b.removeFromBottom(16.0f), juce::Justification::centred, true);
         }
+        } // end if (!isControlGuiObject)
 
         // Bottom-Right Corner Resize Grip Handle for Selected Nodes
         if (isSelected)
