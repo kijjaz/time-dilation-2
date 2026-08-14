@@ -240,11 +240,10 @@ void WorkstationContainerComponent::setupDefaultPatch()
 {
     nodeGraph.clearGraph();
 
-    // Node 1: Relativistic Clock / Modulator
+    // Row 1: Relativistic Clock & Melodic Synthesizer Voice
     auto lfoNode = RelativisticNodeFactory::createNode(1, "time.lfo 0.5 0.5");
     lfoNode->xPos = 40; lfoNode->yPos = 40;
 
-    // Track 1: Melodic Synthesizer Voice
     auto seqNode = RelativisticNodeFactory::createNode(2, "seq notes 48 55 58 60 62 65 67 70");
     seqNode->xPos = 190; seqNode->yPos = 40;
 
@@ -260,21 +259,34 @@ void WorkstationContainerComponent::setupDefaultPatch()
     auto delayNode = RelativisticNodeFactory::createNode(6, "delay~ 0.375 0.42");
     delayNode->xPos = 790; delayNode->yPos = 40;
 
-    // Track 2: Analog Rhythm & Space FX
-    auto kickNode = RelativisticNodeFactory::createNode(7, "kick~ 50 0.35");
-    kickNode->xPos = 40; kickNode->yPos = 200;
+    // Row 2: Analog Rhythm Section (Sequencers + Drum Synths)
+    auto seqKickNode = RelativisticNodeFactory::createNode(7, "seq 1 0 0 0 1 0 0 0 1 0 0 1 1 0 0 0");
+    seqKickNode->setLabel("seq.kick");
+    seqKickNode->xPos = 40; seqKickNode->yPos = 200;
 
-    auto snareNode = RelativisticNodeFactory::createNode(8, "snare~ 185 0.65 0.28");
-    snareNode->xPos = 190; snareNode->yPos = 200;
+    auto kickNode = RelativisticNodeFactory::createNode(8, "kick~ 50 0.35");
+    kickNode->xPos = 190; kickNode->yPos = 200;
 
-    auto hihatNode = RelativisticNodeFactory::createNode(9, "hihat~ 0.08");
-    hihatNode->xPos = 340; hihatNode->yPos = 200;
+    auto seqSnareNode = RelativisticNodeFactory::createNode(9, "seq 0 0 0 0 1 0 0 0 0 0 0 0 1 0 1 0");
+    seqSnareNode->setLabel("seq.snare");
+    seqSnareNode->xPos = 340; seqSnareNode->yPos = 200;
 
-    auto reverbNode = RelativisticNodeFactory::createNode(10, "reverb~ 0.75 0.4 0.35");
-    reverbNode->xPos = 490; reverbNode->yPos = 200;
+    auto snareNode = RelativisticNodeFactory::createNode(10, "snare~ 185 0.65 0.28");
+    snareNode->xPos = 490; snareNode->yPos = 200;
 
-    auto outNode = RelativisticNodeFactory::createNode(11, "out~");
-    outNode->xPos = 660; outNode->yPos = 200;
+    auto seqHatNode = RelativisticNodeFactory::createNode(11, "seq 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1");
+    seqHatNode->setLabel("seq.hihat");
+    seqHatNode->xPos = 640; seqHatNode->yPos = 200;
+
+    auto hihatNode = RelativisticNodeFactory::createNode(12, "hihat~ 0.08");
+    hihatNode->xPos = 790; hihatNode->yPos = 200;
+
+    // Row 3: Space FX & Stereo Master
+    auto reverbNode = RelativisticNodeFactory::createNode(13, "reverb~ 0.75 0.4 0.35");
+    reverbNode->xPos = 340; reverbNode->yPos = 360;
+
+    auto outNode = RelativisticNodeFactory::createNode(14, "out~ master");
+    outNode->xPos = 520; outNode->yPos = 360;
 
     if (auto out = std::dynamic_pointer_cast<OutNode>(outNode))
     {
@@ -289,46 +301,53 @@ void WorkstationContainerComponent::setupDefaultPatch()
     nodeGraph.addNode(oscNode);
     nodeGraph.addNode(ladderNode);
     nodeGraph.addNode(delayNode);
+    nodeGraph.addNode(seqKickNode);
     nodeGraph.addNode(kickNode);
+    nodeGraph.addNode(seqSnareNode);
     nodeGraph.addNode(snareNode);
+    nodeGraph.addNode(seqHatNode);
     nodeGraph.addNode(hihatNode);
     nodeGraph.addNode(reverbNode);
     nodeGraph.addNode(outNode);
 
     // Cable Patch Routing:
-    // 1. Time LFO -> Seq (Inlet 1, Time) & Osc~ (Inlet 1, Time)
-    nodeGraph.addConnection(1, 1, 2, 1); // lfo timeOut -> seq timeIn
-    nodeGraph.addConnection(1, 1, 4, 1); // lfo timeOut -> osc~ timeIn
+    // 1. Time LFO -> All Sequencers & Osc~
+    nodeGraph.addConnection(1, 1, 2, 1);  // lfo timeOut -> melodic seq timeIn
+    nodeGraph.addConnection(1, 1, 4, 1);  // lfo timeOut -> osc~ timeIn
+    nodeGraph.addConnection(1, 1, 7, 1);  // lfo timeOut -> kick seq timeIn
+    nodeGraph.addConnection(1, 1, 9, 1);  // lfo timeOut -> snare seq timeIn
+    nodeGraph.addConnection(1, 1, 11, 1); // lfo timeOut -> hihat seq timeIn
 
-    // 2. Seq -> Mtof~ -> Osc~ Saw
-    nodeGraph.addConnection(2, 1, 3, 1); // seq note -> mtof~ note~
-    nodeGraph.addConnection(3, 1, 4, 2); // mtof~ freq~ -> osc~ freq~
+    // 2. Melodic Synth Chain: Seq -> Mtof~ -> Osc~ -> Ladder~ -> Delay~
+    nodeGraph.addConnection(2, 1, 3, 1);  // seq note (Outlet 1) -> mtof~ note~ (Inlet 1)
+    nodeGraph.addConnection(3, 1, 4, 2);  // mtof~ freq~ (Outlet 1) -> osc~ freq~ (Inlet 2)
+    nodeGraph.addConnection(4, 2, 5, 2);  // osc~ out~ (Outlet 2) -> ladder~ in~ (Inlet 2)
+    nodeGraph.addConnection(5, 2, 6, 1);  // ladder~ out~ (Outlet 2) -> delay~ in~ (Inlet 1)
 
-    // 3. Osc~ -> Ladder~ Filter -> Delay~ (Dotted 8th @ 120 BPM)
-    nodeGraph.addConnection(4, 2, 5, 2); // osc~ out~ (Outlet 2) -> ladder~ in~ (Inlet 2)
-    nodeGraph.addConnection(5, 2, 6, 1); // ladder~ out~ (Outlet 2) -> delay~ in~ (Inlet 1)
+    // 3. Rhythm Trigger Chains: Seq Gate -> Drum Synth Trig~
+    nodeGraph.addConnection(7, 2, 8, 1);   // seq.kick gate (Outlet 2) -> kick~ trig~ (Inlet 1)
+    nodeGraph.addConnection(9, 2, 10, 1);  // seq.snare gate (Outlet 2) -> snare~ trig~ (Inlet 1)
+    nodeGraph.addConnection(11, 2, 12, 1); // seq.hihat gate (Outlet 2) -> hihat~ trig~ (Inlet 1)
 
-    // 4. Delay~ -> Reverb~ Inlets & Out~
-    nodeGraph.addConnection(6, 1, 10, 1); // delay~ out~ (Outlet 1) -> reverb~ in1~ (Inlet 1)
-    nodeGraph.addConnection(6, 1, 10, 2); // delay~ out~ (Outlet 1) -> reverb~ in2~ (Inlet 2)
-    nodeGraph.addConnection(6, 1, 11, 1); // delay~ out~ (Outlet 1) -> out~ in1~ (Inlet 1)
-    nodeGraph.addConnection(6, 1, 11, 2); // delay~ out~ (Outlet 1) -> out~ in2~ (Inlet 2)
+    // 4. Synth & Snare to Reverb
+    nodeGraph.addConnection(6, 1, 13, 1);  // delay~ out~ (Outlet 1) -> reverb~ in1~ (Inlet 1)
+    nodeGraph.addConnection(6, 1, 13, 2);  // delay~ out~ (Outlet 1) -> reverb~ in2~ (Inlet 2)
+    nodeGraph.addConnection(10, 1, 13, 1); // snare~ out~ (Outlet 1) -> reverb~ in1~ (Inlet 1)
+    nodeGraph.addConnection(10, 1, 13, 2); // snare~ out~ (Outlet 1) -> reverb~ in2~ (Inlet 2)
 
-    // 5. Snare -> Reverb~ Inlets
-    nodeGraph.addConnection(8, 1, 10, 1); // snare~ out~ (Outlet 1) -> reverb~ in1~ (Inlet 1)
-    nodeGraph.addConnection(8, 1, 10, 2); // snare~ out~ (Outlet 1) -> reverb~ in2~ (Inlet 2)
+    // 5. Final Summation into Out~ Master (Inlets 1 & 2)
+    nodeGraph.addConnection(6, 1, 14, 1);  // delay~ (dry/echo) -> out~ L
+    nodeGraph.addConnection(6, 1, 14, 2);  // delay~ (dry/echo) -> out~ R
+    nodeGraph.addConnection(8, 1, 14, 1);  // kick~ -> out~ L
+    nodeGraph.addConnection(8, 1, 14, 2);  // kick~ -> out~ R
+    nodeGraph.addConnection(10, 1, 14, 1); // snare~ -> out~ L
+    nodeGraph.addConnection(10, 1, 14, 2); // snare~ -> out~ R
+    nodeGraph.addConnection(12, 1, 14, 1); // hihat~ -> out~ L
+    nodeGraph.addConnection(12, 1, 14, 2); // hihat~ -> out~ R
+    nodeGraph.addConnection(13, 1, 14, 1); // reverb~ out1~ -> out~ L
+    nodeGraph.addConnection(13, 2, 14, 2); // reverb~ out2~ -> out~ R
 
-    // 6. Reverb Out to Out~
-    nodeGraph.addConnection(10, 1, 11, 1); // reverb~ out1~ (Outlet 1) -> out~ in1~ (Inlet 1)
-    nodeGraph.addConnection(10, 2, 11, 2); // reverb~ out2~ (Outlet 2) -> out~ in2~ (Inlet 2)
-
-    // 7. Kick & HiHat Direct to Out~
-    nodeGraph.addConnection(7, 1, 11, 1); // kick~ out~ (Outlet 1) -> out~ in1~ (Inlet 1)
-    nodeGraph.addConnection(7, 1, 11, 2); // kick~ out~ (Outlet 1) -> out~ in2~ (Inlet 2)
-    nodeGraph.addConnection(9, 1, 11, 1); // hihat~ out~ (Outlet 1) -> out~ in1~ (Inlet 1)
-    nodeGraph.addConnection(9, 1, 11, 2); // hihat~ out~ (Outlet 1) -> out~ in2~ (Inlet 2)
-
-    nextNodeId = 12;
+    nextNodeId = 15;
 }
 
 void WorkstationContainerComponent::paint(juce::Graphics& g)

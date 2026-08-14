@@ -251,7 +251,7 @@ void SeqNode::process(int numSamples)
 
         int noteVal = notes[static_cast<size_t>(currentStep)];
         noteL[s] = static_cast<float>(noteVal);
-        gateL[s] = 1.0f;
+        gateL[s] = (noteVal > 0 && accumulatedTime < (stepDurationSec * 0.45)) ? 1.0f : 0.0f;
 
         pushTimeScopeSample(static_cast<float>(noteVal));
     }
