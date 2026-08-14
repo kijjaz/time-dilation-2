@@ -25,6 +25,7 @@ public:
     static bool testDynamicAdaptiveLatencyStages();
     static bool testPdControlSuite();
     static bool testAudioSamplePlayback();
+    static bool testRelativisticDelayAndPipeSuite();
 };
 
 } // namespace TimeDilationDAW

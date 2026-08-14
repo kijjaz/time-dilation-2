@@ -305,10 +305,6 @@ int RelativisticNodeGraph::addNode(std::shared_ptr<RelativisticNode> node)
         }
     };
 
-    node->onMessageEmitted = [this, node](const std::string& msgText) {
-        node->emitMessageOnOutlet(0, msgText);
-    };
-
     updateTopologicalSort();
     return id;
 }

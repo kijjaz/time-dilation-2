@@ -193,7 +193,9 @@ void NodeInspectorComponent::updateUIForSelectedNode()
                           sym == "vradio" || sym == "display" || sym == "disp" || sym == "print" ||
                           sym == "trigger" || sym == "t" || sym == "select" || sym == "sel" ||
                           sym == "route" || sym == "metro" || sym == "del" || sym == "delay" ||
-                          sym == "random" || sym == "counter" || sym == "soundfiler");
+                          sym == "random" || sym == "counter" || sym == "soundfiler" ||
+                          sym == "pipe" || sym == "time.pipe" || sym == "timer" || sym == "time.timer" ||
+                          sym == "time.quantize" || sym == "quantize" || sym == "snapshot~" || sym == "time.snapshot~");
 
     if (isControlNode)
     {
@@ -975,6 +977,109 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         descLabel.setText("Multi-channel audio file disk streaming player with real-time relativistic scrubbing and speed modulation. Emits a bang on EOF.", juce::dontSendNotification);
         templateMsgs = { "open sample.wav", "start", "stop", "seek 0", "speed 1.0", "speed 0.5", "loop 1", "loop 0" };
     }
+    else if (sym == "delwrite~")
+    {
+        paramLabel1.setText("Max Size (ms)", juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setRange(10.0, 10000.0, 10.0);
+        paramSlider1.setValue(1000.0, juce::dontSendNotification);
+        paramSlider1.setVisible(true);
+        paramSlider1.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("size " + std::to_string(paramSlider1.getValue()));
+        };
+
+        paramSlider2.setVisible(false); paramLabel2.setVisible(false);
+        optionLabel.setVisible(false); optionSelector.setVisible(false);
+
+        descLabel.setText("Writes incoming audio to a shared named circular delay line with relativistic proper-time tracking.", juce::dontSendNotification);
+        templateMsgs = { "size 500", "size 1000", "size 2000" };
+    }
+    else if (sym == "delread~")
+    {
+        paramLabel1.setText("Delay (ms)", juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setRange(0.0, 5000.0, 1.0);
+        paramSlider1.setValue(100.0, juce::dontSendNotification);
+        paramSlider1.setVisible(true);
+        paramSlider1.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage(std::to_string(paramSlider1.getValue()));
+        };
+
+        paramSlider2.setVisible(false); paramLabel2.setVisible(false);
+        optionLabel.setVisible(false); optionSelector.setVisible(false);
+
+        descLabel.setText("Reads from a named delay line at a fixed delay time using 4-point Hermite cubic interpolation.", juce::dontSendNotification);
+        templateMsgs = { "50", "100", "250", "500", "750", "set del1" };
+    }
+    else if (sym == "vd~" || sym == "time.vd~")
+    {
+        paramLabel1.setText("Base Delay (ms)", juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setRange(0.0, 5000.0, 1.0);
+        paramSlider1.setValue(100.0, juce::dontSendNotification);
+        paramSlider1.setVisible(true);
+        paramSlider1.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage(std::to_string(paramSlider1.getValue()));
+        };
+
+        paramSlider2.setVisible(false); paramLabel2.setVisible(false);
+        optionLabel.setVisible(false); optionSelector.setVisible(false);
+
+        descLabel.setText("Variable Doppler delay reader with continuous audio-rate modulation and relativistic time-dilation frequency shifts.", juce::dontSendNotification);
+        templateMsgs = { "50", "100", "200", "500", "set del1" };
+    }
+    else if (sym == "pipe" || sym == "time.pipe")
+    {
+        paramLabel1.setText("Delay (ms)", juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setRange(0.0, 10000.0, 1.0);
+        paramSlider1.setValue(100.0, juce::dontSendNotification);
+        paramSlider1.setVisible(true);
+        paramSlider1.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage(std::to_string(paramSlider1.getValue()));
+        };
+
+        paramSlider2.setVisible(false); paramLabel2.setVisible(false);
+        optionLabel.setVisible(false); optionSelector.setVisible(false);
+
+        descLabel.setText("Relativistic control message delay pipe. Queues messages and delays them dynamically according to local proper time (\u03c4 = \u222b\u03b3 dt).", juce::dontSendNotification);
+        templateMsgs = { "100", "500", "1000", "flush", "clear", "pitch 60 250", "vol -6 500" };
+    }
+    else if (sym == "timer" || sym == "time.timer")
+    {
+        paramSlider1.setVisible(false); paramLabel1.setVisible(false);
+        paramSlider2.setVisible(false); paramLabel2.setVisible(false);
+        optionLabel.setVisible(false); optionSelector.setVisible(false);
+
+        descLabel.setText("Relativistic proper-time chronometer. Measures elapsed proper time (\u0394\u03c4 in ms) between a reset trigger and a measurement bang.", juce::dontSendNotification);
+        templateMsgs = { "reset", "bang", "measure" };
+    }
+    else if (sym == "snapshot~" || sym == "time.snapshot~")
+    {
+        paramSlider1.setVisible(false); paramLabel1.setVisible(false);
+        paramSlider2.setVisible(false); paramLabel2.setVisible(false);
+        optionLabel.setVisible(false); optionSelector.setVisible(false);
+
+        descLabel.setText("Instantaneous signal & time frame sampler. Emits the current audio inlet value, \u03b3 dilation, or \u03c4 proper time upon receiving a bang.", juce::dontSendNotification);
+        templateMsgs = { "bang", "gamma", "tau" };
+    }
+    else if (sym == "time.quantize" || sym == "quantize")
+    {
+        paramLabel1.setText("Grid Division (ms)", juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setRange(10.0, 2000.0, 1.0);
+        paramSlider1.setValue(125.0, juce::dontSendNotification);
+        paramSlider1.setVisible(true);
+        paramSlider1.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("div " + std::to_string(paramSlider1.getValue()));
+        };
+
+        paramSlider2.setVisible(false); paramLabel2.setVisible(false);
+        optionLabel.setVisible(false); optionSelector.setVisible(false);
+
+        descLabel.setText("Relativistic temporal grid quantizer. Holds incoming control events and releases them strictly on proper-time rhythmic grid boundaries.", juce::dontSendNotification);
+        templateMsgs = { "div 125", "div 250", "div 500", "bang", "pitch 60" };
+    }
     else
     {
         paramSlider1.setVisible(false);
@@ -992,7 +1097,76 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         std::string sym = symbol;
         std::transform(sym.begin(), sym.end(), sym.begin(), ::tolower);
 
-        if (sym == "trigger" || sym == "t") {
+        if (sym == "delwrite~") {
+            if (!isOutlet) {
+                if (index == 0) return "Control Messages (size <ms>, set <name>)";
+                if (index == 1) return "Audio Signal Input to write into delay line (~)";
+                if (index == 2) return "Relativistic Time Clock Input (\u03b3)";
+            } else {
+                if (index == 0) return "Message Output";
+                if (index == 1) return "Time Frame Output (\u03b3)";
+                if (index == 2) return "Pass-Through Audio Output (~)";
+            }
+        }
+        else if (sym == "delread~") {
+            if (!isOutlet) {
+                if (index == 0) return "Delay Time (ms) or control messages";
+                if (index == 1) return "Relativistic Time Clock Input (\u03b3)";
+            } else {
+                if (index == 0) return "Message Output";
+                if (index == 1) return "Time Frame Output (\u03b3)";
+                if (index == 2) return "Delayed Audio Output (~)";
+            }
+        }
+        else if (sym == "vd~" || sym == "time.vd~") {
+            if (!isOutlet) {
+                if (index == 0) return "Control Messages (base delay, set <name>)";
+                if (index == 1) return "Delay Time Modulation Audio Signal in ms (~))";
+                if (index == 2) return "Relativistic Time Clock Input (\u03b3)";
+            } else {
+                if (index == 0) return "Message Output";
+                if (index == 1) return "Time Frame Output (\u03b3)";
+                if (index == 2) return "Variable Doppler Audio Output (~)";
+            }
+        }
+        else if (sym == "pipe" || sym == "time.pipe") {
+            if (!isOutlet) {
+                if (index == 0) return "Message / Number / List with optional delay time";
+                if (index == 1) return "Relativistic Time Clock Input (\u03b3)";
+            } else {
+                if (index == 0) return "Delayed Message Output";
+                if (index == 1) return "Time Frame Output (\u03b3)";
+            }
+        }
+        else if (sym == "timer" || sym == "time.timer") {
+            if (!isOutlet) {
+                if (index == 0) return "'reset' (start timer) or 'bang'/'measure' (output elapsed \u0394\u03c4)";
+                if (index == 1) return "Relativistic Time Clock Input (\u03b3)";
+            } else {
+                if (index == 0) return "Elapsed Proper Time (\u0394\u03c4 in ms) Output";
+                if (index == 1) return "Time Frame Output (\u03b3)";
+            }
+        }
+        else if (sym == "snapshot~" || sym == "time.snapshot~") {
+            if (!isOutlet) {
+                if (index == 0) return "'bang' (sample audio), 'gamma' (sample \u03b3), 'tau' (sample \u03c4)";
+                if (index == 1) return "Audio Signal to Sample (~)";
+                if (index == 2) return "Relativistic Time Clock Input (\u03b3)";
+            } else {
+                if (index == 0) return "Sampled Value Message Output";
+                if (index == 1) return "Time Frame Output (\u03b3)";
+            }
+        }
+        else if (sym == "time.quantize" || sym == "quantize") {
+            if (!isOutlet) {
+                if (index == 0) return "Incoming message to quantize to grid, or 'div <ms>'";
+                if (index == 1) return "Relativistic Time Clock Input (\u03b3)";
+            } else {
+                if (index == 0) return "Quantized Message Output";
+                if (index == 1) return "Time Frame Output (\u03b3)";
+            }
+        }
+        else if (sym == "trigger" || sym == "t") {
             if (!isOutlet) return "Incoming message / bang / number / symbol to trigger sequence";
             return "Outlet " + std::to_string(index) + " (" + portName + "): Deterministic right-to-left event dispatch";
         }

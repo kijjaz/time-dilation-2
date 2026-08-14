@@ -2,6 +2,7 @@
 #include "PrintNode.h"
 #include "PdControlNodes.h"
 #include "PdSampleNodes.h"
+#include "PdDelayNodes.h"
 #include <sstream>
 #include <vector>
 
@@ -359,6 +360,50 @@ std::shared_ptr<RelativisticNode> RelativisticNodeFactory::createNode(int nodeId
         int chs = 2;
         if (ss >> chs) {}
         return std::make_shared<ReadSFTildeNode>(nodeId, chs);
+    }
+    else if (symbol == "delwrite~")
+    {
+        std::string name = "del1";
+        double maxMs = 1000.0;
+        if (ss >> name) {}
+        if (ss >> maxMs) {}
+        return std::make_shared<DelwriteTildeNode>(nodeId, name, maxMs);
+    }
+    else if (symbol == "delread~")
+    {
+        std::string name = "del1";
+        double dMs = 100.0;
+        if (ss >> name) {}
+        if (ss >> dMs) {}
+        return std::make_shared<DelreadTildeNode>(nodeId, name, dMs);
+    }
+    else if (symbol == "vd~" || symbol == "time.vd~")
+    {
+        std::string name = "del1";
+        double dMs = 100.0;
+        if (ss >> name) {}
+        if (ss >> dMs) {}
+        return std::make_shared<VdTildeNode>(nodeId, name, dMs);
+    }
+    else if (symbol == "pipe" || symbol == "time.pipe")
+    {
+        double dMs = 100.0;
+        if (ss >> dMs) {}
+        return std::make_shared<PipeNode>(nodeId, dMs);
+    }
+    else if (symbol == "timer" || symbol == "time.timer")
+    {
+        return std::make_shared<TimerNode>(nodeId);
+    }
+    else if (symbol == "snapshot~" || symbol == "time.snapshot~")
+    {
+        return std::make_shared<SnapshotTildeNode>(nodeId);
+    }
+    else if (symbol == "time.quantize" || symbol == "quantize")
+    {
+        double divMs = 125.0;
+        if (ss >> divMs) {}
+        return std::make_shared<TimeQuantizeNode>(nodeId, divMs);
     }
 
     // Default fallback to osc~

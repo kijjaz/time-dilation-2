@@ -173,7 +173,7 @@ public:
     {
         if (onOutletMessageEmitted)
             onOutletMessageEmitted(outletIdx, msg);
-        else if (outletIdx == 0 && onMessageEmitted)
+        if (outletIdx == 0 && onMessageEmitted)
             onMessageEmitted(msg);
     }
 

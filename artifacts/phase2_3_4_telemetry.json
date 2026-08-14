@@ -6,5 +6,6 @@
   "tachyonGranularNode": true,
   "patchJSONSerialization": true,
   "pdControlSuite": true,
-  "audioSamplePlayback": true
+  "audioSamplePlayback": true,
+  "relativisticDelayAndPipes": true
 }

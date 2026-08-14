@@ -394,6 +394,83 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
         }
     }
 
+    // =========================================================================
+    // WAV Observation 6: Relativistic Multi-Tap Tape Doppler Delay Network
+    // ([readsf~] -> [delwrite~ tape1 2500] -> [time.lfo~] -> 3x [vd~] taps -> [pipe] feedback -> [out~])
+    // =========================================================================
+    {
+        workstation.getNodeGraph().clearGraph();
+
+        auto lfoTime   = RelativisticNodeFactory::createNode(1, "time.lfo~ 0.15 0.75");
+        auto readsf    = RelativisticNodeFactory::createNode(2, "readsf~ 2");
+        auto delwrite  = RelativisticNodeFactory::createNode(3, "delwrite~ tape1 2500");
+        auto tap1      = RelativisticNodeFactory::createNode(4, "vd~ tape1 150");
+        auto tap2      = RelativisticNodeFactory::createNode(5, "vd~ tape1 300");
+        auto tap3      = RelativisticNodeFactory::createNode(6, "vd~ tape1 600");
+        auto filterTap = RelativisticNodeFactory::createNode(7, "ladder~ 1600 0.5");
+        auto driveSat  = RelativisticNodeFactory::createNode(8, "drive~ 1.5");
+        auto pipeCtl   = RelativisticNodeFactory::createNode(9, "pipe 200");
+        auto outNode   = RelativisticNodeFactory::createNode(10, "out~");
+
+        workstation.getNodeGraph().addNode(lfoTime);
+        workstation.getNodeGraph().addNode(readsf);
+        workstation.getNodeGraph().addNode(delwrite);
+        workstation.getNodeGraph().addNode(tap1);
+        workstation.getNodeGraph().addNode(tap2);
+        workstation.getNodeGraph().addNode(tap3);
+        workstation.getNodeGraph().addNode(filterTap);
+        workstation.getNodeGraph().addNode(driveSat);
+        workstation.getNodeGraph().addNode(pipeCtl);
+        workstation.getNodeGraph().addNode(outNode);
+
+        // Relativistic Time Connections
+        workstation.getNodeGraph().addConnection(1, 1, 2, 1); // time.lfo~ -> readsf~ timeIn
+        workstation.getNodeGraph().addConnection(1, 1, 3, 2); // time.lfo~ -> delwrite~ timeIn
+        workstation.getNodeGraph().addConnection(1, 1, 4, 2); // time.lfo~ -> tap1 timeIn
+        workstation.getNodeGraph().addConnection(1, 1, 5, 2); // time.lfo~ -> tap2 timeIn
+        workstation.getNodeGraph().addConnection(1, 1, 6, 2); // time.lfo~ -> tap3 timeIn
+        workstation.getNodeGraph().addConnection(1, 1, 7, 1); // time.lfo~ -> ladder~ timeIn
+        workstation.getNodeGraph().addConnection(1, 1, 9, 1); // time.lfo~ -> pipe timeIn
+
+        // Audio Connections
+        workstation.getNodeGraph().addConnection(2, 2, 3, 1); // readsf L -> delwrite in~
+        workstation.getNodeGraph().addConnection(4, 2, 7, 2); // tap1 out~ -> filter in~
+        workstation.getNodeGraph().addConnection(5, 2, 7, 2); // tap2 out~ -> filter in~
+        workstation.getNodeGraph().addConnection(6, 2, 7, 2); // tap3 out~ -> filter in~
+        workstation.getNodeGraph().addConnection(7, 2, 8, 2); // filter out~ -> drive in~
+        workstation.getNodeGraph().addConnection(8, 2, 10, 1); // drive out~ -> out~ L
+        workstation.getNodeGraph().addConnection(2, 3, 10, 2); // readsf R -> out~ R
+
+        // Start disk audio streaming
+        readsf->receiveMessage("open artifacts/musical_sample_test.wav");
+        readsf->receiveMessage("loop 1");
+        readsf->receiveMessage("start");
+
+        juce::File obs6Wav("artifacts/observation_6_relativistic_delay_pipe.wav");
+        auto fileStream6 = obs6Wav.createOutputStream();
+        if (fileStream6 != nullptr)
+        {
+            juce::WavAudioFormat wavFormat;
+            std::unique_ptr<juce::AudioFormatWriter> writer6(wavFormat.createWriterFor(fileStream6.release(), sampleRate, 2, 16, {}, 0));
+            if (writer6 != nullptr)
+            {
+                int totalBlocks6 = static_cast<int>((6.0 * sampleRate) / blockSize); // 6-second render
+                for (int b = 0; b < totalBlocks6; ++b)
+                {
+                    if (b % 32 == 0)
+                    {
+                        pipeCtl->receiveMessage("cutoff " + std::to_string(800 + (b * 20) % 2400) + " 100");
+                    }
+
+                    workstation.getNextAudioBlock(channelInfo);
+                    writer6->writeFromAudioSampleBuffer(masterBuffer, 0, blockSize);
+                }
+                writer6->flush();
+                std::cout << "[AgentTestRunner] Exported WAV Observation 6 (Relativistic Delay & Pipe Network): " << obs6Wav.getFullPathName().toStdString() << "\n";
+            }
+        }
+    }
+
     int totalBlocks = static_cast<int>((5.0 * sampleRate) / blockSize);
     float maxPeak = masterBuffer.getMagnitude(0, blockSize);
     int activeNodes = static_cast<int>(workstation.getNodeGraph().getNodes().size());
@@ -477,8 +554,9 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
     bool dynamicLatPass = testDynamicAdaptiveLatencyStages();
     bool pdControlPass = testPdControlSuite();
     bool samplePlaybackPass = testAudioSamplePlayback();
+    bool delayPipePass = testRelativisticDelayAndPipeSuite();
 
-    bool allPhasesPass = allPhase1Pass && gravPass && lorentzPass && tachyonPass && jsonPass && dynamicLatPass && pdControlPass && samplePlaybackPass;
+    bool allPhasesPass = allPhase1Pass && gravPass && lorentzPass && tachyonPass && jsonPass && dynamicLatPass && pdControlPass && samplePlaybackPass && delayPipePass;
     std::cout << "\n[Full Test Suite] Overall Result: " << (allPhasesPass ? "PASSED" : "FAILED") << "\n\n";
 
     // Export artifacts/phase2_3_4_telemetry.json
@@ -492,7 +570,8 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
     fullOut << "  \"tachyonGranularNode\": " << (tachyonPass ? "true" : "false") << ",\n";
     fullOut << "  \"patchJSONSerialization\": " << (jsonPass ? "true" : "false") << ",\n";
     fullOut << "  \"pdControlSuite\": " << (pdControlPass ? "true" : "false") << ",\n";
-    fullOut << "  \"audioSamplePlayback\": " << (samplePlaybackPass ? "true" : "false") << "\n";
+    fullOut << "  \"audioSamplePlayback\": " << (samplePlaybackPass ? "true" : "false") << ",\n";
+    fullOut << "  \"relativisticDelayAndPipes\": " << (delayPipePass ? "true" : "false") << "\n";
     fullOut << "}\n";
     fullOut.close();
 
@@ -1158,6 +1237,123 @@ bool AgentTestRunner::testAudioSamplePlayback()
     if (peak < 0.1f)
     {
         std::cout << "FAILED (readsf~ audio output magnitude too low: " << peak << ")\n";
+        return false;
+    }
+
+    std::cout << "PASSED\n";
+    return true;
+}
+
+bool AgentTestRunner::testRelativisticDelayAndPipeSuite()
+{
+    std::cout << "[Test 15] Relativistic Delay Lines & Control Pipes (pipe, delwrite~, delread~, vd~, timer, snapshot~, quantize)... ";
+    RelativisticNodeGraph graph;
+    graph.prepare(96000.0, 512);
+
+    // 1. Test [pipe] Relativistic Proper-Time Message Delay
+    auto pipeNode = RelativisticNodeFactory::createNode(1, "pipe 50"); // 50ms default delay (4800 samples @ 96k)
+    std::vector<std::string> pipeOutputs;
+    pipeNode->onMessageEmitted = [&pipeOutputs](const std::string& msg) {
+        pipeOutputs.push_back(msg);
+    };
+
+    graph.addNode(pipeNode);
+    pipeNode->receiveMessage("pitch 64");
+
+    juce::AudioBuffer<float> dummyBuf(2, 512);
+
+    // After 5 blocks (2560 samples < 4800), should NOT have fired yet
+    for (int b = 0; b < 5; ++b)
+    {
+        graph.process(dummyBuf, 512);
+    }
+    if (!pipeOutputs.empty())
+    {
+        std::cout << "FAILED (pipe fired prematurely before 50ms)\n";
+        return false;
+    }
+
+    // After 6 more blocks (total 11 blocks = 5632 samples > 4800), should have fired
+    for (int b = 0; b < 6; ++b)
+    {
+        graph.process(dummyBuf, 512);
+    }
+    if (pipeOutputs.size() != 1 || pipeOutputs[0] != "pitch 64")
+    {
+        std::cout << "FAILED (pipe did not emit queued message after 50ms delay)\n";
+        return false;
+    }
+
+    // 2. Test [delwrite~] and [delread~] Audio Delay Line
+    auto delwrite = RelativisticNodeFactory::createNode(2, "delwrite~ delay_test 500");
+    auto delread  = RelativisticNodeFactory::createNode(3, "delread~ delay_test 10"); // 10ms delay = 960 samples
+    auto oscSrc   = RelativisticNodeFactory::createNode(4, "osc~ sin");
+    auto outNode  = RelativisticNodeFactory::createNode(5, "out~");
+
+    graph.addNode(delwrite);
+    graph.addNode(delread);
+    graph.addNode(oscSrc);
+    graph.addNode(outNode);
+
+    graph.addConnection(4, 2, 2, 1); // osc out~ -> delwrite in~
+    graph.addConnection(3, 2, 5, 1); // delread out~ -> out~ L
+
+    juce::AudioBuffer<float> delTestBuf(2, 512);
+    for (int b = 0; b < 10; ++b)
+    {
+        graph.process(delTestBuf, 512);
+    }
+
+    float delPeak = delTestBuf.getMagnitude(0, 512);
+    if (delPeak < 0.1f)
+    {
+        std::cout << "FAILED (delread~ did not output delayed audio from delwrite~: " << delPeak << ")\n";
+        return false;
+    }
+
+    // 3. Test [timer] Relativistic Proper-Time Chronometer
+    auto timerNode = RelativisticNodeFactory::createNode(6, "timer");
+    std::string measuredProperTime = "";
+    timerNode->onMessageEmitted = [&measuredProperTime](const std::string& msg) {
+        measuredProperTime = msg;
+    };
+    graph.addNode(timerNode);
+
+    timerNode->receiveMessage("reset");
+    // Process 9600 samples (100 ms at 96kHz)
+    for (int b = 0; b < 19; ++b) // 19 * 512 = 9728 samples ~ 101.33 ms
+    {
+        graph.process(dummyBuf, 512);
+    }
+    timerNode->receiveMessage("bang");
+
+    if (measuredProperTime.empty())
+    {
+        std::cout << "FAILED (timer did not emit measurement message)\n";
+        return false;
+    }
+    double measuredMs = std::stod(measuredProperTime);
+    if (std::abs(measuredMs - 101.33) > 10.0)
+    {
+        std::cout << "FAILED (timer measured incorrect proper time: " << measuredMs << " ms)\n";
+        return false;
+    }
+
+    // 4. Test [snapshot~] Instantaneous Sampler
+    auto snapNode = RelativisticNodeFactory::createNode(7, "snapshot~");
+    std::string sampledVal = "";
+    snapNode->onMessageEmitted = [&sampledVal](const std::string& msg) {
+        sampledVal = msg;
+    };
+    graph.addNode(snapNode);
+    graph.addConnection(4, 2, 7, 1); // osc out~ -> snapshot in~
+
+    graph.process(dummyBuf, 512);
+    snapNode->receiveMessage("bang");
+
+    if (sampledVal.empty())
+    {
+        std::cout << "FAILED (snapshot~ did not emit sampled value)\n";
         return false;
     }
 
