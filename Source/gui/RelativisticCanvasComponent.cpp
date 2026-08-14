@@ -1312,6 +1312,52 @@ bool RelativisticCanvasComponent::keyPressed(const juce::KeyPress& key)
         return true;
     }
 
+    // Arrow keys: Nudge and move all selected objects together!
+    if (!isEditingObject && !selectedNodeIds.empty())
+    {
+        float step = key.getModifiers().isShiftDown() ? 50.0f : 10.0f;
+        if (key.getKeyCode() == juce::KeyPress::leftKey)
+        {
+            for (int id : selectedNodeIds)
+            {
+                auto n = getCurrentGraph().getNode(id);
+                if (n) n->xPos -= step;
+            }
+            repaint();
+            return true;
+        }
+        else if (key.getKeyCode() == juce::KeyPress::rightKey)
+        {
+            for (int id : selectedNodeIds)
+            {
+                auto n = getCurrentGraph().getNode(id);
+                if (n) n->xPos += step;
+            }
+            repaint();
+            return true;
+        }
+        else if (key.getKeyCode() == juce::KeyPress::upKey)
+        {
+            for (int id : selectedNodeIds)
+            {
+                auto n = getCurrentGraph().getNode(id);
+                if (n) n->yPos -= step;
+            }
+            repaint();
+            return true;
+        }
+        else if (key.getKeyCode() == juce::KeyPress::downKey)
+        {
+            for (int id : selectedNodeIds)
+            {
+                auto n = getCurrentGraph().getNode(id);
+                if (n) n->yPos += step;
+            }
+            repaint();
+            return true;
+        }
+    }
+
     return false;
 }
 
@@ -1343,8 +1389,6 @@ void RelativisticCanvasComponent::mouseDown(const juce::MouseEvent& e)
         return;
     }
 
-    clearSelection();
-
     // 1. Check if clicked a Port (Outlet OR Inlet for bi-directional dragging!)
     for (const auto& node : currGraph.getNodes())
     {
@@ -1354,6 +1398,7 @@ void RelativisticCanvasComponent::mouseDown(const juce::MouseEvent& e)
             auto p = getPortPos(*node, true, o);
             if (p.getDistanceFrom(pos) < 12.0f)
             {
+                clearSelection();
                 draggingPortNodeId = node->getId();
                 draggingPortIdx = o;
                 isDraggingFromOutlet = true;
@@ -1369,6 +1414,7 @@ void RelativisticCanvasComponent::mouseDown(const juce::MouseEvent& e)
             auto p = getPortPos(*node, false, i);
             if (p.getDistanceFrom(pos) < 12.0f)
             {
+                clearSelection();
                 draggingPortNodeId = node->getId();
                 draggingPortIdx = i;
                 isDraggingFromOutlet = false;
