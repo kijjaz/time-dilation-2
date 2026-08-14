@@ -162,8 +162,8 @@ private:
     void setupFilmSciFiTemplate();
     void setupExperimentalistTemplate();
 
-    bool isPlaying = false; // Audio OFF by default when app opens!
-    int startupMuteBlocks = 20; // 200ms silent hardware startup gate
+    bool isPlaying = true; // Audio DSP Engine ON by default!
+    int startupMuteBlocks = 5; // Clean hardware startup gate
     int nextNodeId = 1;
 
     int inspectorWidth = 260;

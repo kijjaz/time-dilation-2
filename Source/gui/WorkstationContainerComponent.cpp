@@ -215,6 +215,10 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
         canvasComponent.spawnMessageBoxForNode(targetNodeId, msgText);
     };
 
+    arrangementTimelineComponent.onPlaybackToggled = [this](bool play) {
+        isPlaying = play;
+    };
+
     setupDefaultPatch();
 
     if (enableAudioHardware)
@@ -236,36 +240,40 @@ void WorkstationContainerComponent::setupDefaultPatch()
 {
     nodeGraph.clearGraph();
 
+    // Node 1: Relativistic Clock / Modulator
+    auto lfoNode = RelativisticNodeFactory::createNode(1, "time.lfo 0.5 0.5");
+    lfoNode->xPos = 40; lfoNode->yPos = 40;
+
     // Track 1: Melodic Synthesizer Voice
-    auto seqNode = RelativisticNodeFactory::createNode(1, "seq notes 48 55 58 60 62 65 67 70");
-    seqNode->xPos = 40; seqNode->yPos = 50;
+    auto seqNode = RelativisticNodeFactory::createNode(2, "seq notes 48 55 58 60 62 65 67 70");
+    seqNode->xPos = 190; seqNode->yPos = 40;
 
-    auto mtofNode = RelativisticNodeFactory::createNode(2, "mtof~ 48");
-    mtofNode->xPos = 190; mtofNode->yPos = 50;
+    auto mtofNode = RelativisticNodeFactory::createNode(3, "mtof~ 48");
+    mtofNode->xPos = 340; mtofNode->yPos = 40;
 
-    auto oscNode = RelativisticNodeFactory::createNode(3, "osc~ saw");
-    oscNode->xPos = 340; oscNode->yPos = 50;
+    auto oscNode = RelativisticNodeFactory::createNode(4, "osc~ saw");
+    oscNode->xPos = 490; oscNode->yPos = 40;
 
-    auto ladderNode = RelativisticNodeFactory::createNode(4, "ladder~ 1600 0.5");
-    ladderNode->xPos = 490; ladderNode->yPos = 50;
+    auto ladderNode = RelativisticNodeFactory::createNode(5, "ladder~ 1800 0.5");
+    ladderNode->xPos = 640; ladderNode->yPos = 40;
 
-    auto delayNode = RelativisticNodeFactory::createNode(5, "delay~ 0.375 0.42");
-    delayNode->xPos = 640; delayNode->yPos = 50;
+    auto delayNode = RelativisticNodeFactory::createNode(6, "delay~ 0.375 0.42");
+    delayNode->xPos = 790; delayNode->yPos = 40;
 
     // Track 2: Analog Rhythm & Space FX
-    auto kickNode = RelativisticNodeFactory::createNode(6, "kick~ 50 0.35");
+    auto kickNode = RelativisticNodeFactory::createNode(7, "kick~ 50 0.35");
     kickNode->xPos = 40; kickNode->yPos = 200;
 
-    auto snareNode = RelativisticNodeFactory::createNode(7, "snare~ 185 0.65 0.28");
+    auto snareNode = RelativisticNodeFactory::createNode(8, "snare~ 185 0.65 0.28");
     snareNode->xPos = 190; snareNode->yPos = 200;
 
-    auto hihatNode = RelativisticNodeFactory::createNode(8, "hihat~ 0.08");
+    auto hihatNode = RelativisticNodeFactory::createNode(9, "hihat~ 0.08");
     hihatNode->xPos = 340; hihatNode->yPos = 200;
 
-    auto reverbNode = RelativisticNodeFactory::createNode(9, "reverb~ 0.75 0.4 0.35");
+    auto reverbNode = RelativisticNodeFactory::createNode(10, "reverb~ 0.75 0.4 0.35");
     reverbNode->xPos = 490; reverbNode->yPos = 200;
 
-    auto outNode = RelativisticNodeFactory::createNode(10, "out~");
+    auto outNode = RelativisticNodeFactory::createNode(11, "out~");
     outNode->xPos = 660; outNode->yPos = 200;
 
     if (auto out = std::dynamic_pointer_cast<OutNode>(outNode))
@@ -275,6 +283,7 @@ void WorkstationContainerComponent::setupDefaultPatch()
         };
     }
 
+    nodeGraph.addNode(lfoNode);
     nodeGraph.addNode(seqNode);
     nodeGraph.addNode(mtofNode);
     nodeGraph.addNode(oscNode);
@@ -287,30 +296,39 @@ void WorkstationContainerComponent::setupDefaultPatch()
     nodeGraph.addNode(outNode);
 
     // Cable Patch Routing:
-    // 1. Seq -> Mtof~ -> Osc~ Saw
-    nodeGraph.addConnection(1, 1, 2, 1); // seq note -> mtof~ in~
-    nodeGraph.addConnection(2, 1, 3, 2); // mtof~ freq -> osc~ freq~
-    // 2. Osc~ -> Ladder~ Filter -> Delay~ (Dotted 8th @ 120 BPM)
-    nodeGraph.addConnection(3, 2, 4, 2); // osc~ out~ -> ladder~ in~
-    nodeGraph.addConnection(4, 2, 5, 2); // ladder~ out~ -> delay~ in~
-    // 3. Delay~ -> Reverb~ Inlets
-    nodeGraph.addConnection(5, 2, 9, 1); // delay~ out~ -> reverb~ in1~
-    nodeGraph.addConnection(5, 2, 9, 2); // delay~ out~ -> reverb~ in2~
-    // 4. Snare -> Reverb~
-    nodeGraph.addConnection(7, 1, 9, 1); // snare~ out~ -> reverb~ in1~
-    nodeGraph.addConnection(7, 1, 9, 2); // snare~ out~ -> reverb~ in2~
-    // 5. Kick & HiHat Direct to Out~
-    nodeGraph.addConnection(6, 1, 10, 1); // kick~ out~ -> out~ in1~ (L)
-    nodeGraph.addConnection(6, 1, 10, 2); // kick~ out~ -> out~ in2~ (R)
-    nodeGraph.addConnection(8, 1, 10, 1); // hihat~ out~ -> out~ in1~ (L)
-    nodeGraph.addConnection(8, 1, 10, 2); // hihat~ out~ -> out~ in2~ (R)
-    // 6. Delay & Reverb Out to Out~
-    nodeGraph.addConnection(5, 2, 10, 1); // delay~ out~ -> out~ in1~
-    nodeGraph.addConnection(5, 2, 10, 2); // delay~ out~ -> out~ in2~
-    nodeGraph.addConnection(9, 1, 10, 1); // reverb~ out1~ -> out~ in1~ (L)
-    nodeGraph.addConnection(9, 2, 10, 2); // reverb~ out2~ -> out~ in2~ (R)
+    // 1. Time LFO -> Seq (Inlet 1, Time) & Osc~ (Inlet 1, Time)
+    nodeGraph.addConnection(1, 1, 2, 1); // lfo timeOut -> seq timeIn
+    nodeGraph.addConnection(1, 1, 4, 1); // lfo timeOut -> osc~ timeIn
 
-    nextNodeId = 6;
+    // 2. Seq -> Mtof~ -> Osc~ Saw
+    nodeGraph.addConnection(2, 1, 3, 1); // seq note -> mtof~ note~
+    nodeGraph.addConnection(3, 1, 4, 2); // mtof~ freq~ -> osc~ freq~
+
+    // 3. Osc~ -> Ladder~ Filter -> Delay~ (Dotted 8th @ 120 BPM)
+    nodeGraph.addConnection(4, 2, 5, 2); // osc~ out~ (Outlet 2) -> ladder~ in~ (Inlet 2)
+    nodeGraph.addConnection(5, 2, 6, 1); // ladder~ out~ (Outlet 2) -> delay~ in~ (Inlet 1)
+
+    // 4. Delay~ -> Reverb~ Inlets & Out~
+    nodeGraph.addConnection(6, 1, 10, 1); // delay~ out~ (Outlet 1) -> reverb~ in1~ (Inlet 1)
+    nodeGraph.addConnection(6, 1, 10, 2); // delay~ out~ (Outlet 1) -> reverb~ in2~ (Inlet 2)
+    nodeGraph.addConnection(6, 1, 11, 1); // delay~ out~ (Outlet 1) -> out~ in1~ (Inlet 1)
+    nodeGraph.addConnection(6, 1, 11, 2); // delay~ out~ (Outlet 1) -> out~ in2~ (Inlet 2)
+
+    // 5. Snare -> Reverb~ Inlets
+    nodeGraph.addConnection(8, 1, 10, 1); // snare~ out~ (Outlet 1) -> reverb~ in1~ (Inlet 1)
+    nodeGraph.addConnection(8, 1, 10, 2); // snare~ out~ (Outlet 1) -> reverb~ in2~ (Inlet 2)
+
+    // 6. Reverb Out to Out~
+    nodeGraph.addConnection(10, 1, 11, 1); // reverb~ out1~ (Outlet 1) -> out~ in1~ (Inlet 1)
+    nodeGraph.addConnection(10, 2, 11, 2); // reverb~ out2~ (Outlet 2) -> out~ in2~ (Inlet 2)
+
+    // 7. Kick & HiHat Direct to Out~
+    nodeGraph.addConnection(7, 1, 11, 1); // kick~ out~ (Outlet 1) -> out~ in1~ (Inlet 1)
+    nodeGraph.addConnection(7, 1, 11, 2); // kick~ out~ (Outlet 1) -> out~ in2~ (Inlet 2)
+    nodeGraph.addConnection(9, 1, 11, 1); // hihat~ out~ (Outlet 1) -> out~ in1~ (Inlet 1)
+    nodeGraph.addConnection(9, 1, 11, 2); // hihat~ out~ (Outlet 1) -> out~ in2~ (Inlet 2)
+
+    nextNodeId = 12;
 }
 
 void WorkstationContainerComponent::paint(juce::Graphics& g)

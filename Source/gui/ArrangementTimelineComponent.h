@@ -69,6 +69,7 @@ public:
     }
 
     std::function<void(int nodeId)> onInspectNodePatch;
+    std::function<void(bool isPlaying)> onPlaybackToggled;
 
 private:
     RelativisticNodeGraph& nodeGraph;

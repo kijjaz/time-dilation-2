@@ -54,6 +54,7 @@ void ArrangementTimelineComponent::togglePlayback()
     isTimelinePlaying = !isTimelinePlaying;
     playStopButton.setButtonText(isTimelinePlaying ? "STOP" : "PLAY");
     playStopButton.setColour(juce::TextButton::textColourOffId, isTimelinePlaying ? juce::Colours::deeppink : CarbonGoldLookAndFeel::goldAccent);
+    if (onPlaybackToggled) onPlaybackToggled(isTimelinePlaying);
     repaint();
 }
 
