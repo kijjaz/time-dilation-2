@@ -465,7 +465,7 @@ private:
 class NoiseNode : public RelativisticNode
 {
 public:
-    NoiseNode(int id);
+    NoiseNode(int id, const std::string& mode = "white");
     void prepare(double sampleRate, int samplesPerBlock) override;
     void process(int numSamples) override;
     void receiveMessage(const std::string& message) override;

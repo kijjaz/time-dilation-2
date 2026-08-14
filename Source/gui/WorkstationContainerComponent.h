@@ -185,6 +185,8 @@ public:
     std::unique_ptr<juce::FileChooser> activeFileChooser;
 
     void setupDefaultPatch();
+    void loadExampleFullEnsemble();
+    void loadExampleDrumGroove();
     void showAudioSettingsWindow();
 };
 

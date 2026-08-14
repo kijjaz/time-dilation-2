@@ -107,6 +107,13 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
         m.addItem(1, "New Patch (Cmd+N)");
         m.addItem(2, "Open Patch (.pdil)... (Cmd+O)");
         m.addSeparator();
+
+        juce::PopupMenu examplesMenu;
+        examplesMenu.addItem(101, "01: Full Workstation Ensemble (Synth + Drums + FX)");
+        examplesMenu.addItem(102, "02: Analog Drum Machine & Groove (Focused Kick/Snare/Hat)");
+        m.addSubMenu("Examples & Presets", examplesMenu);
+
+        m.addSeparator();
         m.addItem(3, "Save Patch (.pdil) (Cmd+S)");
         m.addItem(4, "Save As... (Cmd+Shift+S)");
         m.addSeparator();
@@ -120,6 +127,8 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
             else if (result == 4) savePatchAs();
             else if (result == 5) showAudioSettingsWindow();
             else if (result == 6) juce::JUCEApplication::getInstance()->systemRequestedQuit();
+            else if (result == 101) loadExampleFullEnsemble();
+            else if (result == 102) loadExampleDrumGroove();
         });
     };
 
@@ -172,15 +181,20 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
 
     workflowMenuButton.onClick = [this]() {
         juce::PopupMenu m;
-        m.addItem(1, "Composer / Musician Mode (Synth Lead + Pluck String)");
-        m.addItem(2, "Sound Designer Mode (Moog Ladder Filter + WaveShaper)");
-        m.addItem(3, "Film & Game Sci-Fi Mode (Relativistic Doppler Wormhole)");
-        m.addItem(4, "Experimentalist Mode (Tarjan Feedback Chaos Loop)");
+        m.addItem(1, "01: Full Workstation Ensemble (Synth + Drums + FX)");
+        m.addItem(2, "02: Analog Drum Machine & Groove (Kick, Snare, Hi-Hat)");
+        m.addSeparator();
+        m.addItem(3, "Composer / Musician Mode (Synth Lead + Pluck String)");
+        m.addItem(4, "Sound Designer Mode (Moog Ladder Filter + WaveShaper)");
+        m.addItem(5, "Film & Game Sci-Fi Mode (Relativistic Doppler Wormhole)");
+        m.addItem(6, "Experimentalist Mode (Tarjan Feedback Chaos Loop)");
         m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&workflowMenuButton), [this](int result) {
-            if (result == 1) setupComposerTemplate();
-            else if (result == 2) setupSoundDesignerTemplate();
-            else if (result == 3) setupFilmSciFiTemplate();
-            else if (result == 4) setupExperimentalistTemplate();
+            if (result == 1) loadExampleFullEnsemble();
+            else if (result == 2) loadExampleDrumGroove();
+            else if (result == 3) setupComposerTemplate();
+            else if (result == 4) setupSoundDesignerTemplate();
+            else if (result == 5) setupFilmSciFiTemplate();
+            else if (result == 6) setupExperimentalistTemplate();
             trackViewComponent.refreshTracks();
             canvasComponent.repaint();
         });
@@ -242,6 +256,11 @@ WorkstationContainerComponent::~WorkstationContainerComponent()
 
 void WorkstationContainerComponent::setupDefaultPatch()
 {
+    loadExampleDrumGroove();
+}
+
+void WorkstationContainerComponent::loadExampleFullEnsemble()
+{
     nodeGraph.clearGraph();
 
     // Row 1: Relativistic Clock & Melodic Synthesizer Voice
@@ -270,16 +289,16 @@ void WorkstationContainerComponent::setupDefaultPatch()
     seqKickNode->setLabel("seq.kick");
     seqKickNode->xPos = 40; seqKickNode->yPos = 200;
 
-    auto kickNode = RelativisticNodeFactory::createNode(8, "kick~ 50 0.35");
-    kickNode->setOutputVolume(0.80f);
+    auto kickNode = RelativisticNodeFactory::createNode(8, "kick~ 55 0.35");
+    kickNode->setOutputVolume(0.95f);
     kickNode->xPos = 190; kickNode->yPos = 200;
 
     auto seqSnareNode = RelativisticNodeFactory::createNode(9, "seq 0 0 0 0 1 0 0 0 0 0 0 0 1 0 1 0");
     seqSnareNode->setLabel("seq.snare");
     seqSnareNode->xPos = 340; seqSnareNode->yPos = 200;
 
-    auto snareNode = RelativisticNodeFactory::createNode(10, "snare~ 185 0.65 0.28");
-    snareNode->setOutputVolume(0.70f);
+    auto snareNode = RelativisticNodeFactory::createNode(10, "snare~ 185 0.70 0.28");
+    snareNode->setOutputVolume(0.85f);
     snareNode->xPos = 490; snareNode->yPos = 200;
 
     auto seqHatNode = RelativisticNodeFactory::createNode(11, "seq 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1");
@@ -287,7 +306,7 @@ void WorkstationContainerComponent::setupDefaultPatch()
     seqHatNode->xPos = 640; seqHatNode->yPos = 200;
 
     auto hihatNode = RelativisticNodeFactory::createNode(12, "hihat~ 0.08");
-    hihatNode->setOutputVolume(0.50f);
+    hihatNode->setOutputVolume(0.70f);
     hihatNode->xPos = 790; hihatNode->yPos = 200;
 
     // Row 3: Space FX & Stereo Master
@@ -296,7 +315,7 @@ void WorkstationContainerComponent::setupDefaultPatch()
     reverbNode->xPos = 340; reverbNode->yPos = 360;
 
     auto outNode = RelativisticNodeFactory::createNode(14, "out~ master");
-    outNode->setOutputVolume(0.90f);
+    outNode->setOutputVolume(1.0f);
     outNode->xPos = 520; outNode->yPos = 360;
 
     if (auto out = std::dynamic_pointer_cast<OutNode>(outNode))
@@ -359,6 +378,90 @@ void WorkstationContainerComponent::setupDefaultPatch()
     nodeGraph.addConnection(13, 2, 14, 2); // reverb~ out2~ -> out~ R
 
     nextNodeId = 15;
+    arrangementTimelineComponent.refreshTimeline();
+    canvasComponent.repaint();
+    trackViewComponent.refreshTracks();
+}
+
+void WorkstationContainerComponent::loadExampleDrumGroove()
+{
+    nodeGraph.clearGraph();
+
+    // 1. Master Relativistic Clock (time.lfo @ 120 BPM)
+    auto lfoNode = RelativisticNodeFactory::createNode(1, "time.lfo 0.5 0.5");
+    lfoNode->xPos = 40; lfoNode->yPos = 40;
+
+    // 2. Kick Drum Section: Sequencer + Sub-bass Kick Synth
+    auto seqKickNode = RelativisticNodeFactory::createNode(2, "seq 1 0 0 0 1 0 0 0 1 0 0 1 1 0 0 0");
+    seqKickNode->setLabel("seq.kick");
+    seqKickNode->xPos = 200; seqKickNode->yPos = 40;
+
+    auto kickNode = RelativisticNodeFactory::createNode(3, "kick~ 55 0.35");
+    kickNode->setOutputVolume(0.95f);
+    kickNode->xPos = 380; kickNode->yPos = 40;
+
+    // 3. Snare Drum Section: Sequencer + Dual-Tone Snare Synth
+    auto seqSnareNode = RelativisticNodeFactory::createNode(4, "seq 0 0 0 0 1 0 0 0 0 0 0 0 1 0 1 0");
+    seqSnareNode->setLabel("seq.snare");
+    seqSnareNode->xPos = 200; seqSnareNode->yPos = 190;
+
+    auto snareNode = RelativisticNodeFactory::createNode(5, "snare~ 185 0.70 0.28");
+    snareNode->setOutputVolume(0.85f);
+    snareNode->xPos = 380; snareNode->yPos = 190;
+
+    // 4. Hi-Hat Section: Sequencer + Metallic Cluster Hi-Hat Synth
+    auto seqHatNode = RelativisticNodeFactory::createNode(6, "seq 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1");
+    seqHatNode->setLabel("seq.hihat");
+    seqHatNode->xPos = 200; seqHatNode->yPos = 340;
+
+    auto hihatNode = RelativisticNodeFactory::createNode(7, "hihat~ 0.08");
+    hihatNode->setOutputVolume(0.70f);
+    hihatNode->xPos = 380; hihatNode->yPos = 340;
+
+    // 5. Stereo Master Output Bus
+    auto outNode = RelativisticNodeFactory::createNode(8, "out~ master");
+    outNode->setOutputVolume(1.0f);
+    outNode->xPos = 580; outNode->yPos = 190;
+
+    if (auto out = std::dynamic_pointer_cast<OutNode>(outNode))
+    {
+        out->onPlaybackStateChanged = [this](bool play) {
+            isPlaying = play;
+        };
+    }
+
+    nodeGraph.addNode(lfoNode);
+    nodeGraph.addNode(seqKickNode);
+    nodeGraph.addNode(kickNode);
+    nodeGraph.addNode(seqSnareNode);
+    nodeGraph.addNode(snareNode);
+    nodeGraph.addNode(seqHatNode);
+    nodeGraph.addNode(hihatNode);
+    nodeGraph.addNode(outNode);
+
+    // Cable Patch Routing:
+    // Clock -> Sequencers
+    nodeGraph.addConnection(1, 1, 2, 1);  // lfo timeOut -> kick seq timeIn
+    nodeGraph.addConnection(1, 1, 4, 1);  // lfo timeOut -> snare seq timeIn
+    nodeGraph.addConnection(1, 1, 6, 1);  // lfo timeOut -> hihat seq timeIn
+
+    // Sequencer Gate Outlets (Outlet 2) -> Drum Trigger Inlets (Inlet 1)
+    nodeGraph.addConnection(2, 2, 3, 1);  // seq.kick gate -> kick~ trig~
+    nodeGraph.addConnection(4, 2, 5, 1);  // seq.snare gate -> snare~ trig~
+    nodeGraph.addConnection(6, 2, 7, 1);  // seq.hihat gate -> hihat~ trig~
+
+    // Drum Audio Outlets (Outlet 1) -> Out~ Master (Inlets 1 & 2)
+    nodeGraph.addConnection(3, 1, 8, 1);  // kick~ -> out~ L
+    nodeGraph.addConnection(3, 1, 8, 2);  // kick~ -> out~ R
+    nodeGraph.addConnection(5, 1, 8, 1);  // snare~ -> out~ L
+    nodeGraph.addConnection(5, 1, 8, 2);  // snare~ -> out~ R
+    nodeGraph.addConnection(7, 1, 8, 1);  // hihat~ -> out~ L
+    nodeGraph.addConnection(7, 1, 8, 2);  // hihat~ -> out~ R
+
+    nextNodeId = 9;
+    arrangementTimelineComponent.refreshTimeline();
+    canvasComponent.repaint();
+    trackViewComponent.refreshTracks();
 }
 
 void WorkstationContainerComponent::paint(juce::Graphics& g)
