@@ -36,75 +36,66 @@ RelativisticCanvasComponent::RelativisticCanvasComponent(RelativisticNodeGraph& 
     addChildComponent(suggestionListBox);
 
     allCatalogueObjects = {
-        { "seq.tidal [60 [62 64] 67 [69 71 72]]", "TidalCycles Mini-Notation Pattern Sequencer (Subdivisions, Stacking, Euclids, Speed, Alternation)" },
-        { "tidal [60 64 67, 36 [~ 48]]", "Alias for seq.tidal mini-notation pattern sequencer" },
-        { "pattern [60 62 65 67]", "Alias for seq.tidal pattern sequencer" },
-        { "seq.euclid 5 16", "Bjorklund Euclidean Rhythm Sequencer (5 pulses in 16 steps)" },
-        { "seq.arp up 2 0.125", "Relativistic Chord Arpeggiator (up, down, updown, random)" },
-        { "seq.poly", "Polyrhythmic Multi-Meter Sequencer" },
-        { "auto~ 0.5", "Timeline Parameter Automation Reader (Spline interpolation)" },
-        { "time.curve~ 1.0 500", "Piecewise Time-Curvature Function Generator (Tape Stops, S-Curves)" },
-        { "time.chaos~ 0.5 lorenz", "Relativistic Chaotic Attractor Time Modulator (3D Lorenz / Rossler RK4)" },
-        { "time.crossfade~ 0.5", "Relativistic Spacetime Morpher & Dual Time Vector Interpolator" },
-        { "time.const~ 1.0", "Constant / Stepped Speed Dilation (\u03b3 generator)" },
-        { "time.scale~ 2.0", "Time Multiplier & Polyrhythmic Divider" },
-        { "time.add~ 0.2", "Time Offset & Micro-Timing Groove Summer" },
-        { "time.quantize~ 125", "Continuous-to-Stepped Grid Quantizer" },
-        { "time.split~", "Time Frame to Audio Signal Splitter" },
-        { "time.merge~", "Audio Signals to Time Frame Merger" },
-        { "time.lfo~ 0.5 0.8", "Relativistic Proper Time LFO (Rate: 0.5Hz, Depth: 0.8)" },
-        { "time.warp~ 1.5", "Relativistic Time Warp Node (\u03b3 = 1.5x speed)" },
-        { "time.grav.osc~ 1.0 2.0", "Gravitational Redshift Oscillator (Mass: 1.0, Radius: 2.0)" },
-        { "time.lorentz~ 1200 0.5", "Lorentz Velocity Filter (v = 0.5c)" },
-        { "time.tachyon.grain~ 50", "Faster-than-Light Granular Synthesizer (50ms grains)" },
-        { "time.transport~", "Relativistic Transport Master Clock" },
-        { "time.scope~", "Proper Time Telemetry Plot" },
-        { "metro 125 1", "Relativistic Proper-Time Metronome & Clock" },
-        { "counter 0 15 1", "Step Counter & Integer Clock Divider" },
-        { "random 100", "Deterministic / Stochastic Integer Generator" },
-        { "select 0 4 8 12", "Value Matcher & Bang Dispatcher" },
-        { "route 1 2 3", "Prefix & Channel Router" },
-        { "t b b", "Trigger Bangs in Right-to-Left Sequence" },
-        { "pipe 150", "Relativistic Proper-Time Timestamped Event Queue" },
-        { "timer", "Relativistic Proper-Time Stopwatch" },
-        { "snapshot~", "Instantaneous Audio & Time Frame Sampler" },
-        { "delwrite~ del1 1000", "Relativistic Circular Delay Buffer Writer" },
-        { "vd~ del1 150", "Relativistic Doppler Variable Delay Buffer Reader" },
-        { "readsf~ 2", "Streaming Audio File Playback" },
-        { "soundfiler", "Audio File Reader & Table Buffer Ingestion" },
-        { "spectrogram~", "Real-Time FFT Waterfall Spectrogram (0Hz - Nyquist)" },
-        { "spec~", "Alias for spectrogram~" },
-        { "meter~", "Precision Level Meter (Peak, RMS, LUFS modes)" },
-        { "meter~ rms", "RMS Level Meter" },
-        { "meter~ lufs", "EBU R128 LUFS Loudness Meter" },
-        { "vu~", "Alias for meter~ level meter" },
-        { "osc~ sin 440", "Anti-aliased PolyBLEP Sine Oscillator @ 440 Hz" },
-        { "osc~ saw 220", "Sawtooth Oscillator @ 220 Hz" },
-        { "osc~ square 110", "Square Wave Oscillator @ 110 Hz" },
-        { "osc~ tri 330", "Triangle Wave Oscillator @ 330 Hz" },
-        { "ladder~ 1500 0.5", "4-Pole Moog VA Ladder Filter (Cutoff: 1500Hz, Res: 0.5)" },
-        { "drive~ 2.0", "Hyperbolic WaveShaper Tube Distortion (Drive: 2.0)" },
-        { "saturate~ 2.5", "Alias for drive~ saturator" },
-        { "pluck~ 220", "Karplus-Strong Physical String Model (Pitch: 220Hz)" },
-        { "out~", "Master Stereo Output & Monitoring Node" },
-        { "table array1 44100", "Audio Sample Buffer Array (44100 samples)" },
-        { "tabread~ array1", "Audio Sample Buffer Reader" },
-        { "delay~ 2.0", "Feedback Delay Line (Max 2.0 seconds)" },
-        { "svf~ 1000 0.707", "State Variable Filter (Cutoff: 1000Hz, Q: 0.707)" },
-        { "seq notes 60 62 64 67", "Relativistic Step Sequencer" },
-        { "mtof 69", "MIDI Note Number to Frequency in Hz (e.g. 69 \u2192 440 Hz)" },
-        { "mtof~ 60", "Signal-Rate MIDI Note to Frequency Converter" },
-        { "ftom 440", "Frequency in Hz to MIDI Note Number (e.g. 440 Hz \u2192 69)" },
-        { "ftom~ 220", "Signal-Rate Frequency to MIDI Note Converter" },
-        { "pack~ 2", "Bundle N Mono Audio Inlets into 1 Multichannel Audio Cable" },
-        { "unpack~ 2", "Split 1 Multichannel Audio Cable into N Mono Outlets" },
-        { "reverb~ 0.7 0.4 0.35", "Stereo Algorithmic Reverberator (Room, Damp, Wet)" },
-        { "noise~", "White & Pink Noise Audio Generator" },
-        { "kick~ 50 0.35", "Analog Pitch-Sweep Sub-Bass Kick Drum" },
-        { "snare~ 185 0.65 0.28", "Analog Dual-Tone & Filtered Noise Snare Drum" },
-        { "hihat~ 0.08", "Metallic Multi-Pulse Closed/Open Hi-Hat" },
-        { "msg play", "Parameter Control Message Box ('play')" },
-        { "msg cutoff 1200", "Parameter Control Message Box ('cutoff 1200')" }
+        { "seq.tidal [60 [62 64] 67 [69 71 72]]", "TidalCycles Pattern Sequencer (Subdivisions, Polyphony, Euclids)", "tidal pattern seq strudel mini-notation rhythm groove livecoding polyphony subdivision" },
+        { "seq.euclid 5 16", "Bjorklund Euclidean Rhythm Sequencer (5 pulses in 16 steps)", "euclid seq rhythm pattern bjorklund tresillo cinquillo" },
+        { "seq.arp up 2 0.125", "Relativistic Chord Arpeggiator (up, down, updown, random)", "arp arpeggio seq pattern chord note melody" },
+        { "seq.poly", "Polyrhythmic Multi-Meter Sequencer", "poly polyrhythm multi seq meter pattern rhythm polymeter" },
+        { "seq notes 60 62 64 67", "Relativistic Step Sequencer", "step seq pattern note pitch sequencer" },
+        { "auto~ 0.5", "Timeline Parameter Automation Reader (Spline interpolation)", "auto automation envelope curve spline parameter timeline" },
+        { "time.curve~ 1.0 500", "Piecewise Time-Curvature Function Generator (Tape Stops, S-Curves)", "curve time tape stop s-curve warp slowdown" },
+        { "time.chaos~ 0.5 lorenz", "Relativistic Chaotic Attractor Time Modulator (3D Lorenz / Rossler RK4)", "chaos lorenz rossler rk4 attractor time drift nonlinear" },
+        { "time.crossfade~ 0.5", "Relativistic Spacetime Morpher & Dual Time Vector Interpolator", "crossfade morpher time blend dual vector" },
+        { "time.const~ 1.0", "Constant / Stepped Speed Dilation (\u03b3 generator)", "const speed gamma time rate multiplier" },
+        { "time.scale~ 2.0", "Time Multiplier & Polyrhythmic Divider", "scale time multiplier divider polyrhythm" },
+        { "time.add~ 0.2", "Time Offset & Micro-Timing Groove Summer", "add offset microtiming tau delay swing groove" },
+        { "time.quantize~ 125", "Continuous-to-Stepped Grid Quantizer", "quantize time grid step samplehold" },
+        { "time.split~", "Time Frame to Audio Signal Splitter", "split timeframe audio channels demux" },
+        { "time.merge~", "Audio Signals to Time Frame Merger", "merge timeframe audio channels mux" },
+        { "time.lfo~ 0.5 0.8", "Relativistic Proper Time LFO (Rate: 0.5Hz, Depth: 0.8)", "lfo time rate modulation low frequency oscillator" },
+        { "time.warp~ 1.5", "Relativistic Time Warp Node (\u03b3 = 1.5x speed)", "warp time relativistic speed dilation" },
+        { "time.grav.osc~ 1.0 2.0", "Gravitational Redshift Oscillator (Mass: 1.0, Radius: 2.0)", "gravitational redshift black hole general relativity mass" },
+        { "time.lorentz~ 1200 0.5", "Lorentz Velocity Filter (v = 0.5c)", "lorentz special relativity filter cutoff velocity" },
+        { "time.tachyon.grain~ 50", "Faster-than-Light Granular Synthesizer (50ms grains)", "tachyon granular grain ftl clouds texture" },
+        { "time.transport~", "Relativistic Transport Master Clock", "transport clock play tempo bpm sync" },
+        { "time.scope~", "Proper Time Telemetry Plot", "scope telemetry visualizer gamma tau" },
+        { "metro 125 1", "Relativistic Proper-Time Metronome & Clock", "metro clock pulse bang timer tick bpm" },
+        { "counter 0 15 1", "Step Counter & Integer Clock Divider", "counter step divide integer count" },
+        { "random 100", "Deterministic / Stochastic Integer Generator", "random chance stochastic dice noise" },
+        { "select 0 4 8 12", "Value Matcher & Bang Dispatcher", "select sel match dispatch route" },
+        { "route 1 2 3", "Prefix & Channel Router", "route prefix channel dispatch" },
+        { "t b b", "Trigger Bangs in Right-to-Left Sequence", "trigger t bang sequence dispatch" },
+        { "pipe 150", "Relativistic Proper-Time Timestamped Event Queue", "pipe delay queue event schedule" },
+        { "timer", "Relativistic Proper-Time Stopwatch", "timer elapsed duration stopwatch delta" },
+        { "snapshot~", "Instantaneous Audio & Time Frame Sampler", "snapshot sample hold meter probe" },
+        { "delwrite~ del1 1000", "Relativistic Circular Delay Buffer Writer", "delwrite delay buffer write echo" },
+        { "vd~ del1 150", "Relativistic Doppler Variable Delay Buffer Reader", "vd variable delay doppler pitch chorus flanger" },
+        { "readsf~ 2", "Streaming Audio File Playback", "readsf read audio wave wav aif stream player sample" },
+        { "soundfiler", "Audio File Reader & Table Buffer Ingestion", "soundfiler load wave wav sample table array" },
+        { "spectrogram~", "Real-Time FFT Waterfall Spectrogram (0Hz - Nyquist)", "spectrogram spec fft waterfall spectrum visualizer analysis" },
+        { "meter~", "Precision Level Meter (Peak, RMS, LUFS modes)", "meter vu lufs peak rms level volume visualizer" },
+        { "osc~ sin 440", "Anti-aliased PolyBLEP Sine Oscillator @ 440 Hz", "osc sine oscillator synth tone pitch sound" },
+        { "osc~ saw 220", "Sawtooth Oscillator @ 220 Hz", "osc saw sawtooth oscillator synth tone" },
+        { "osc~ square 110", "Square Wave Oscillator @ 110 Hz", "osc square pulse oscillator synth tone" },
+        { "osc~ tri 330", "Triangle Wave Oscillator @ 330 Hz", "osc tri triangle oscillator synth tone" },
+        { "ladder~ 1500 0.5", "4-Pole Moog VA Ladder Filter (Cutoff: 1500Hz, Res: 0.5)", "ladder moog filter lowpass resonance cutoff va" },
+        { "svf~ 1000 0.707", "State Variable Filter (Cutoff: 1000Hz, Q: 0.707)", "svf state variable filter bandpass highpass lowpass" },
+        { "drive~ 2.0", "Hyperbolic WaveShaper Tube Distortion (Drive: 2.0)", "drive saturate distortion tube fuzz overdrive waveshaper" },
+        { "pluck~ 220", "Karplus-Strong Physical String Model (Pitch: 220Hz)", "pluck karplus strong physical model guitar string harp" },
+        { "reverb~ 0.7 0.4 0.35", "Stereo Algorithmic Reverberator (Room, Damp, Wet)", "reverb space room hall algorithmic ambience wet" },
+        { "noise~", "White & Pink Noise Audio Generator", "noise white pink random hiss audio generator" },
+        { "kick~ 50 0.35", "Analog Pitch-Sweep Sub-Bass Kick Drum", "kick bass drum 808 909 percussion bd" },
+        { "snare~ 185 0.65 0.28", "Analog Dual-Tone & Filtered Noise Snare Drum", "snare drum noise percussion sn 808 909" },
+        { "hihat~ 0.08", "Metallic Multi-Pulse Closed/Open Hi-Hat", "hihat hat closed open metallic percussion hh" },
+        { "out~", "Master Stereo Output & Monitoring Node", "out dac master output speaker monitor" },
+        { "table array1 44100", "Audio Sample Buffer Array (44100 samples)", "table array buffer memory sample ram" },
+        { "tabread~ array1", "Audio Sample Buffer Reader", "tabread table read sample buffer player" },
+        { "delay~ 2.0", "Feedback Delay Line (Max 2.0 seconds)", "delay echo feedback time repeat" },
+        { "mtof 69", "MIDI Note Number to Frequency in Hz (e.g. 69 \u2192 440 Hz)", "mtof midi note frequency hz pitch convert" },
+        { "ftom 440", "Frequency in Hz to MIDI Note Number (e.g. 440 Hz \u2192 69)", "ftom frequency hz midi note pitch convert" },
+        { "pack~ 2", "Bundle N Mono Audio Inlets into 1 Multichannel Audio Cable", "pack bundle multichannel cable mux" },
+        { "unpack~ 2", "Split 1 Multichannel Audio Cable into N Mono Outlets", "unpack split multichannel cable demux" },
+        { "msg play", "Parameter Control Message Box ('play')", "msg message string command value" },
+        { "msg cutoff 1200", "Parameter Control Message Box ('cutoff 1200')", "msg message parameter value command" }
     };
 
     recenterButton.setButtonText("Recenter View");
@@ -1108,22 +1099,75 @@ void RelativisticCanvasComponent::updateAutocompleteSuggestions()
     juce::String text = objectEditor.getText().toLowerCase().trim();
     filteredObjects.clear();
 
+    if (text.isEmpty())
+    {
+        suggestionListBox.setVisible(false);
+        return;
+    }
+
+    auto searchTokens = juce::StringArray::fromTokens(text, " \t,", "");
+
+    struct ScoredItem
+    {
+        AutocompleteItem item;
+        int score = 0;
+    };
+    std::vector<ScoredItem> scored;
+
     for (const auto& item : allCatalogueObjects)
     {
         juce::String sym = juce::String(item.symbol).toLowerCase();
         juce::String desc = juce::String(item.description).toLowerCase();
+        juce::String kw = juce::String(item.keywords).toLowerCase();
 
-        if (text.isEmpty() || sym.contains(text) || desc.contains(text))
+        bool allTokensMatch = true;
+        int matchScore = 0;
+
+        for (const auto& tok : searchTokens)
         {
-            filteredObjects.push_back(item);
+            if (sym.startsWith(tok))
+            {
+                matchScore += 100;
+            }
+            else if (sym.contains(tok))
+            {
+                matchScore += 60;
+            }
+            else if (kw.contains(tok))
+            {
+                matchScore += 40;
+            }
+            else if (desc.contains(tok))
+            {
+                matchScore += 20;
+            }
+            else
+            {
+                allTokensMatch = false;
+                break;
+            }
         }
+
+        if (allTokensMatch && matchScore > 0)
+        {
+            scored.push_back({ item, matchScore });
+        }
+    }
+
+    std::stable_sort(scored.begin(), scored.end(), [](const ScoredItem& a, const ScoredItem& b) {
+        return a.score > b.score;
+    });
+
+    for (const auto& s : scored)
+    {
+        filteredObjects.push_back(s.item);
     }
 
     if (!filteredObjects.empty())
     {
         int x = objectEditor.getX();
         int y = objectEditor.getBottom() + 2;
-        int w = std::max(540, objectEditor.getWidth());
+        int w = std::max(560, objectEditor.getWidth());
         int h = std::min(220, static_cast<int>(filteredObjects.size()) * 22 + 6);
 
         if (y + h > getHeight()) y = objectEditor.getY() - h - 2;
@@ -1241,6 +1285,9 @@ void RelativisticCanvasComponent::commitObjectCreation()
                     oldNode->setLabel(text.toStdString());
                     oldNode->receiveMessage(text.toStdString());
                 }
+                clearSelection();
+                selectNode(oldNode->getId());
+                if (onNodeSelected) onNodeSelected(oldNode);
             }
         }
         else
@@ -1253,6 +1300,9 @@ void RelativisticCanvasComponent::commitObjectCreation()
                 newNode->xPos = lastMousePos.x;
                 newNode->yPos = lastMousePos.y;
                 getCurrentGraph().addNode(newNode);
+                clearSelection();
+                selectNode(newNode->getId());
+                if (onNodeSelected) onNodeSelected(newNode);
             }
         }
     }
@@ -1629,6 +1679,8 @@ void RelativisticCanvasComponent::mouseDown(const juce::MouseEvent& e)
                 if (n) multiNodeDragStarts[id] = { n->xPos, n->yPos };
             }
             nodeDragStartPos = pos;
+
+            if (onNodeSelected) onNodeSelected(node);
 
             std::string sym = node->getSymbol();
             std::transform(sym.begin(), sym.end(), sym.begin(), ::tolower);

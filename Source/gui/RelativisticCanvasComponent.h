@@ -82,6 +82,7 @@ private:
     {
         std::string symbol;
         std::string description;
+        std::string keywords;
     };
 
     class AutocompleteModel : public juce::ListBoxModel
