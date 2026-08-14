@@ -970,6 +970,22 @@ void OutNode::process(int numSamples)
     if (inL.getNumChannels() > 0 && rawL > 0.00001f) readPtr = inL.getReadPointer(0);
     else if (inR.getNumChannels() > 0 && rawR > 0.00001f) readPtr = inR.getReadPointer(0);
 
+    // Populate Stereo Multi-Channel Pass-Through Buffer (Ch 0 = Left, Ch 1 = Right)
+    auto& outBuf = getOutletBuffer(1);
+    if (outBuf.getNumChannels() < 2 || outBuf.getNumSamples() < numSamples)
+    {
+        outBuf.setSize(2, numSamples, false, false, true);
+    }
+    outBuf.clear();
+    if (inL.getNumChannels() > 0 && numSamples > 0)
+    {
+        outBuf.copyFrom(0, 0, inL, 0, 0, numSamples);
+    }
+    if (inR.getNumChannels() > 0 && numSamples > 0)
+    {
+        outBuf.copyFrom(1, 0, inR, 0, 0, numSamples);
+    }
+
     if (readPtr && numSamples > 0)
     {
         if (waveformBuffer.size() < 512) waveformBuffer.resize(512, 0.0f);
