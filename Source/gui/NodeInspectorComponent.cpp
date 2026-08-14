@@ -190,7 +190,10 @@ void NodeInspectorComponent::updateUIForSelectedNode()
     bool isControlNode = (sym == "msg" || sym == "message" || sym == "bang" || sym == "bng" ||
                           sym == "toggle" || sym == "tgl" || sym == "number" || sym == "num" ||
                           sym == "symbol" || sym == "sym" || sym == "radio" || sym == "hradio" ||
-                          sym == "vradio" || sym == "display" || sym == "disp" || sym == "print");
+                          sym == "vradio" || sym == "display" || sym == "disp" || sym == "print" ||
+                          sym == "trigger" || sym == "t" || sym == "select" || sym == "sel" ||
+                          sym == "route" || sym == "metro" || sym == "del" || sym == "delay" ||
+                          sym == "random" || sym == "counter" || sym == "soundfiler");
 
     if (isControlNode)
     {
@@ -858,6 +861,120 @@ void NodeInspectorComponent::updateUIForSelectedNode()
                                   : "Message & number inspector. Prints all incoming control messages, list elements, or numeric triggers to the Terminal Console.", juce::dontSendNotification);
         templateMsgs = { "probe", "bang", "stat", "prefix test", "1", "0" };
     }
+    else if (sym == "trigger" || sym == "t")
+    {
+        paramSlider1.setVisible(false); paramLabel1.setVisible(false);
+        paramSlider2.setVisible(false); paramLabel2.setVisible(false);
+        optionLabel.setVisible(false); optionSelector.setVisible(false);
+
+        descLabel.setText("Pure Data Right-to-Left deterministic message sequencer. Fires its outlets in strict order from rightmost (N-1) to leftmost (0) upon receiving any message. Supports 'b' (bang), 'f' (float), 's' (symbol), 'a' (anything), or constant literals.", juce::dontSendNotification);
+        templateMsgs = { "bang", "1", "0", "start", "stop", "120" };
+    }
+    else if (sym == "select" || sym == "sel")
+    {
+        paramSlider1.setVisible(false); paramLabel1.setVisible(false);
+        paramSlider2.setVisible(false); paramLabel2.setVisible(false);
+        optionLabel.setVisible(false); optionSelector.setVisible(false);
+
+        descLabel.setText("Value matcher. Emits a bang on the outlet corresponding to the matching argument. Unmatched values pass through unaltered out the rightmost outlet.", juce::dontSendNotification);
+        templateMsgs = { "0", "1", "2", "60", "72", "start", "stop", "bang" };
+    }
+    else if (sym == "route")
+    {
+        paramSlider1.setVisible(false); paramLabel1.setVisible(false);
+        paramSlider2.setVisible(false); paramLabel2.setVisible(false);
+        optionLabel.setVisible(false); optionSelector.setVisible(false);
+
+        descLabel.setText("Message router by selector key. Matches the leading token of incoming messages, strips the selector, and outputs the remainder. Non-matching messages pass through the rightmost outlet.", juce::dontSendNotification);
+        templateMsgs = { "pitch 60", "cutoff 2500", "vol -6", "unmatched_msg" };
+    }
+    else if (sym == "line~" || sym == "ramp~")
+    {
+        paramSlider1.setVisible(false); paramLabel1.setVisible(false);
+        paramSlider2.setVisible(false); paramLabel2.setVisible(false);
+        optionLabel.setVisible(false); optionSelector.setVisible(false);
+
+        descLabel.setText("Relativistic linear audio-rate ramp generator for click-free envelope and parameter modulation. Syntax: '<target> <time_ms>' or multi-segment lists like '0, 1 100 0 200'. Modulated by local time dilation.", juce::dontSendNotification);
+        templateMsgs = { "1.0 100", "0.0 200", "0, 1 50 0 150", "0.8 10", "0" };
+    }
+    else if (sym == "metro")
+    {
+        paramLabel1.setText("Interval (ms)", juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setRange(1.0, 10000.0, 1.0);
+        paramSlider1.setValue(500.0, juce::dontSendNotification);
+        paramSlider1.setVisible(true);
+        paramSlider1.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage(std::to_string(paramSlider1.getValue()));
+        };
+
+        paramSlider2.setVisible(false); paramLabel2.setVisible(false);
+        optionLabel.setVisible(false); optionSelector.setVisible(false);
+
+        descLabel.setText("Relativistic control-rate metronome that sends periodic bangs. Pulse frequency dynamically scales with relativistic time dilation (\u03b3).", juce::dontSendNotification);
+        templateMsgs = { "1", "0", "start", "stop", "250", "500", "1000" };
+    }
+    else if (sym == "del" || sym == "delay")
+    {
+        paramLabel1.setText("Delay (ms)", juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setRange(1.0, 10000.0, 1.0);
+        paramSlider1.setValue(100.0, juce::dontSendNotification);
+        paramSlider1.setVisible(true);
+        paramSlider1.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage(std::to_string(paramSlider1.getValue()));
+        };
+
+        paramSlider2.setVisible(false); paramLabel2.setVisible(false);
+        optionLabel.setVisible(false); optionSelector.setVisible(false);
+
+        descLabel.setText("Relativistic delayed bang timer. Schedules a future bang scaled by proper time \u03c4.", juce::dontSendNotification);
+        templateMsgs = { "bang", "stop", "50", "100", "500" };
+    }
+    else if (sym == "random")
+    {
+        paramLabel1.setText("Max Range", juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setRange(1.0, 1000.0, 1.0);
+        paramSlider1.setValue(10.0, juce::dontSendNotification);
+        paramSlider1.setVisible(true);
+        paramSlider1.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage(std::to_string(static_cast<int>(paramSlider1.getValue())));
+        };
+
+        paramSlider2.setVisible(false); paramLabel2.setVisible(false);
+        optionLabel.setVisible(false); optionSelector.setVisible(false);
+
+        descLabel.setText("Generates pseudo-random integers in range [0, Max - 1] upon receiving a bang.", juce::dontSendNotification);
+        templateMsgs = { "bang", "8", "16", "64", "128" };
+    }
+    else if (sym == "counter")
+    {
+        paramSlider1.setVisible(false); paramLabel1.setVisible(false);
+        paramSlider2.setVisible(false); paramLabel2.setVisible(false);
+        optionLabel.setVisible(false); optionSelector.setVisible(false);
+
+        descLabel.setText("Step counter / accumulator. Increments on each bang and wraps around min/max bounds.", juce::dontSendNotification);
+        templateMsgs = { "bang", "reset", "up", "down", "set 0", "set 8" };
+    }
+    else if (sym == "soundfiler")
+    {
+        paramSlider1.setVisible(false); paramLabel1.setVisible(false);
+        paramSlider2.setVisible(false); paramLabel2.setVisible(false);
+        optionLabel.setVisible(false); optionSelector.setVisible(false);
+
+        descLabel.setText("Audio file decoder & table writer (WAV, AIFF, FLAC, OGG, MP3). Decodes audio from disk into named table arrays or saves arrays back to disk. Outputs loaded sample count.", juce::dontSendNotification);
+        templateMsgs = { "read -resize sample.wav array1", "write output.wav array1" };
+    }
+    else if (sym == "readsf~")
+    {
+        paramSlider1.setVisible(false); paramLabel1.setVisible(false);
+        paramSlider2.setVisible(false); paramLabel2.setVisible(false);
+        optionLabel.setVisible(false); optionSelector.setVisible(false);
+
+        descLabel.setText("Multi-channel audio file disk streaming player with real-time relativistic scrubbing and speed modulation. Emits a bang on EOF.", juce::dontSendNotification);
+        templateMsgs = { "open sample.wav", "start", "stop", "seek 0", "speed 1.0", "speed 0.5", "loop 1", "loop 0" };
+    }
     else
     {
         paramSlider1.setVisible(false);
@@ -875,7 +992,69 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         std::string sym = symbol;
         std::transform(sym.begin(), sym.end(), sym.begin(), ::tolower);
 
-        if (sym == "osc~") {
+        if (sym == "trigger" || sym == "t") {
+            if (!isOutlet) return "Incoming message / bang / number / symbol to trigger sequence";
+            return "Outlet " + std::to_string(index) + " (" + portName + "): Deterministic right-to-left event dispatch";
+        }
+        else if (sym == "select" || sym == "sel") {
+            if (!isOutlet) return "Incoming value or message to match against targets";
+            return "Match/Pass Outlet " + std::to_string(index) + " (" + portName + ")";
+        }
+        else if (sym == "route") {
+            if (!isOutlet) return "Incoming message to route by selector token";
+            return "Route Outlet " + std::to_string(index) + " (" + portName + ")";
+        }
+        else if (sym == "line~" || sym == "ramp~") {
+            if (!isOutlet) {
+                if (index == 0) return "Target / Duration message (e.g. '<target> <time_ms>')";
+                if (index == 1) return "Relativistic Time Clock Input (\u03b3)";
+            } else {
+                if (index == 0) return "Time Frame Output (\u03b3)";
+                if (index == 1) return "Linear Audio Ramp Output (~)";
+            }
+        }
+        else if (sym == "metro") {
+            if (!isOutlet) {
+                if (index == 0) return "Start (1/bang), Stop (0), or Interval (ms)";
+                if (index == 1) return "Relativistic Time Clock Input (\u03b3)";
+            } else {
+                if (index == 0) return "Periodic Bang Message Output";
+                if (index == 1) return "Time Frame Output (\u03b3)";
+            }
+        }
+        else if (sym == "del" || sym == "delay") {
+            if (!isOutlet) {
+                if (index == 0) return "Trigger Bang / Delay Time (ms)";
+                if (index == 1) return "Relativistic Time Clock Input (\u03b3)";
+            } else {
+                if (index == 0) return "Delayed Bang Message Output";
+                if (index == 1) return "Time Frame Output (\u03b3)";
+            }
+        }
+        else if (sym == "random") {
+            if (!isOutlet) return "Bang to generate random number, or integer to set max range";
+            return "Random integer message output [0, Max - 1]";
+        }
+        else if (sym == "counter") {
+            if (!isOutlet) return "Bang to step, 'reset', 'up', 'down', or 'set <val>'";
+            return "Current step count message output";
+        }
+        else if (sym == "soundfiler") {
+            if (!isOutlet) return "Command ('read [-resize] <path> <table>' or 'write <path> <table>')";
+            return "Loaded sample count message output";
+        }
+        else if (sym == "readsf~") {
+            if (!isOutlet) {
+                if (index == 0) return "Control ('open <path>', 'start', 'stop', 'seek <sec>', 'speed <val>')";
+                if (index == 1) return "Relativistic Time Clock Input (\u03b3)";
+            } else {
+                if (index == 0) return "End-of-File (EOF) Bang Output";
+                if (index == 1) return "Time Frame Output (\u03b3)";
+                if (index == 2) return "Left Channel Stream Audio Output (~)";
+                if (index == 3) return "Right Channel Stream Audio Output (~)";
+            }
+        }
+        else if (sym == "osc~") {
             if (!isOutlet) {
                 if (index == 0) return "Control Messages (freq <hz>, wave <shape>, vol <db>)";
                 if (index == 1) return "Relativistic Time Input (modulates pitch via Doppler \u03b3)";

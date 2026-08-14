@@ -162,9 +162,19 @@ public:
     RelativisticControlPipe controlPipe;
 
     std::function<void(const std::string&)> onMessageEmitted;
+    std::function<void(int, const std::string&)> onOutletMessageEmitted;
+
     void emitMessageOnMsgOut(const std::string& msg)
     {
-        if (onMessageEmitted) onMessageEmitted(msg);
+        emitMessageOnOutlet(0, msg);
+    }
+
+    void emitMessageOnOutlet(int outletIdx, const std::string& msg)
+    {
+        if (onOutletMessageEmitted)
+            onOutletMessageEmitted(outletIdx, msg);
+        else if (outletIdx == 0 && onMessageEmitted)
+            onMessageEmitted(msg);
     }
 
     // Buffer access

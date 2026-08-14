@@ -289,11 +289,11 @@ int RelativisticNodeGraph::addNode(std::shared_ptr<RelativisticNode> node)
     bool isTimeNode = (node->getSymbol().rfind("time.", 0) == 0 || node->getSymbol() == "seq");
     node->displayType = isTimeNode ? RelativisticNode::ScopeDisplayType::TimeFrame : RelativisticNode::ScopeDisplayType::AudioWaveform;
 
-    node->onMessageEmitted = [this, id](const std::string& msgText) mutable {
+    node->onOutletMessageEmitted = [this, id](int outletIdx, const std::string& msgText) mutable {
         double now = juce::Time::getMillisecondCounterHiRes() * 0.001;
         for (auto& conn : connections)
         {
-            if (conn.sourceNodeId == id && conn.sourcePortIndex == 0) // Outlet 0 is ALWAYS msgOut!
+            if (conn.sourceNodeId == id && conn.sourcePortIndex == outletIdx)
             {
                 conn.lastMessageTriggerTime = now;
                 auto destNode = getNode(conn.destNodeId);
@@ -303,6 +303,10 @@ int RelativisticNodeGraph::addNode(std::shared_ptr<RelativisticNode> node)
                 }
             }
         }
+    };
+
+    node->onMessageEmitted = [this, node](const std::string& msgText) {
+        node->emitMessageOnOutlet(0, msgText);
     };
 
     updateTopologicalSort();

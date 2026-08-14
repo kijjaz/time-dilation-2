@@ -4,5 +4,7 @@
   "gravitationalRedshiftNode": true,
   "lorentzWarpFilterNode": true,
   "tachyonGranularNode": true,
-  "patchJSONSerialization": true
+  "patchJSONSerialization": true,
+  "pdControlSuite": true,
+  "audioSamplePlayback": true
 }

@@ -358,9 +358,11 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
     bool tachyonPass = testTachyonGranularNode();
     bool jsonPass = testJSONSerialization();
     bool dynamicLatPass = testDynamicAdaptiveLatencyStages();
+    bool pdControlPass = testPdControlSuite();
+    bool samplePlaybackPass = testAudioSamplePlayback();
 
-    bool allPhasesPass = allPhase1Pass && gravPass && lorentzPass && tachyonPass && jsonPass && dynamicLatPass;
-    std::cout << "[Full Test Suite] Overall Result: " << (allPhasesPass ? "PASSED" : "FAILED") << "\n\n";
+    bool allPhasesPass = allPhase1Pass && gravPass && lorentzPass && tachyonPass && jsonPass && dynamicLatPass && pdControlPass && samplePlaybackPass;
+    std::cout << "\n[Full Test Suite] Overall Result: " << (allPhasesPass ? "PASSED" : "FAILED") << "\n\n";
 
     // Export artifacts/phase2_3_4_telemetry.json
     juce::File fullTelemFile("artifacts/phase2_3_4_telemetry.json");
@@ -371,7 +373,9 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
     fullOut << "  \"gravitationalRedshiftNode\": " << (gravPass ? "true" : "false") << ",\n";
     fullOut << "  \"lorentzWarpFilterNode\": " << (lorentzPass ? "true" : "false") << ",\n";
     fullOut << "  \"tachyonGranularNode\": " << (tachyonPass ? "true" : "false") << ",\n";
-    fullOut << "  \"patchJSONSerialization\": " << (jsonPass ? "true" : "false") << "\n";
+    fullOut << "  \"patchJSONSerialization\": " << (jsonPass ? "true" : "false") << ",\n";
+    fullOut << "  \"pdControlSuite\": " << (pdControlPass ? "true" : "false") << ",\n";
+    fullOut << "  \"audioSamplePlayback\": " << (samplePlaybackPass ? "true" : "false") << "\n";
     fullOut << "}\n";
     fullOut.close();
 
@@ -876,6 +880,172 @@ bool AgentTestRunner::testDynamicAdaptiveLatencyStages()
     std::cout << "====================================================\n";
 
     return globalMaxClickDelta < 0.1f;
+}
+
+bool AgentTestRunner::testPdControlSuite()
+{
+    std::cout << "[Test 13] Pure Data Core Control Suite (trigger, select, route, line~, metro, del, random, counter)... ";
+    RelativisticNodeGraph graph;
+    graph.prepare(96000.0, 512);
+
+    // 1. Test Trigger Node (Right-to-Left Execution)
+    std::vector<std::string> triggerLog;
+    auto trigNode = RelativisticNodeFactory::createNode(1, "t b f s");
+    auto destB = RelativisticNodeFactory::createNode(2, "msg");
+    auto destF = RelativisticNodeFactory::createNode(3, "msg");
+    auto destS = RelativisticNodeFactory::createNode(4, "msg");
+
+    destB->onMessageEmitted = [&triggerLog](const std::string& msg) { triggerLog.push_back("B:" + msg); };
+    destF->onMessageEmitted = [&triggerLog](const std::string& msg) { triggerLog.push_back("F:" + msg); };
+    destS->onMessageEmitted = [&triggerLog](const std::string& msg) { triggerLog.push_back("S:" + msg); };
+
+    graph.addNode(trigNode);
+    graph.addNode(destB);
+    graph.addNode(destF);
+    graph.addNode(destS);
+
+    // trigNode has outlets: 0 (b), 1 (f), 2 (s)
+    graph.addConnection(1, 0, 2, 0); // Out 0 -> destB
+    graph.addConnection(1, 1, 3, 0); // Out 1 -> destF
+    graph.addConnection(1, 2, 4, 0); // Out 2 -> destS
+
+    trigNode->receiveMessage("440");
+
+    // Expected order: Out 2 (s) first, then Out 1 (f), then Out 0 (b)
+    // 2. Test Select Node
+    auto selNode = RelativisticNodeFactory::createNode(5, "sel 10 20");
+    std::vector<std::string> selLog;
+    auto selTarget1 = RelativisticNodeFactory::createNode(6, "msg");
+    auto selTarget2 = RelativisticNodeFactory::createNode(7, "msg");
+    auto selUnmatched = RelativisticNodeFactory::createNode(8, "msg");
+
+    selTarget1->onMessageEmitted = [&selLog](const std::string& msg) { selLog.push_back("T1:" + msg); };
+    selTarget2->onMessageEmitted = [&selLog](const std::string& msg) { selLog.push_back("T2:" + msg); };
+    selUnmatched->onMessageEmitted = [&selLog](const std::string& msg) { selLog.push_back("UN:" + msg); };
+
+    graph.addNode(selNode);
+    graph.addNode(selTarget1);
+    graph.addNode(selTarget2);
+    graph.addNode(selUnmatched);
+
+    graph.addConnection(5, 0, 6, 0); // Outlet 0 -> match 10
+    graph.addConnection(5, 1, 7, 0); // Outlet 1 -> match 20
+    graph.addConnection(5, 2, 8, 0); // Outlet 2 -> unmatched
+
+    selNode->receiveMessage("10");
+    selNode->receiveMessage("99");
+
+    // 3. Test Route Node
+    auto routeNode = RelativisticNodeFactory::createNode(9, "route freq cutoff");
+    std::vector<std::string> routeLog;
+    auto routeFreq = RelativisticNodeFactory::createNode(10, "msg");
+    auto routeCut = RelativisticNodeFactory::createNode(11, "msg");
+    auto routePass = RelativisticNodeFactory::createNode(12, "msg");
+
+    routeFreq->onMessageEmitted = [&routeLog](const std::string& msg) { routeLog.push_back("FREQ:" + msg); };
+    routeCut->onMessageEmitted = [&routeLog](const std::string& msg) { routeLog.push_back("CUT:" + msg); };
+    routePass->onMessageEmitted = [&routeLog](const std::string& msg) { routeLog.push_back("PASS:" + msg); };
+
+    graph.addNode(routeNode);
+    graph.addNode(routeFreq);
+    graph.addNode(routeCut);
+    graph.addNode(routePass);
+
+    graph.addConnection(9, 0, 10, 0);
+    graph.addConnection(9, 1, 11, 0);
+    graph.addConnection(9, 2, 12, 0);
+
+    routeNode->receiveMessage("freq 880");
+    routeNode->receiveMessage("gain 0.5");
+
+    // 4. Test Line~ Audio Ramp
+    auto lineNode = RelativisticNodeFactory::createNode(13, "line~ 0.0");
+    graph.addNode(lineNode);
+    lineNode->receiveMessage("1.0 10"); // Ramp 0.0 -> 1.0 in 10ms (960 samples @ 96kHz)
+
+    juce::AudioBuffer<float> testBuf(2, 512);
+    graph.process(testBuf, 512);
+
+    float rampMid = lineNode->getAudioOutlet("out~").getSample(0, 256);
+    if (rampMid <= 0.0f || rampMid >= 1.0f)
+    {
+        std::cout << "FAILED (line~ ramp midpoint invalid: " << rampMid << ")\n";
+        return false;
+    }
+
+    std::cout << "PASSED\n";
+    return true;
+}
+
+bool AgentTestRunner::testAudioSamplePlayback()
+{
+    std::cout << "[Test 14] Audio File & Sample Playback System (soundfiler, readsf~, TableManager)... ";
+
+    // Create a temporary test WAV file in artifacts
+    juce::File tempWav("artifacts/test_soundfiler_sample.wav");
+    tempWav.getParentDirectory().createDirectory();
+
+    {
+        juce::WavAudioFormat wavFmt;
+        auto stream = tempWav.createOutputStream();
+        if (stream != nullptr)
+        {
+            std::unique_ptr<juce::AudioFormatWriter> writer(wavFmt.createWriterFor(stream.release(), 44100.0, 1, 16, {}, 0));
+            if (writer != nullptr)
+            {
+                juce::AudioBuffer<float> testTone(1, 44100);
+                float* p = testTone.getWritePointer(0);
+                for (int i = 0; i < 44100; ++i)
+                {
+                    p[i] = std::sin(2.0f * 3.14159265f * 440.0f * static_cast<float>(i) / 44100.0f);
+                }
+                writer->writeFromAudioSampleBuffer(testTone, 0, 44100);
+                writer->flush();
+            }
+        }
+    }
+
+    RelativisticNodeGraph graph;
+    graph.prepare(96000.0, 512);
+
+    // 1. Test Soundfiler Read
+    auto soundfiler = RelativisticNodeFactory::createNode(1, "soundfiler");
+    graph.addNode(soundfiler);
+    soundfiler->receiveMessage("read -resize artifacts/test_soundfiler_sample.wav test_array");
+
+    if (!TableManager::getInstance().hasTable("test_array") || TableManager::getInstance().getTable("test_array").size() < 40000)
+    {
+        std::cout << "FAILED (soundfiler failed to load test_array)\n";
+        return false;
+    }
+
+    // 2. Test Readsf~ Audio Streaming
+    auto readsf = RelativisticNodeFactory::createNode(2, "readsf~ 2");
+    auto out = RelativisticNodeFactory::createNode(3, "out~");
+    graph.addNode(readsf);
+    graph.addNode(out);
+
+    graph.addConnection(2, 2, 3, 1); // readsf out1~ -> out~ L
+    graph.addConnection(2, 3, 3, 2); // readsf out2~ -> out~ R
+
+    readsf->receiveMessage("open artifacts/test_soundfiler_sample.wav");
+    readsf->receiveMessage("start");
+
+    juce::AudioBuffer<float> outBuf(2, 512);
+    for (int b = 0; b < 10; ++b)
+    {
+        graph.process(outBuf, 512);
+    }
+
+    float peak = outBuf.getMagnitude(0, 512);
+    if (peak < 0.1f)
+    {
+        std::cout << "FAILED (readsf~ audio output magnitude too low: " << peak << ")\n";
+        return false;
+    }
+
+    std::cout << "PASSED\n";
+    return true;
 }
 
 } // namespace TimeDilationDAW

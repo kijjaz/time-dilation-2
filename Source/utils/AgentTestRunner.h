@@ -23,6 +23,8 @@ public:
     static bool testTachyonGranularNode();
     static bool testJSONSerialization();
     static bool testDynamicAdaptiveLatencyStages();
+    static bool testPdControlSuite();
+    static bool testAudioSamplePlayback();
 };
 
 } // namespace TimeDilationDAW

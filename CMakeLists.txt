@@ -29,6 +29,10 @@ target_sources(TimeDilationDAW
         Source/dsp/RelativisticSoundNodes.cpp
         Source/dsp/RelativisticSequencers.h
         Source/dsp/RelativisticSequencers.cpp
+        Source/dsp/PdControlNodes.h
+        Source/dsp/PdControlNodes.cpp
+        Source/dsp/PdSampleNodes.h
+        Source/dsp/PdSampleNodes.cpp
         Source/dsp/CompositeNode.h
         Source/dsp/CompositeNode.cpp
         Source/dsp/PrintNode.h

@@ -1,5 +1,7 @@
 #include "RelativisticNodeFactory.h"
 #include "PrintNode.h"
+#include "PdControlNodes.h"
+#include "PdSampleNodes.h"
 #include <sstream>
 #include <vector>
 
@@ -281,6 +283,82 @@ std::shared_ptr<RelativisticNode> RelativisticNodeFactory::createNode(int nodeId
         std::string prefix = "print~";
         if (ss >> prefix) {}
         return std::make_shared<PrintNode>(nodeId, prefix, true);
+    }
+
+    else if (symbol == "trigger" || symbol == "t")
+    {
+        std::vector<std::string> types;
+        std::string arg;
+        while (ss >> arg)
+        {
+            types.push_back(arg);
+        }
+        if (types.empty()) types = { "b", "b" };
+        return std::make_shared<TriggerNode>(nodeId, types);
+    }
+    else if (symbol == "select" || symbol == "sel")
+    {
+        std::vector<std::string> targets;
+        std::string arg;
+        while (ss >> arg)
+        {
+            targets.push_back(arg);
+        }
+        if (targets.empty()) targets = { "0" };
+        return std::make_shared<SelectNode>(nodeId, targets);
+    }
+    else if (symbol == "route")
+    {
+        std::vector<std::string> selectors;
+        std::string arg;
+        while (ss >> arg)
+        {
+            selectors.push_back(arg);
+        }
+        if (selectors.empty()) selectors = { "pitch" };
+        return std::make_shared<RouteNode>(nodeId, selectors);
+    }
+    else if (symbol == "line~" || symbol == "ramp~")
+    {
+        double initVal = 0.0;
+        if (ss >> initVal) {}
+        return std::make_shared<LineTildeNode>(nodeId, initVal);
+    }
+    else if (symbol == "metro")
+    {
+        double interval = 500.0;
+        if (ss >> interval) {}
+        return std::make_shared<MetroNode>(nodeId, interval);
+    }
+    else if (symbol == "del" || symbol == "delay")
+    {
+        double dMs = 100.0;
+        if (ss >> dMs) {}
+        return std::make_shared<DelNode>(nodeId, dMs);
+    }
+    else if (symbol == "random")
+    {
+        int maxVal = 10;
+        if (ss >> maxVal) {}
+        return std::make_shared<RandomNode>(nodeId, maxVal);
+    }
+    else if (symbol == "counter")
+    {
+        int minV = 0, maxV = 16, step = 1;
+        if (ss >> minV) {}
+        if (ss >> maxV) {}
+        if (ss >> step) {}
+        return std::make_shared<CounterNode>(nodeId, minV, maxV, step);
+    }
+    else if (symbol == "soundfiler")
+    {
+        return std::make_shared<SoundfilerNode>(nodeId);
+    }
+    else if (symbol == "readsf~")
+    {
+        int chs = 2;
+        if (ss >> chs) {}
+        return std::make_shared<ReadSFTildeNode>(nodeId, chs);
     }
 
     // Default fallback to osc~
