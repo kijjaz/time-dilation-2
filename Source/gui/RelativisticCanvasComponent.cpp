@@ -65,6 +65,8 @@ RelativisticCanvasComponent::RelativisticCanvasComponent(RelativisticNodeGraph& 
         { "mtof~ 60", "Signal-Rate MIDI Note to Frequency Converter" },
         { "ftom 440", "Frequency in Hz to MIDI Note Number (e.g. 440 Hz \u2192 69)" },
         { "ftom~ 220", "Signal-Rate Frequency to MIDI Note Converter" },
+        { "pack~ 2", "Bundle N Mono Audio Inlets into 1 Multichannel Audio Cable" },
+        { "unpack~ 2", "Split 1 Multichannel Audio Cable into N Mono Outlets" },
         { "msg play", "Parameter Control Message Box ('play')" },
         { "msg cutoff 1200", "Parameter Control Message Box ('cutoff 1200')" }
     };

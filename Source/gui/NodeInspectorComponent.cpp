@@ -683,6 +683,34 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         descLabel.setText("Radio Button Strip. Emits the selected index (0, 1, 2, ...) downstream when clicked.", juce::dontSendNotification);
         templateMsgs = { "0", "1", "2", "3" };
     }
+    else if (sym == "pack~" || sym == "bundle~" || sym == "join~")
+    {
+        paramSlider1.setVisible(false);
+        paramLabel1.setVisible(false);
+        paramSlider2.setVisible(false);
+        paramLabel2.setVisible(false);
+        optionSelector.setVisible(false);
+        optionLabel.setVisible(false);
+
+        auto pNode = std::dynamic_pointer_cast<PackNode>(selectedNode);
+        int chs = pNode ? pNode->getNumChannels() : 2;
+        descLabel.setText("Multi-Channel Audio Bundler. Bundles " + std::to_string(chs) + " discrete mono audio inputs into 1 multichannel audio cable.", juce::dontSendNotification);
+        templateMsgs = { "channels " + std::to_string(chs) };
+    }
+    else if (sym == "unpack~" || sym == "unbundle~" || sym == "split~")
+    {
+        paramSlider1.setVisible(false);
+        paramLabel1.setVisible(false);
+        paramSlider2.setVisible(false);
+        paramLabel2.setVisible(false);
+        optionSelector.setVisible(false);
+        optionLabel.setVisible(false);
+
+        auto uNode = std::dynamic_pointer_cast<UnpackNode>(selectedNode);
+        int chs = uNode ? uNode->getNumChannels() : 2;
+        descLabel.setText("Multi-Channel Audio Splitter. Splits 1 multichannel audio cable into " + std::to_string(chs) + " discrete mono audio outlets.", juce::dontSendNotification);
+        templateMsgs = { "channels " + std::to_string(chs) };
+    }
     else if (sym == "table" || sym == "tabread~")
     {
         paramSlider1.setVisible(false);

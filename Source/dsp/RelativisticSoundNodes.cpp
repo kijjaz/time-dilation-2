@@ -1410,4 +1410,95 @@ void SpectrogramNode::receiveMessage(const std::string& message)
     else if (s == "clear") std::fill(spectrogramGrid.begin(), spectrogramGrid.end(), 0.0f);
 }
 
+// ============================================================================
+// PackNode Implementation (pack~ / bundle~ / join~)
+// ============================================================================
+PackNode::PackNode(int id, int numChannels)
+    : RelativisticNode(id, "pack~", "pack~ " + std::to_string(numChannels)), channelCount(std::max(1, numChannels))
+{
+    addInlet("msgIn", PortDataType::Message); // Inlet 0: Message Input (Gold)
+    for (int ch = 0; ch < channelCount; ++ch)
+    {
+        addInlet("ch" + std::to_string(ch + 1) + "~", PortDataType::Audio); // Inlets 1..N: Mono Audio Inputs (Cyan)
+    }
+    addOutlet("msgOut", PortDataType::Message); // Outlet 0: Message Output (Gold)
+    addOutlet("multi~", PortDataType::Audio);   // Outlet 1: Multi-Channel Audio Output (Cyan)
+}
+
+void PackNode::prepare(double sampleRate, int samplesPerBlock)
+{
+    RelativisticNode::prepare(sampleRate, samplesPerBlock);
+}
+
+void PackNode::process(int numSamples)
+{
+    auto& outBuf = getOutletBuffer(1);
+    if (outBuf.getNumChannels() < channelCount || outBuf.getNumSamples() < numSamples)
+    {
+        outBuf.setSize(channelCount, numSamples, false, false, true);
+    }
+    outBuf.clear();
+
+    for (int ch = 0; ch < channelCount; ++ch)
+    {
+        const auto& inBuf = getInletBuffer(ch + 1);
+        if (inBuf.getNumChannels() > 0 && numSamples > 0)
+        {
+            outBuf.copyFrom(ch, 0, inBuf, 0, 0, numSamples);
+        }
+    }
+}
+
+void PackNode::receiveMessage(const std::string& message)
+{
+    RelativisticNode::receiveMessage(message);
+    if (onMessageEmitted) onMessageEmitted("channels " + std::to_string(channelCount));
+}
+
+// ============================================================================
+// UnpackNode Implementation (unpack~ / unbundle~ / split~)
+// ============================================================================
+UnpackNode::UnpackNode(int id, int numChannels)
+    : RelativisticNode(id, "unpack~", "unpack~ " + std::to_string(numChannels)), channelCount(std::max(1, numChannels))
+{
+    addInlet("msgIn", PortDataType::Message); // Inlet 0: Message Input (Gold)
+    addInlet("multi~", PortDataType::Audio);  // Inlet 1: Multi-Channel Audio Input (Cyan)
+    addOutlet("msgOut", PortDataType::Message); // Outlet 0: Message Output (Gold)
+    for (int ch = 0; ch < channelCount; ++ch)
+    {
+        addOutlet("ch" + std::to_string(ch + 1) + "~", PortDataType::Audio); // Outlets 1..N: Mono Audio Outlets (Cyan)
+    }
+}
+
+void UnpackNode::prepare(double sampleRate, int samplesPerBlock)
+{
+    RelativisticNode::prepare(sampleRate, samplesPerBlock);
+}
+
+void UnpackNode::process(int numSamples)
+{
+    const auto& multiBuf = getInletBuffer(1);
+
+    for (int ch = 0; ch < channelCount; ++ch)
+    {
+        auto& outBuf = getOutletBuffer(ch + 1);
+        if (outBuf.getNumChannels() < 1 || outBuf.getNumSamples() < numSamples)
+        {
+            outBuf.setSize(1, numSamples, false, false, true);
+        }
+        outBuf.clear();
+
+        if (multiBuf.getNumChannels() > ch && numSamples > 0)
+        {
+            outBuf.copyFrom(0, 0, multiBuf, ch, 0, numSamples);
+        }
+    }
+}
+
+void UnpackNode::receiveMessage(const std::string& message)
+{
+    RelativisticNode::receiveMessage(message);
+    if (onMessageEmitted) onMessageEmitted("channels " + std::to_string(channelCount));
+}
+
 } // namespace TimeDilationDAW

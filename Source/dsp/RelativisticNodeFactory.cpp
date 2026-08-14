@@ -218,6 +218,18 @@ std::shared_ptr<RelativisticNode> RelativisticNodeFactory::createNode(int nodeId
     {
         return std::make_shared<SpectrogramNode>(nodeId);
     }
+    else if (symbol == "pack~" || symbol == "bundle~" || symbol == "join~" || symbol == "snake.in~" || symbol == "mc.combine~")
+    {
+        int chs = 2;
+        if (ss >> chs) {}
+        return std::make_shared<PackNode>(nodeId, chs);
+    }
+    else if (symbol == "unpack~" || symbol == "unbundle~" || symbol == "split~" || symbol == "snake.out~" || symbol == "mc.separate~")
+    {
+        int chs = 2;
+        if (ss >> chs) {}
+        return std::make_shared<UnpackNode>(nodeId, chs);
+    }
     else if (symbol == "patch~")
     {
         std::string patchName = "synth.voice~";

@@ -392,4 +392,34 @@ private:
     bool isFrozen = false;
 };
 
+// pack~ / bundle~ / join~ node (Combines N mono audio inputs into 1 multichannel audio outlet)
+class PackNode : public RelativisticNode
+{
+public:
+    PackNode(int id, int numChannels = 2);
+    void prepare(double sampleRate, int samplesPerBlock) override;
+    void process(int numSamples) override;
+    void receiveMessage(const std::string& message) override;
+
+    int getNumChannels() const { return channelCount; }
+
+private:
+    int channelCount = 2;
+};
+
+// unpack~ / unbundle~ / split~ node (Splits 1 multichannel audio input into N mono audio outlets)
+class UnpackNode : public RelativisticNode
+{
+public:
+    UnpackNode(int id, int numChannels = 2);
+    void prepare(double sampleRate, int samplesPerBlock) override;
+    void process(int numSamples) override;
+    void receiveMessage(const std::string& message) override;
+
+    int getNumChannels() const { return channelCount; }
+
+private:
+    int channelCount = 2;
+};
+
 } // namespace TimeDilationDAW
