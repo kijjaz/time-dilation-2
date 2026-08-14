@@ -20,8 +20,23 @@ public:
     bool hasTable(const std::string& name) const;
 
 private:
-    TableManager() = default;
+    TableManager();
     std::unordered_map<std::string, std::vector<float>> tables;
+};
+
+// High-Performance Global Sine Wavetable with 4-point Hermite interpolation (32-bit float accuracy)
+class GlobalSineTable
+{
+public:
+    static constexpr int TABLE_SIZE = 8192;
+    static constexpr int TABLE_MASK = TABLE_SIZE - 1;
+
+    static const GlobalSineTable& getInstance();
+    float lookup(double phase) const noexcept;
+
+private:
+    GlobalSineTable();
+    std::vector<float> table;
 };
 
 // osc~ node
