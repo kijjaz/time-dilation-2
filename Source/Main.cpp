@@ -17,8 +17,8 @@ public:
     {
         auto args = getCommandLineParameterArray();
         
-        // Headless Agent Testing Mode
-        if (commandLine.contains("--agent-test") || commandLine.contains("--headless-test"))
+        // Headless Agent Testing Mode & No-GUI Testing
+        if (commandLine.contains("--agent-test") || commandLine.contains("--headless-test") || commandLine.contains("--no-gui"))
         {
             int result = TimeDilationDAW::AgentTestRunner::runHeadlessTest(args);
             setApplicationReturnValue(result);
@@ -29,7 +29,7 @@ public:
         // Headless Interactive CLI Terminal Mode
         if (commandLine.contains("--cli") || commandLine.contains("--interactive"))
         {
-            TimeDilationDAW::WorkstationContainerComponent workstation(false);
+            TimeDilationDAW::WorkstationContainerComponent workstation(false); // Dummy audio interface (no hardware)
             workstation.setSize(1280, 720);
             TimeDilationDAW::TerminalCommandProcessor::runInteractiveLoop(workstation);
             setApplicationReturnValue(0);
@@ -40,7 +40,7 @@ public:
         // Single Command Execution Mode (e.g. --cmd="add osc~ sin 440")
         if (commandLine.contains("--cmd="))
         {
-            TimeDilationDAW::WorkstationContainerComponent workstation(false);
+            TimeDilationDAW::WorkstationContainerComponent workstation(false); // Dummy audio interface (no hardware)
             workstation.setSize(1280, 720);
 
             for (const auto& arg : args)
