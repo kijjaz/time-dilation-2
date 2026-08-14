@@ -2,6 +2,8 @@
 #include "../gui/WorkstationContainerComponent.h"
 #include "../dsp/RelativisticNodeFactory.h"
 #include "../dsp/RelativisticSequencerNodes.h"
+#include "../dsp/TidalPatternEngine.h"
+#include "../dsp/TidalSeqNode.h"
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <iostream>
 #include <fstream>
@@ -742,6 +744,38 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
         }
     }
 
+    // =========================================================================
+    // WAV Observation 11: TidalCycles Relativistic Nested Polyphony Rig
+    // (Nested Subdivisions + Stacking [60 [62 65] 67, 36 [~ 48]] + Euclidean Drum Bursts)
+    // =========================================================================
+    {
+        workstation.loadExampleTidalCyclesRig();
+
+        juce::File obs11Wav("artifacts/observation_11_tidal_pattern_rig.wav");
+        auto fileStream11 = obs11Wav.createOutputStream();
+        if (fileStream11 != nullptr)
+        {
+            juce::WavAudioFormat wavFormat;
+            std::unique_ptr<juce::AudioFormatWriter> writer11(wavFormat.createWriterFor(fileStream11.release(), sampleRate, 2, 16, {}, 0));
+            if (writer11 != nullptr)
+            {
+                int totalBlocks11 = static_cast<int>((6.0 * sampleRate) / blockSize); // 6-second render
+                auto timeNode = workstation.getNodeGraph().getNode(1);
+                for (int b = 0; b < totalBlocks11; ++b)
+                {
+                    // Introduce relativistic time warps at cycle boundaries
+                    if (b == totalBlocks11 / 3)      timeNode->receiveMessage("ramp 1.5 200");
+                    else if (b == 2 * totalBlocks11 / 3) timeNode->receiveMessage("ramp 0.75 300");
+
+                    workstation.getNextAudioBlock(channelInfo);
+                    writer11->writeFromAudioSampleBuffer(masterBuffer, 0, blockSize);
+                }
+                writer11->flush();
+                std::cout << "[AgentTestRunner] Exported WAV Observation 11 (TidalCycles Relativistic Nested Polyphony Rig): " << obs11Wav.getFullPathName().toStdString() << "\n";
+            }
+        }
+    }
+
     int totalBlocks = static_cast<int>((5.0 * sampleRate) / blockSize);
     float maxPeak = masterBuffer.getMagnitude(0, blockSize);
     int activeNodes = static_cast<int>(workstation.getNodeGraph().getNodes().size());
@@ -828,8 +862,9 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
     bool delayPipePass = testRelativisticDelayAndPipeSuite();
     bool timeSculptPass = testRelativisticTimeSculptingSuite();
     bool seqTimelinePass = testRelativisticSequencersAndTimelineSuite();
+    bool tidalPass = testTidalCyclesPatternEngine();
 
-    bool allPhasesPass = allPhase1Pass && gravPass && lorentzPass && tachyonPass && jsonPass && dynamicLatPass && pdControlPass && samplePlaybackPass && delayPipePass && timeSculptPass && seqTimelinePass;
+    bool allPhasesPass = allPhase1Pass && gravPass && lorentzPass && tachyonPass && jsonPass && dynamicLatPass && pdControlPass && samplePlaybackPass && delayPipePass && timeSculptPass && seqTimelinePass && tidalPass;
     std::cout << "\n[Full Test Suite] Overall Result: " << (allPhasesPass ? "PASSED" : "FAILED") << "\n\n";
 
     // Export artifacts/phase2_3_4_telemetry.json
@@ -846,7 +881,8 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
     fullOut << "  \"audioSamplePlayback\": " << (samplePlaybackPass ? "true" : "false") << ",\n";
     fullOut << "  \"relativisticDelayAndPipes\": " << (delayPipePass ? "true" : "false") << ",\n";
     fullOut << "  \"relativisticTimeSculpting\": " << (timeSculptPass ? "true" : "false") << ",\n";
-    fullOut << "  \"relativisticSequencersAndTimeline\": " << (seqTimelinePass ? "true" : "false") << "\n";
+    fullOut << "  \"relativisticSequencersAndTimeline\": " << (seqTimelinePass ? "true" : "false") << ",\n";
+    fullOut << "  \"tidalCyclesPatternEngine\": " << (tidalPass ? "true" : "false") << "\n";
     fullOut << "}\n";
     fullOut.close();
 
@@ -1831,6 +1867,94 @@ bool AgentTestRunner::testRelativisticSequencersAndTimelineSuite()
     if (!timeline.isLoopActive() || timeline.getLoopStartSec() != 2.0 || timeline.getLoopEndSec() != 6.0)
     {
         std::cout << "FAILED (Timeline loop range configuration failed)\n";
+        return false;
+    }
+
+    std::cout << "PASSED\n";
+    return true;
+}
+
+bool AgentTestRunner::testTidalCyclesPatternEngine()
+{
+    std::cout << "[Test 18] TidalCycles Pattern Engine Suite (Nested Subdivisions, Stacking, Euclids, Alternation, Dilation)... ";
+    RelativisticNodeGraph graph;
+    graph.prepare(96000.0, 512);
+
+    juce::AudioBuffer<float> dummyBuf(2, 512);
+
+    // 1. Test Nested Subdivision Parsing: [60 [62 64] 67 [69 71 72]]
+    auto parsedNested = TidalParser::parse("[60 [62 64] 67 [69 71 72]]");
+    if (!parsedNested)
+    {
+        std::cout << "FAILED (Could not parse nested Tidal pattern)\n";
+        return false;
+    }
+
+    std::vector<TidalEvent> nestedEvents;
+    parsedNested->query(0.0, 1.0, 0, nestedEvents);
+
+    // Expected notes: 60, 62, 64, 67, 69, 71, 72 (total 7 events)
+    if (nestedEvents.size() != 7)
+    {
+        std::cout << "FAILED (Nested subdivision event count mismatch: " << nestedEvents.size() << ", expected 7)\n";
+        return false;
+    }
+
+    // 2. Test Polyphonic Stacking: [60 64 67, 36 48]
+    auto parsedStack = TidalParser::parse("[60 64 67, 36 48]");
+    std::vector<TidalEvent> stackEvents;
+    parsedStack->query(0.0, 1.0, 0, stackEvents);
+
+    // Expected: 3 notes in channel 0, 2 notes in channel 1 (total 5 events)
+    if (stackEvents.size() != 5)
+    {
+        std::cout << "FAILED (Stack event count mismatch: " << stackEvents.size() << ", expected 5)\n";
+        return false;
+    }
+
+    // 3. Test Embedded Euclidean Notation: [60(3,8)]
+    auto parsedEuclid = TidalParser::parse("60(3,8)");
+    std::vector<TidalEvent> euclidEvents;
+    parsedEuclid->query(0.0, 1.0, 0, euclidEvents);
+    if (euclidEvents.size() != 3)
+    {
+        std::cout << "FAILED (Tidal Euclidean query count mismatch: " << euclidEvents.size() << ", expected 3)\n";
+        return false;
+    }
+
+    // 4. Test Cycle Alternation: <60 62 64>
+    auto parsedAlt = TidalParser::parse("<60 62 64>");
+    std::vector<TidalEvent> alt0, alt1, alt2;
+    parsedAlt->query(0.0, 1.0, 0, alt0);
+    parsedAlt->query(0.0, 1.0, 1, alt1);
+    parsedAlt->query(0.0, 1.0, 2, alt2);
+
+    if (alt0.empty() || alt1.empty() || alt2.empty() ||
+        alt0.front().pitch != 60 || alt1.front().pitch != 62 || alt2.front().pitch != 64)
+    {
+        std::cout << "FAILED (Cycle alternation sequence mismatch)\n";
+        return false;
+    }
+
+    // 5. Test TidalSeqNode in DSP graph with proper-time dilation
+    auto tidalNode = std::dynamic_pointer_cast<TidalSeqNode>(RelativisticNodeFactory::createNode(1, "seq.tidal [60 [62 65] 67, 36 [~ 48]] 0.5"));
+    if (!tidalNode)
+    {
+        std::cout << "FAILED (Could not instantiate TidalSeqNode)\n";
+        return false;
+    }
+    tidalNode->setCycleDuration(0.5);
+    graph.addNode(tidalNode);
+
+    // Process blocks at 96 kHz (200 blocks * 512 = 102,400 samples = ~1.066s = >2 cycles)
+    for (int b = 0; b < 200; ++b)
+    {
+        graph.process(dummyBuf, 512);
+    }
+
+    if (tidalNode->getCycleCount() < 1)
+    {
+        std::cout << "FAILED (TidalSeqNode cycle did not advance under DSP clock)\n";
         return false;
     }
 

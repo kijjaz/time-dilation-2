@@ -600,6 +600,30 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         descLabel.setText("Timeline Parameter Automation Reader. Evaluates continuous multi-breakpoint envelopes sample-accurately.", juce::dontSendNotification);
         templateMsgs = { "add 0.0 0.0", "add 1.0 1.0", "add 2.0 0.2", "clear" };
     }
+    else if (sym == "seq.tidal" || sym == "tidal" || sym == "pattern")
+    {
+        paramLabel1.setText("Cycle Duration (sec)", juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setRange(0.2, 10.0, 0.1);
+        paramSlider1.setValue(2.0, juce::dontSendNotification);
+        paramSlider1.setVisible(true);
+        paramSlider1.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("dur " + std::to_string(paramSlider1.getValue()));
+        };
+
+        paramSlider2.setVisible(false); paramLabel2.setVisible(false);
+        optionSelector.setVisible(false); optionLabel.setVisible(false);
+
+        descLabel.setText("TidalCycles Mini-Notation Sequencer. Supports nested subdivisions [a [b c]], polyphony [a, b], Euclids (k,n), speed a*n, alternations <a b>, and rests ~.", juce::dontSendNotification);
+        templateMsgs = {
+            "pat [60 [62 64] 67 [69 71 72]]",
+            "pat [60 64 67, 36 [~ 48]]",
+            "pat [60(3,8), [~ 67]*2]",
+            "pat [<60 62 65 67> [69 71]*2]",
+            "pat [36(5,16), 42*4, [~ 39]*2]",
+            "dur 2.0", "dur 1.0", "dur 4.0"
+        };
+    }
     else if (sym == "pluck~")
     {
         paramLabel1.setText("Pitch Frequency (Hz)", juce::dontSendNotification);

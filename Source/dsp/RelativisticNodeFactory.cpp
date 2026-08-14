@@ -5,6 +5,7 @@
 #include "PdDelayNodes.h"
 #include "RelativisticTimeNodes.h"
 #include "RelativisticSequencerNodes.h"
+#include "TidalSeqNode.h"
 #include <sstream>
 #include <vector>
 
@@ -497,6 +498,28 @@ std::shared_ptr<RelativisticNode> RelativisticNodeFactory::createNode(int nodeId
         float defVal = 0.0f;
         if (ss >> defVal) {}
         return std::make_shared<TimelineAutomationNode>(nodeId, defVal);
+    }
+    else if (symbol == "seq.tidal" || symbol == "tidal" || symbol == "pattern")
+    {
+        std::string pat;
+        std::getline(ss, pat);
+        size_t first = pat.find_first_not_of(" \t");
+        if (first != std::string::npos) pat = pat.substr(first);
+        if (pat.empty()) pat = "[60 [62 64] 67 [69 71 72]]";
+
+        double dur = 2.0;
+        size_t lastBracket = pat.find_last_of("]>");
+        if (lastBracket != std::string::npos && lastBracket + 1 < pat.size())
+        {
+            std::string trailing = pat.substr(lastBracket + 1);
+            std::istringstream durSs(trailing);
+            if (durSs >> dur)
+            {
+                pat = pat.substr(0, lastBracket + 1);
+            }
+        }
+
+        return std::make_shared<TidalSeqNode>(nodeId, pat, dur);
     }
 
     // Default fallback to osc~

@@ -183,6 +183,7 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
         ctrlMenu.addItem(511, "seq.arp (Relativistic Chord Arpeggiator)");
         ctrlMenu.addItem(512, "seq.poly (Polyrhythmic Multi-Meter Sequencer)");
         ctrlMenu.addItem(513, "auto~ (Timeline Parameter Automation Reader)");
+        ctrlMenu.addItem(514, "seq.tidal (TidalCycles Mini-Notation Pattern Sequencer)");
         m.addSubMenu("Control Logic & Sequencers", ctrlMenu);
 
         m.addSeparator();
@@ -226,6 +227,7 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
             else if (result == 511) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "seq.arp up 2 0.125"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
             else if (result == 512) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "seq.poly"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
             else if (result == 513) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "auto~ 0.5"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 514) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "seq.tidal [60 [62 64] 67 [69 71 72]]"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
             else if (result == 5) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "out~"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
             trackViewComponent.refreshTracks();
         });
@@ -270,6 +272,7 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
         examplesMenu.addItem(104, "04: Relativistic Delay & Pipe Synth (Doppler Delay + Proper Time Pipe)");
         examplesMenu.addItem(105, "05: Multi-Branch Time Morph & Chaos Rig (Lorenz RK4 + Hermite Morph)");
         examplesMenu.addItem(106, "06: Relativistic Euclidean & Timeline Arrangement Rig (Euclid 5/16 + Arp + Automation)");
+        examplesMenu.addItem(107, "07: TidalCycles Relativistic Nested Polyphony Rig (Subdivisions + Stacking + Proper Time)");
         m.addSubMenu("Examples & Presets", examplesMenu);
 
         m.addSeparator();
@@ -284,20 +287,21 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
             else if (result == 104) loadExampleDelayPipeSynth();
             else if (result == 105) loadExampleChaosMorph();
             else if (result == 106) loadExampleEuclideanArrangement();
+            else if (result == 107) loadExampleTidalCyclesRig();
             else if (result == 1) {
                 juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::InfoIcon,
                     "Node Symbol Reference",
                     "Time Objects:\n- time.curve~, time.chaos~, time.crossfade~, time.const~, time.scale~, time.add~, time.quantize~, time.split~, time.merge~\n\n"
-                    "Sequencer & Control:\n- seq.euclid, seq.arp, seq.poly, auto~, metro, counter, random, select, route, t b b, pipe, timer, snapshot~\n\n"
+                    "Sequencer & Tidal Mini-Notation:\n- seq.tidal, seq.euclid, seq.arp, seq.poly, auto~, metro, counter, random, select, route, t b b, pipe, timer, snapshot~\n\n"
                     "Audio Sources & FX:\n- osc~, noise~, pluck~, readsf~, tabread~, ladder~, svf~, delwrite~, vd~, drive~, reverb~, out~");
             }
             else if (result == 2) {
                 juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::InfoIcon,
                     "Relativistic Time Math Guide",
                     "Proper Time: \u03c4 = \u222b \u03b3(t) dt\n"
+                    "TidalCycles Cycle Phase: \u03c6(t) = \u222b (\u03b3(t) / T_cycle) dt\n"
                     "Bjorklund Euclidean: E(k, n) = maximally even pulse distribution\n"
-                    "Doppler Delay Read: d\u03c4_read / dt = 1 - (1/\u03b3) \u00b7 (v/c)\n"
-                    "C2 Hermite Smoothstep: h(u) = 3u\u00b2 - 2u\u00b3");
+                    "Doppler Delay Read: d\u03c4_read / dt = 1 - (1/\u03b3) \u00b7 (v/c)");
             }
             else if (result == 3) {
                 juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::InfoIcon,
@@ -969,6 +973,122 @@ void WorkstationContainerComponent::loadExampleEuclideanArrangement()
 
     nextNodeId = 16;
     titleLabel.setText("Time Dilation DAW 2 — Relativistic Euclidean & Timeline Arrangement Rig", juce::dontSendNotification);
+    arrangementTimelineComponent.refreshTimeline();
+    canvasComponent.repaint();
+    trackViewComponent.refreshTracks();
+}
+
+void WorkstationContainerComponent::loadExampleTidalCyclesRig()
+{
+    nodeGraph.clearGraph();
+
+    // 1. Relativistic Master Clock & Proper-Time Warp
+    auto timeWarp = RelativisticNodeFactory::createNode(1, "time.curve~ 1.0 500");
+    timeWarp->xPos = 60; timeWarp->yPos = 40;
+
+    // 2. TidalCycles Mini-Notation Polyphonic Pattern Engine
+    // Nested subdivisions: [60 [64 67] 71 [72 74 76]], Stacked Bass: [36 [~ 48]]
+    auto tidalLead = RelativisticNodeFactory::createNode(2, "seq.tidal [60 [62 65] 67 [71 72 74], 36 [~ 48]] 2.0");
+    tidalLead->setLabel("tidal.poly");
+    tidalLead->xPos = 260; tidalLead->yPos = 40;
+
+    // Tidal Drum Bursts: [36(3,8), [~ 38]*2, 42*4]
+    auto tidalDrums = RelativisticNodeFactory::createNode(3, "seq.tidal [36(3,8), [~ 38]*2, 42*4] 1.0");
+    tidalDrums->setLabel("tidal.drums");
+    tidalDrums->xPos = 500; tidalDrums->yPos = 40;
+
+    // 3. Sound Sources
+    auto leadSynth = RelativisticNodeFactory::createNode(4, "osc~ saw");
+    leadSynth->setOutputVolume(0.85f);
+    leadSynth->xPos = 60; leadSynth->yPos = 220;
+
+    auto bassSynth = RelativisticNodeFactory::createNode(5, "osc~ tri");
+    bassSynth->setOutputVolume(0.90f);
+    bassSynth->xPos = 260; bassSynth->yPos = 220;
+
+    auto kickSynth = RelativisticNodeFactory::createNode(6, "kick~ 50 0.3");
+    kickSynth->setOutputVolume(0.95f);
+    kickSynth->xPos = 480; kickSynth->yPos = 220;
+
+    auto snareSynth = RelativisticNodeFactory::createNode(7, "snare~ 0.2");
+    snareSynth->setOutputVolume(0.80f);
+    snareSynth->xPos = 660; snareSynth->yPos = 220;
+
+    auto hihatSynth = RelativisticNodeFactory::createNode(8, "hihat~ 0.05");
+    hihatSynth->setOutputVolume(0.70f);
+    hihatSynth->xPos = 840; hihatSynth->yPos = 220;
+
+    // 4. Filters & FX Chains
+    auto ladderFilter = RelativisticNodeFactory::createNode(9, "ladder~ 2800 0.7");
+    ladderFilter->xPos = 60; ladderFilter->yPos = 380;
+
+    auto driveDist = RelativisticNodeFactory::createNode(10, "drive~ 1.8");
+    driveDist->xPos = 260; driveDist->yPos = 380;
+
+    auto delayLine = RelativisticNodeFactory::createNode(11, "delwrite~ tidal_echo 2000");
+    delayLine->xPos = 480; delayLine->yPos = 380;
+
+    auto tapLeft = RelativisticNodeFactory::createNode(12, "vd~ tidal_echo 175");
+    tapLeft->xPos = 680; tapLeft->yPos = 380;
+
+    auto tapRight = RelativisticNodeFactory::createNode(13, "vd~ tidal_echo 350");
+    tapRight->xPos = 860; tapRight->yPos = 380;
+
+    auto outMaster = RelativisticNodeFactory::createNode(14, "out~ master");
+    outMaster->xPos = 1040; outMaster->yPos = 380;
+
+    nodeGraph.addNode(timeWarp);
+    nodeGraph.addNode(tidalLead);
+    nodeGraph.addNode(tidalDrums);
+    nodeGraph.addNode(leadSynth);
+    nodeGraph.addNode(bassSynth);
+    nodeGraph.addNode(kickSynth);
+    nodeGraph.addNode(snareSynth);
+    nodeGraph.addNode(hihatSynth);
+    nodeGraph.addNode(ladderFilter);
+    nodeGraph.addNode(driveDist);
+    nodeGraph.addNode(delayLine);
+    nodeGraph.addNode(tapLeft);
+    nodeGraph.addNode(tapRight);
+    nodeGraph.addNode(outMaster);
+
+    // Clock Connections
+    nodeGraph.addConnection(1, 1, 2, 1);  // timeWarp -> tidalLead
+    nodeGraph.addConnection(1, 1, 3, 1);  // timeWarp -> tidalDrums
+    nodeGraph.addConnection(1, 1, 4, 1);  // timeWarp -> leadSynth
+    nodeGraph.addConnection(1, 1, 5, 1);  // timeWarp -> bassSynth
+    nodeGraph.addConnection(1, 1, 9, 1);  // timeWarp -> ladderFilter
+    nodeGraph.addConnection(1, 1, 11, 2); // timeWarp -> delayLine
+    nodeGraph.addConnection(1, 1, 12, 2); // timeWarp -> tapLeft
+    nodeGraph.addConnection(1, 1, 13, 2); // timeWarp -> tapRight
+
+    // Tidal Pitch & Triggers
+    nodeGraph.addConnection(2, 2, 4, 2);  // tidalLead ch1 freq~ -> leadSynth freq~
+    nodeGraph.addConnection(2, 4, 5, 1);  // tidalLead ch2 note msg -> bassSynth msg
+
+    nodeGraph.addConnection(3, 3, 6, 1);  // tidalDrums trig -> kick
+    nodeGraph.addConnection(3, 3, 7, 1);  // tidalDrums trig -> snare
+    nodeGraph.addConnection(3, 5, 8, 1);  // tidalDrums audio trig -> hihat
+
+    // Audio FX & Master Routing
+    nodeGraph.addConnection(4, 2, 9, 2);   // leadSynth -> ladder
+    nodeGraph.addConnection(9, 2, 10, 2);  // ladder -> drive
+    nodeGraph.addConnection(10, 2, 11, 1); // drive -> delwrite
+    nodeGraph.addConnection(10, 2, 14, 1); // drive -> out L
+    nodeGraph.addConnection(10, 2, 14, 2); // drive -> out R
+    nodeGraph.addConnection(5, 2, 14, 1);  // bass -> out L
+    nodeGraph.addConnection(5, 2, 14, 2);  // bass -> out R
+    nodeGraph.addConnection(6, 1, 14, 1);  // kick -> out L
+    nodeGraph.addConnection(6, 1, 14, 2);  // kick -> out R
+    nodeGraph.addConnection(7, 1, 14, 1);  // snare -> out L
+    nodeGraph.addConnection(7, 1, 14, 2);  // snare -> out R
+    nodeGraph.addConnection(8, 1, 14, 1);  // hihat -> out L
+    nodeGraph.addConnection(8, 1, 14, 2);  // hihat -> out R
+    nodeGraph.addConnection(12, 2, 14, 1); // tapLeft -> out L
+    nodeGraph.addConnection(13, 2, 14, 2); // tapRight -> out R
+
+    nextNodeId = 15;
+    titleLabel.setText("Time Dilation DAW 2 — TidalCycles Relativistic Nested Polyphony Rig", juce::dontSendNotification);
     arrangementTimelineComponent.refreshTimeline();
     canvasComponent.repaint();
     trackViewComponent.refreshTracks();

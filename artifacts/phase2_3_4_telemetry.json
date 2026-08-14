@@ -9,5 +9,6 @@
   "audioSamplePlayback": true,
   "relativisticDelayAndPipes": true,
   "relativisticTimeSculpting": true,
-  "relativisticSequencersAndTimeline": true
+  "relativisticSequencersAndTimeline": true,
+  "tidalCyclesPatternEngine": true
 }

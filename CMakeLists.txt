@@ -39,6 +39,10 @@ target_sources(TimeDilationDAW
         Source/dsp/RelativisticTimeNodes.cpp
         Source/dsp/RelativisticSequencerNodes.h
         Source/dsp/RelativisticSequencerNodes.cpp
+        Source/dsp/TidalPatternEngine.h
+        Source/dsp/TidalPatternEngine.cpp
+        Source/dsp/TidalSeqNode.h
+        Source/dsp/TidalSeqNode.cpp
         Source/dsp/CompositeNode.h
         Source/dsp/CompositeNode.cpp
         Source/dsp/PrintNode.h

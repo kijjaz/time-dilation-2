@@ -197,6 +197,7 @@ public:
     void loadExampleDelayPipeSynth();
     void loadExampleChaosMorph();
     void loadExampleEuclideanArrangement();
+    void loadExampleTidalCyclesRig();
     void showAudioSettingsWindow();
 };
 

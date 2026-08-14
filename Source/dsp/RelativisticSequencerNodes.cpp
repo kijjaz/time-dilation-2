@@ -104,7 +104,7 @@ void EuclidSequencerNode::prepare(double sr, int spb)
 
 void EuclidSequencerNode::process(int numSamples)
 {
-    const auto& timeIn = getInletTimeFrame(0);
+    const auto& timeIn = getInletTimeFrame(1);
     double currentGamma = timeIn.masterGamma > 0.0001 ? timeIn.masterGamma : 1.0;
     auto& audioOut = getOutletBuffer(2); // Outlet 2: audioTrig~
 
@@ -241,7 +241,7 @@ void ArpNode::prepare(double sr, int spb)
 
 void ArpNode::process(int numSamples)
 {
-    const auto& timeIn = getInletTimeFrame(0);
+    const auto& timeIn = getInletTimeFrame(1);
     double currentGamma = timeIn.masterGamma > 0.0001 ? timeIn.masterGamma : 1.0;
     auto& freqOut = getOutletBuffer(1); // Outlet 1: freqOut~
 
@@ -375,7 +375,7 @@ void PolySeqNode::prepare(double sr, int spb)
 
 void PolySeqNode::process(int numSamples)
 {
-    const auto& timeIn = getInletTimeFrame(0);
+    const auto& timeIn = getInletTimeFrame(1);
     double currentGamma = timeIn.masterGamma > 0.0001 ? timeIn.masterGamma : 1.0;
 
     for (int i = 0; i < numSamples; ++i)
@@ -483,7 +483,7 @@ void TimelineAutomationNode::prepare(double sr, int spb)
 
 void TimelineAutomationNode::process(int numSamples)
 {
-    const auto& timeIn = getInletTimeFrame(0);
+    const auto& timeIn = getInletTimeFrame(1);
     double currentGamma = timeIn.masterGamma > 0.0001 ? timeIn.masterGamma : 1.0;
     auto& sigOut = getOutletBuffer(0); // Outlet 0: signalOut~
 
