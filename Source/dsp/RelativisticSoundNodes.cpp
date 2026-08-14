@@ -938,6 +938,7 @@ OutNode::OutNode(int id)
     addInlet("in1~", PortDataType::Audio); // Inlet 0: Audio Left Input (Cyan)
     addInlet("in2~", PortDataType::Audio); // Inlet 1: Audio Right Input (Cyan)
     addOutlet("out~", PortDataType::Audio); // Outlet 0: Audio Pass-Through (Cyan)
+    setVolumeDb(-6.0f); // Default volume at -6.0 dB
 }
 
 void OutNode::prepare(double sampleRate, int samplesPerBlock)
