@@ -133,6 +133,92 @@ void ArrangementTimelineComponent::showTidalHelpModal()
         "7. Drum Aliases: bd, sn, cp, hh, ht, lt, mt, cb, rim, cl, rd, cr");
 }
 
+void ArrangementTimelineComponent::showTidalBlockContextMenu(TimelineClip& clip, int eventIdx)
+{
+    if (eventIdx < 0 || eventIdx >= static_cast<int>(clip.cachedEvents.size())) return;
+    auto& ev = clip.cachedEvents[static_cast<size_t>(eventIdx)];
+
+    juce::PopupMenu m;
+    m.addItem(1, "+1 Octave (Pitch: " + juce::String(ev.pitch + 12) + ")");
+    m.addItem(2, "-1 Octave (Pitch: " + juce::String(std::max(12, ev.pitch - 12)) + ")");
+    m.addItem(3, "+1 Semitone (Pitch: " + juce::String(ev.pitch + 1) + ")");
+    m.addItem(4, "-1 Semitone (Pitch: " + juce::String(std::max(0, ev.pitch - 1)) + ")");
+    m.addSeparator();
+
+    juce::PopupMenu subMenu;
+    subMenu.addItem(10, "Subdivide /2 (Binary micro-steps)");
+    subMenu.addItem(11, "Subdivide /3 (Triplet micro-steps)");
+    subMenu.addItem(12, "Subdivide /4 (Quad micro-steps)");
+    subMenu.addItem(13, "Speed *2");
+    subMenu.addItem(14, "Speed *4");
+    m.addSubMenu("Subdivide & Speed", subMenu);
+
+    juce::PopupMenu euclidMenu;
+    euclidMenu.addItem(20, "Euclidean (3, 8) - Tresillo");
+    euclidMenu.addItem(21, "Euclidean (5, 16) - Cinquillo");
+    euclidMenu.addItem(22, "Euclidean (7, 16)");
+    m.addSubMenu("Euclidean Generators", euclidMenu);
+
+    juce::PopupMenu drumMenu;
+    drumMenu.addItem(30, "Kick Drum (bd / 36)");
+    drumMenu.addItem(31, "Snare Drum (sn / 38)");
+    drumMenu.addItem(32, "Clap (cp / 39)");
+    drumMenu.addItem(33, "Closed Hi-Hat (hh / 42)");
+    drumMenu.addItem(34, "Open Hi-Hat (oh / 46)");
+    drumMenu.addItem(35, "Cowbell (cb / 56)");
+    drumMenu.addItem(36, "Rimshot (rim / 37)");
+    m.addSubMenu("Drum Sounds", drumMenu);
+
+    m.addSeparator();
+    m.addItem(40, "Convert to Rest (~)");
+    m.addItem(41, "Set 80% Probability (?0.8)");
+    m.addItem(42, "Set 50% Probability (?0.5)");
+
+    m.showMenuAsync(juce::PopupMenu::Options(), [this, &clip, eventIdx](int result) {
+        if (eventIdx < 0 || eventIdx >= static_cast<int>(clip.cachedEvents.size())) return;
+        auto& targetEv = clip.cachedEvents[static_cast<size_t>(eventIdx)];
+
+        if (result == 1) targetEv.pitch = std::min(127, targetEv.pitch + 12);
+        else if (result == 2) targetEv.pitch = std::max(0, targetEv.pitch - 12);
+        else if (result == 3) targetEv.pitch = std::min(127, targetEv.pitch + 1);
+        else if (result == 4) targetEv.pitch = std::max(0, targetEv.pitch - 1);
+        else if (result == 10) { targetEv.valueStr = "[" + juce::String(targetEv.pitch).toStdString() + " " + juce::String(targetEv.pitch + 2).toStdString() + "]"; }
+        else if (result == 11) { targetEv.valueStr = "[" + juce::String(targetEv.pitch).toStdString() + " " + juce::String(targetEv.pitch + 4).toStdString() + " " + juce::String(targetEv.pitch + 7).toStdString() + "]"; }
+        else if (result == 12) { targetEv.valueStr = "[" + juce::String(targetEv.pitch).toStdString() + " " + juce::String(targetEv.pitch).toStdString() + " " + juce::String(targetEv.pitch).toStdString() + " " + juce::String(targetEv.pitch).toStdString() + "]"; }
+        else if (result == 13) { targetEv.valueStr = juce::String(targetEv.pitch).toStdString() + "*2"; }
+        else if (result == 14) { targetEv.valueStr = juce::String(targetEv.pitch).toStdString() + "*4"; }
+        else if (result == 20) { targetEv.valueStr = juce::String(targetEv.pitch).toStdString() + "(3,8)"; }
+        else if (result == 21) { targetEv.valueStr = juce::String(targetEv.pitch).toStdString() + "(5,16)"; }
+        else if (result == 22) { targetEv.valueStr = juce::String(targetEv.pitch).toStdString() + "(7,16)"; }
+        else if (result == 30) { targetEv.pitch = 36; targetEv.valueStr = "bd"; targetEv.isRest = false; }
+        else if (result == 31) { targetEv.pitch = 38; targetEv.valueStr = "sn"; targetEv.isRest = false; }
+        else if (result == 32) { targetEv.pitch = 39; targetEv.valueStr = "cp"; targetEv.isRest = false; }
+        else if (result == 33) { targetEv.pitch = 42; targetEv.valueStr = "hh"; targetEv.isRest = false; }
+        else if (result == 34) { targetEv.pitch = 46; targetEv.valueStr = "oh"; targetEv.isRest = false; }
+        else if (result == 35) { targetEv.pitch = 56; targetEv.valueStr = "cb"; targetEv.isRest = false; }
+        else if (result == 36) { targetEv.pitch = 37; targetEv.valueStr = "rim"; targetEv.isRest = false; }
+        else if (result == 40) { targetEv.isRest = true; targetEv.valueStr = "~"; }
+        else if (result == 41) { targetEv.valueStr = (targetEv.valueStr.empty() ? juce::String(targetEv.pitch).toStdString() : targetEv.valueStr) + "?0.8"; }
+        else if (result == 42) { targetEv.valueStr = (targetEv.valueStr.empty() ? juce::String(targetEv.pitch).toStdString() : targetEv.valueStr) + "?0.5"; }
+
+        // Rebuild full pattern string from events
+        std::stringstream ss;
+        ss << "[";
+        for (size_t i = 0; i < clip.cachedEvents.size(); ++i)
+        {
+            if (i > 0) ss << " ";
+            const auto& e = clip.cachedEvents[i];
+            if (e.isRest) ss << "~";
+            else if (!e.valueStr.empty()) ss << e.valueStr;
+            else ss << e.pitch;
+        }
+        ss << "]";
+        clip.updateTidalPattern(ss.str());
+        tidalPatternEditor.setText(clip.tidalPattern);
+        repaint();
+    });
+}
+
 ArrangementTimelineComponent::~ArrangementTimelineComponent()
 {
     stopTimer();
@@ -1048,8 +1134,16 @@ void ArrangementTimelineComponent::mouseDown(const juce::MouseEvent& e)
                     auto blockR = juce::Rectangle<float>(ex, ey, ew, eh);
                     if (blockR.contains(pos))
                     {
-                        // Cycle pitch +2 semitones on click
-                        ev.pitch = (ev.pitch >= 72) ? 60 : ev.pitch + 2;
+                        if (e.mods.isPopupMenu())
+                        {
+                            showTidalBlockContextMenu(clip, static_cast<int>(i));
+                            return;
+                        }
+
+                        // Left click starts vertical pitch dragging
+                        draggingTidalEventIdx = static_cast<int>(i);
+                        tidalDragStartY = pos.y;
+                        tidalDragStartPitch = ev.pitch;
                         repaint();
                         return;
                     }
@@ -1089,6 +1183,29 @@ void ArrangementTimelineComponent::mouseDrag(const juce::MouseEvent& e)
 {
     auto pos = e.position;
     float timelineW = static_cast<float>(getWidth() - trackHeaderWidth);
+
+    // 1. Dragging Tidal Block Pitch Vertically
+    if (draggingTidalEventIdx >= 0)
+    {
+        for (auto& clip : clips)
+        {
+            if (clip.clipId == selectedClipId || (selectedClipId == -1 && clip.type == ClipType::Pattern))
+            {
+                if (draggingTidalEventIdx < static_cast<int>(clip.cachedEvents.size()))
+                {
+                    float deltaY = tidalDragStartY - pos.y;
+                    int pitchDelta = static_cast<int>(deltaY / 6.0f); // 6 pixels per semitone
+                    auto& ev = clip.cachedEvents[static_cast<size_t>(draggingTidalEventIdx)];
+                    ev.pitch = std::clamp(tidalDragStartPitch + pitchDelta, 24, 96);
+                    ev.valueStr = juce::String(ev.pitch).toStdString();
+                    ev.isRest = false;
+                    repaint();
+                }
+                break;
+            }
+        }
+        return;
+    }
 
     if (isDraggingPlayhead)
     {
@@ -1130,6 +1247,34 @@ void ArrangementTimelineComponent::mouseDrag(const juce::MouseEvent& e)
 void ArrangementTimelineComponent::mouseUp(const juce::MouseEvent& e)
 {
     juce::ignoreUnused(e);
+
+    // Commit Tidal Block Pitch Changes on Drag Release
+    if (draggingTidalEventIdx >= 0)
+    {
+        for (auto& clip : clips)
+        {
+            if (clip.clipId == selectedClipId || (selectedClipId == -1 && clip.type == ClipType::Pattern))
+            {
+                std::stringstream ss;
+                ss << "[";
+                for (size_t i = 0; i < clip.cachedEvents.size(); ++i)
+                {
+                    if (i > 0) ss << " ";
+                    const auto& ev = clip.cachedEvents[i];
+                    if (ev.isRest) ss << "~";
+                    else if (!ev.valueStr.empty()) ss << ev.valueStr;
+                    else ss << ev.pitch;
+                }
+                ss << "]";
+                clip.updateTidalPattern(ss.str());
+                tidalPatternEditor.setText(clip.tidalPattern);
+                break;
+            }
+        }
+        draggingTidalEventIdx = -1;
+        repaint();
+    }
+
     isDraggingPlayhead = false;
     isSettingLoop = false;
     draggingClipId = -1;

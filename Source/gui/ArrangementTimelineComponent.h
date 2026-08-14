@@ -150,6 +150,9 @@ private:
     bool isPianoRollVisible = true;
     int pianoRollHeight = 175;
     int selectedStepIndex = -1;
+    int draggingTidalEventIdx = -1;
+    float tidalDragStartY = 0.0f;
+    int tidalDragStartPitch = 60;
 
     juce::TextEditor eventEditor;
 
@@ -166,6 +169,7 @@ private:
     juce::TextButton tidalHelpBtn{ "[?] HELP" };
 
     void showTidalHelpModal();
+    void showTidalBlockContextMenu(TimelineClip& clip, int eventIdx);
 
     // Transport & Playback State
     bool isTimelinePlaying = false;
