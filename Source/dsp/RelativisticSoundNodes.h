@@ -283,12 +283,22 @@ public:
 
     float getRmsL() const { return rmsL.load(); }
     float getRmsR() const { return rmsR.load(); }
+    float getPeakL() const { return peakL.load(); }
+    float getPeakR() const { return peakR.load(); }
+    bool isClippingL() const { return clipL.load(); }
+    bool isClippingR() const { return clipR.load(); }
     const std::vector<float>& getWaveformBuffer() const { return waveformBuffer; }
     size_t getWaveformWritePos() const { return waveWriteIdx; }
 
 private:
     std::atomic<float> rmsL{ 0.0f };
     std::atomic<float> rmsR{ 0.0f };
+    std::atomic<float> peakL{ 0.0f };
+    std::atomic<float> peakR{ 0.0f };
+    std::atomic<bool> clipL{ false };
+    std::atomic<bool> clipR{ false };
+    int clipHoldCountL = 0;
+    int clipHoldCountR = 0;
     std::vector<float> waveformBuffer;
     size_t waveWriteIdx = 0;
 };

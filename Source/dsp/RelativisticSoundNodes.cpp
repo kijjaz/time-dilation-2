@@ -1004,6 +1004,12 @@ void OutNode::prepare(double sampleRate, int samplesPerBlock)
     RelativisticNode::prepare(sampleRate, samplesPerBlock);
     rmsL.store(0.0f);
     rmsR.store(0.0f);
+    peakL.store(0.0f);
+    peakR.store(0.0f);
+    clipL.store(false);
+    clipR.store(false);
+    clipHoldCountL = 0;
+    clipHoldCountR = 0;
     waveformBuffer.assign(512, 0.0f);
     waveWriteIdx = 0;
 }
@@ -1013,22 +1019,39 @@ void OutNode::process(int numSamples)
     const auto& inL = getInletBuffer(1); // Inlet 1: Audio Left (in1~, Cyan)
     const auto& inR = getInletBuffer(2); // Inlet 2: Audio Right (in2~, Cyan)
 
-    float rawL = (inL.getNumChannels() > 0 && numSamples > 0) ? inL.getRMSLevel(0, 0, numSamples) : 0.0f;
-    float rawR = (inR.getNumChannels() > 0 && numSamples > 0) ? inR.getRMSLevel(0, 0, numSamples) : 0.0f;
+    float vol = getOutputVolume();
 
-    float rmsValL = rawL;
-    float rmsValR = rawR;
+    // Calculate RMS and Peak levels scaled by Master Output Volume
+    float rawL = (inL.getNumChannels() > 0 && numSamples > 0) ? (inL.getRMSLevel(0, 0, numSamples) * vol) : 0.0f;
+    float rawR = (inR.getNumChannels() > 0 && numSamples > 0) ? (inR.getRMSLevel(0, 0, numSamples) * vol) : 0.0f;
+
+    float magL = (inL.getNumChannels() > 0 && numSamples > 0) ? (inL.getMagnitude(0, 0, numSamples) * vol) : 0.0f;
+    float magR = (inR.getNumChannels() > 0 && numSamples > 0) ? (inR.getMagnitude(0, 0, numSamples) * vol) : 0.0f;
 
     float prevL = rmsL.load();
     float prevR = rmsR.load();
-    rmsL.store(std::max(rmsValL, prevL * 0.82f));
-    rmsR.store(std::max(rmsValR, prevR * 0.82f));
+    rmsL.store(std::max(rawL, prevL * 0.82f));
+    rmsR.store(std::max(rawR, prevR * 0.82f));
+
+    float prevPeakL = peakL.load();
+    float prevPeakR = peakR.load();
+    peakL.store(std::max(magL, prevPeakL * 0.88f));
+    peakR.store(std::max(magR, prevPeakR * 0.88f));
+
+    // Sample Peak 0 dBFS clipping indicator (> 1.0) with visual hold time
+    if (magL >= 1.0f) clipHoldCountL = 25; // ~250ms hold
+    else if (clipHoldCountL > 0) --clipHoldCountL;
+    clipL.store(clipHoldCountL > 0);
+
+    if (magR >= 1.0f) clipHoldCountR = 25;
+    else if (clipHoldCountR > 0) --clipHoldCountR;
+    clipR.store(clipHoldCountR > 0);
 
     const float* readPtr = nullptr;
     if (inL.getNumChannels() > 0 && rawL > 0.00001f) readPtr = inL.getReadPointer(0);
     else if (inR.getNumChannels() > 0 && rawR > 0.00001f) readPtr = inR.getReadPointer(0);
 
-    // Populate Stereo Multi-Channel Pass-Through Buffer (Ch 0 = Left, Ch 1 = Right)
+    // Populate Stereo Multi-Channel Pass-Through Buffer (Ch 0 = Left, Ch 1 = Right) scaled by Master Volume
     auto& outBuf = getOutletBuffer(1);
     if (outBuf.getNumChannels() < 2 || outBuf.getNumSamples() < numSamples)
     {
@@ -1038,10 +1061,12 @@ void OutNode::process(int numSamples)
     if (inL.getNumChannels() > 0 && numSamples > 0)
     {
         outBuf.copyFrom(0, 0, inL, 0, 0, numSamples);
+        outBuf.applyGain(0, 0, numSamples, vol);
     }
     if (inR.getNumChannels() > 0 && numSamples > 0)
     {
         outBuf.copyFrom(1, 0, inR, 0, 0, numSamples);
+        outBuf.applyGain(1, 0, numSamples, vol);
     }
 
     if (readPtr && numSamples > 0)

@@ -533,31 +533,63 @@ void RelativisticCanvasComponent::paint(juce::Graphics& g)
                     g.strokePath(wavePath, juce::PathStrokeType(1.5f));
                 }
 
-                // Draw Dual L/R RMS Meters on the right side
+                // Draw Dual L/R RMS & Peak Meters on the right side
                 auto meterArea = scopeBox.withLeft(waveArea.getRight() + 2.0f);
                 auto lMeter = meterArea.removeFromLeft(11.0f).reduced(1.0f, 2.0f);
                 auto rMeter = meterArea.removeFromLeft(11.0f).reduced(1.0f, 2.0f);
 
-                auto drawMeter = [&](juce::Rectangle<float> rect, float level) {
+                float peakL = outNode->getPeakL();
+                float peakR = outNode->getPeakR();
+                bool clipL = outNode->isClippingL() || (peakL >= 1.0f);
+                bool clipR = outNode->isClippingR() || (peakR >= 1.0f);
+
+                auto drawMeter = [&](juce::Rectangle<float> rect, float level, float peak, bool isClipping) {
+                    // Split top 4px for Clip LED
+                    auto ledRect = rect.removeFromTop(4.0f);
+                    auto barRect = rect.withTrimmedTop(2.0f);
+
+                    // 1. Render Clip LED
+                    if (isClipping)
+                    {
+                        g.setColour(juce::Colour::fromRGB(0xff, 0x22, 0x44)); // Bright Red Clip Glow
+                        g.fillRoundedRectangle(ledRect, 1.0f);
+                        g.setColour(juce::Colours::white.withAlpha(0.8f));
+                        g.drawRoundedRectangle(ledRect, 1.0f, 0.8f);
+                    }
+                    else
+                    {
+                        g.setColour(juce::Colour::fromRGB(0x24, 0x08, 0x0c)); // Dark Maroon Idle LED
+                        g.fillRoundedRectangle(ledRect, 1.0f);
+                        g.setColour(juce::Colour::fromRGB(0x40, 0x12, 0x18));
+                        g.drawRoundedRectangle(ledRect, 1.0f, 0.5f);
+                    }
+
+                    // 2. Render Main Level Bar
                     g.setColour(juce::Colours::black);
-                    g.fillRect(rect);
-                    float fillH = rect.getHeight() * std::clamp(level * 2.0f, 0.0f, 1.0f);
-                    auto fillRect = rect.withHeight(fillH).withY(rect.getBottom() - fillH);
+                    g.fillRect(barRect);
+                    float fillH = barRect.getHeight() * std::clamp(level * 2.0f, 0.0f, 1.0f);
+                    auto fillRect = barRect.withHeight(fillH).withY(barRect.getBottom() - fillH);
                     juce::ColourGradient grad(juce::Colours::lime, fillRect.getX(), fillRect.getBottom(),
                                                 (level > 0.8f ? juce::Colours::red : CarbonGoldLookAndFeel::goldAccent), fillRect.getX(), fillRect.getY(), false);
                     g.setGradientFill(grad);
                     g.fillRect(fillRect);
+
+                    // Peak line indicator
+                    float peakY = barRect.getBottom() - barRect.getHeight() * std::clamp(peak * 2.0f, 0.0f, 1.0f);
+                    g.setColour(isClipping ? juce::Colours::red : juce::Colours::white);
+                    g.drawHorizontalLine(static_cast<int>(peakY), barRect.getX(), barRect.getRight());
+
                     g.setColour(CarbonGoldLookAndFeel::slatePanel.brighter());
-                    g.drawRect(rect, 1.0f);
+                    g.drawRect(barRect, 1.0f);
                 };
 
-                drawMeter(lMeter, rmsL);
-                drawMeter(rMeter, rmsR);
+                drawMeter(lMeter, rmsL, peakL, clipL);
+                drawMeter(rMeter, rmsR, peakR, clipR);
 
-                // RMS Overlay Text
+                // RMS & Master Gain Overlay Text
                 char valBuf[64];
                 std::snprintf(valBuf, sizeof(valBuf), "L:%.2f R:%.2f", rmsL, rmsR);
-                g.setColour(CarbonGoldLookAndFeel::cyberCyan);
+                g.setColour(clipL || clipR ? juce::Colour::fromRGB(0xff, 0x44, 0x55) : CarbonGoldLookAndFeel::cyberCyan);
                 g.setFont(9.0f);
                 g.drawText(valBuf, waveArea.reduced(2.0f, 1.0f), juce::Justification::topRight, false);
             }
