@@ -74,6 +74,31 @@ std::string TerminalCommandProcessor::processCommand(WorkstationContainerCompone
 
     if (cmd == "help")
     {
+        if (tokens.size() > 1 && (tokens[1] == "tidal" || tokens[1] == "seq.tidal" || tokens[1] == "pattern"))
+        {
+            std::stringstream ss;
+            ss << "======================================================================\n";
+            ss << " TIDALCYCLES MINI-NOTATION & PATTERN GUIDE\n";
+            ss << "======================================================================\n";
+            ss << " 1. Subdivisions [a b c]:\n";
+            ss << "    [60 [62 64] 67 [69 71 72]]  -> Subdivides steps recursively into micro-steps\n";
+            ss << " 2. Polyphonic Stacking [a, b]:\n";
+            ss << "    [60 64 67, 36 [~ 48]]       -> Runs multiple parallel voice layers simultaneously\n";
+            ss << " 3. Euclidean Notation (k, n, rot):\n";
+            ss << "    60(3,8)                     -> Bjorklund Euclidean pulse distribution (Tresillo)\n";
+            ss << "    36(5,16,2)                  -> 5 pulses over 16 steps rotated by 2 (Cinquillo)\n";
+            ss << " 4. Speed Multipliers (*n, /n):\n";
+            ss << "    60*4                        -> Plays note 4x faster within step\n";
+            ss << "    [60 62]*2                   -> Repeats bracket sequence twice\n";
+            ss << " 5. Cycle Alternation <a b c>:\n";
+            ss << "    <60 62 65 67>               -> Advances to next note each cycle/bar\n";
+            ss << " 6. Rests & Probability (~, ?prob):\n";
+            ss << "    [60 ~ 64?0.8 ~]             -> ~ is rest, ?0.8 is 80% trigger probability\n";
+            ss << " 7. Drum Aliases:\n";
+            ss << "    bd, sn, cp, hh, ht, lt, mt, cb, rim, cl, rd, cr (MIDI 36-51)\n";
+            ss << "======================================================================\n";
+            return ss.str();
+        }
         return getHelpText();
     }
     else if (cmd == "add")

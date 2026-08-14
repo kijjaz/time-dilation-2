@@ -163,6 +163,9 @@ private:
     juce::TextButton speed2Btn{ "*2 Speed" };
     juce::TextButton degradeBtn{ "? Degrade" };
     juce::TextButton applyPatternBtn{ "APPLY PATTERN" };
+    juce::TextButton tidalHelpBtn{ "[?] HELP" };
+
+    void showTidalHelpModal();
 
     // Transport & Playback State
     bool isTimelinePlaying = false;

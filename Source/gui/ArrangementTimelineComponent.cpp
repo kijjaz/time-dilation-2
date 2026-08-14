@@ -100,8 +100,36 @@ ArrangementTimelineComponent::ArrangementTimelineComponent(RelativisticNodeGraph
     applyPatternBtn.setColour(juce::TextButton::textColourOffId, CarbonGoldLookAndFeel::carbonBg);
     addAndMakeVisible(applyPatternBtn);
 
+    tidalHelpBtn.onClick = [this]() { showTidalHelpModal(); };
+    tidalHelpBtn.setColour(juce::TextButton::buttonColourId, CarbonGoldLookAndFeel::slatePanel.darker(0.2f));
+    tidalHelpBtn.setColour(juce::TextButton::textColourOffId, CarbonGoldLookAndFeel::cyberCyan);
+    addAndMakeVisible(tidalHelpBtn);
+
     refreshTimeline();
     startTimerHz(30);
+}
+
+void ArrangementTimelineComponent::showTidalHelpModal()
+{
+    juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::InfoIcon,
+        "TidalCycles Pattern Editor Guide",
+        "TidalCycles Mini-Notation Cheat Sheet:\n\n"
+        "1. Subdivisions [a b c]:\n"
+        "   - [60 62 64 67] -> 4 quarter notes per cycle\n"
+        "   - [60 [62 64] 67 [69 71 72]] -> Nested subdivisions\n\n"
+        "2. Polyphonic Stacking [a, b]:\n"
+        "   - [60 64 67, 36 [~ 48]] -> Parallel voices\n\n"
+        "3. Euclidean (k, n, rot):\n"
+        "   - 60(3,8) -> 3 pulses in 8 steps\n"
+        "   - 36(5,16,2) -> 5 pulses in 16 steps, rotated by 2\n\n"
+        "4. Speed Multipliers:\n"
+        "   - 60*4 -> 4x speed\n"
+        "   - [60 62]*2 -> Repeat twice\n\n"
+        "5. Cycle Alternation:\n"
+        "   - <60 62 65 67> -> Alternate each cycle\n\n"
+        "6. Rests & Prob:\n"
+        "   - ~ = rest, 60?0.8 = 80% prob\n\n"
+        "7. Drum Aliases: bd, sn, cp, hh, ht, lt, mt, cb, rim, cl, rd, cr");
 }
 
 ArrangementTimelineComponent::~ArrangementTimelineComponent()
@@ -871,7 +899,8 @@ void ArrangementTimelineComponent::resized()
         speed2Btn.setBounds(bx, py, 68, 28); speed2Btn.setVisible(true); bx += 72;
         degradeBtn.setBounds(bx, py, 70, 28); degradeBtn.setVisible(true); bx += 74;
 
-        applyPatternBtn.setBounds(bx, py, 95, 28); applyPatternBtn.setVisible(true);
+        applyPatternBtn.setBounds(bx, py, 95, 28); applyPatternBtn.setVisible(true); bx += 99;
+        tidalHelpBtn.setBounds(bx, py, 68, 28); tidalHelpBtn.setVisible(true);
     }
     else
     {
@@ -884,6 +913,7 @@ void ArrangementTimelineComponent::resized()
         speed2Btn.setVisible(false);
         degradeBtn.setVisible(false);
         applyPatternBtn.setVisible(false);
+        tidalHelpBtn.setVisible(false);
     }
 }
 

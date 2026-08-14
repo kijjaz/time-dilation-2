@@ -278,6 +278,7 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
         m.addSeparator();
         m.addItem(1, "Node Symbol Reference (35+ Symbols)");
         m.addItem(2, "Relativistic Time Math Guide");
+        m.addItem(4, "TidalCycles Mini-Notation & Pattern Guide");
         m.addSeparator();
         m.addItem(3, "About Time Dilation DAW 2");
         m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&helpMenuButton), [this](int result) {
@@ -302,6 +303,31 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
                     "TidalCycles Cycle Phase: \u03c6(t) = \u222b (\u03b3(t) / T_cycle) dt\n"
                     "Bjorklund Euclidean: E(k, n) = maximally even pulse distribution\n"
                     "Doppler Delay Read: d\u03c4_read / dt = 1 - (1/\u03b3) \u00b7 (v/c)");
+            }
+            else if (result == 4) {
+                juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::InfoIcon,
+                    "TidalCycles Mini-Notation & Pattern Guide",
+                    "TidalCycles Pattern Syntax & Quick Reference:\n\n"
+                    "1. Subdivisions [a b c]:\n"
+                    "   - [60 62 64 67] -> 4 quarter notes per cycle\n"
+                    "   - [60 [62 64] 67 [69 71 72]] -> Nested 8th & triplet 12th micro-steps\n\n"
+                    "2. Polyphonic Stacking [a, b]:\n"
+                    "   - [60 64 67, 36 [~ 48]] -> Runs melody and bass simultaneously on separate voice layers\n\n"
+                    "3. Euclidean Notation (k, n, rot):\n"
+                    "   - 60(3,8) -> 3 pulses distributed maximally evenly over 8 steps (Tresillo)\n"
+                    "   - 36(5,16,2) -> 5 pulses over 16 steps rotated by 2 steps (Cinquillo)\n\n"
+                    "4. Speed Multipliers (*n, /n):\n"
+                    "   - 60*4 -> Plays note 4 times faster inside step\n"
+                    "   - [60 62]*2 -> Repeats bracket sequence twice\n\n"
+                    "5. Cycle Alternation <a b c>:\n"
+                    "   - <60 62 65 67> -> Steps to next note on each successive cycle/bar\n\n"
+                    "6. Rests & Probability (~, ?prob):\n"
+                    "   - [60 ~ 64 ~] -> ~ is a silent rest\n"
+                    "   - 60?0.8 -> 80% chance of triggering note\n\n"
+                    "7. Drum Aliases:\n"
+                    "   - bd, sn, cp, hh, ht, lt, mt, cb, rim, cl, rd, cr (MIDI 36-51)\n\n"
+                    "Proper-Time Modulation:\n"
+                    "Cycle phase advances by d\u03c6 = (\u03b3(t) / T_cycle) dt, warping pattern playback relativistically with zero clicks.");
             }
             else if (result == 3) {
                 juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::InfoIcon,
