@@ -255,14 +255,14 @@ void WorkstationContainerComponent::setupDefaultPatch()
     mtofNode->xPos = 340; mtofNode->yPos = 40;
 
     auto oscNode = RelativisticNodeFactory::createNode(4, "osc~ saw");
-    oscNode->setOutputVolume(0.50f);
+    oscNode->setOutputVolume(0.85f);
     oscNode->xPos = 490; oscNode->yPos = 40;
 
     auto ladderNode = RelativisticNodeFactory::createNode(5, "ladder~ 1800 0.5");
     ladderNode->xPos = 640; ladderNode->yPos = 40;
 
     auto delayNode = RelativisticNodeFactory::createNode(6, "delay~ 0.375 0.42");
-    delayNode->setOutputVolume(0.35f);
+    delayNode->setOutputVolume(0.65f);
     delayNode->xPos = 790; delayNode->yPos = 40;
 
     // Row 2: Analog Rhythm Section (Sequencers + Drum Synths)
@@ -271,7 +271,7 @@ void WorkstationContainerComponent::setupDefaultPatch()
     seqKickNode->xPos = 40; seqKickNode->yPos = 200;
 
     auto kickNode = RelativisticNodeFactory::createNode(8, "kick~ 50 0.35");
-    kickNode->setOutputVolume(0.42f);
+    kickNode->setOutputVolume(0.80f);
     kickNode->xPos = 190; kickNode->yPos = 200;
 
     auto seqSnareNode = RelativisticNodeFactory::createNode(9, "seq 0 0 0 0 1 0 0 0 0 0 0 0 1 0 1 0");
@@ -279,7 +279,7 @@ void WorkstationContainerComponent::setupDefaultPatch()
     seqSnareNode->xPos = 340; seqSnareNode->yPos = 200;
 
     auto snareNode = RelativisticNodeFactory::createNode(10, "snare~ 185 0.65 0.28");
-    snareNode->setOutputVolume(0.28f);
+    snareNode->setOutputVolume(0.70f);
     snareNode->xPos = 490; snareNode->yPos = 200;
 
     auto seqHatNode = RelativisticNodeFactory::createNode(11, "seq 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1");
@@ -287,16 +287,16 @@ void WorkstationContainerComponent::setupDefaultPatch()
     seqHatNode->xPos = 640; seqHatNode->yPos = 200;
 
     auto hihatNode = RelativisticNodeFactory::createNode(12, "hihat~ 0.08");
-    hihatNode->setOutputVolume(0.18f);
+    hihatNode->setOutputVolume(0.50f);
     hihatNode->xPos = 790; hihatNode->yPos = 200;
 
     // Row 3: Space FX & Stereo Master
     auto reverbNode = RelativisticNodeFactory::createNode(13, "reverb~ 0.75 0.4 0.35");
-    reverbNode->setOutputVolume(0.25f);
+    reverbNode->setOutputVolume(0.55f);
     reverbNode->xPos = 340; reverbNode->yPos = 360;
 
     auto outNode = RelativisticNodeFactory::createNode(14, "out~ master");
-    outNode->setOutputVolume(0.50f);
+    outNode->setOutputVolume(0.90f);
     outNode->xPos = 520; outNode->yPos = 360;
 
     if (auto out = std::dynamic_pointer_cast<OutNode>(outNode))
