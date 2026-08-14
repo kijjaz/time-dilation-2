@@ -64,9 +64,9 @@ private:
 
     // Time Coupling Controls (Speed gamma vs Offset tau)
     juce::ComboBox timeCouplingCombo;
-    juce::Label timeCouplingLabel{ "TimeCouplingLabel", "Time Coupling (γ / τ)" };
+    juce::Label timeCouplingLabel;
     juce::Slider offsetCouplingSlider;
-    juce::Label offsetCouplingLabel{ "OffsetCouplingLabel", "Offset Factor (τ)" };
+    juce::Label offsetCouplingLabel;
 
     // TidalCycles Pattern Text Field
     juce::Label tidalPatternLabel{ "TidalPatLabel", "Tidal Mini-Notation Pattern" };

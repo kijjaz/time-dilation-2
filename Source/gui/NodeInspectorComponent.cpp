@@ -108,12 +108,13 @@ NodeInspectorComponent::NodeInspectorComponent()
     addAndMakeVisible(optionLabel);
 
     // Time Coupling Controls (Speed gamma vs Offset tau)
-    timeCouplingCombo.addItem("Both (\u03b3 Speed + \u03c4 Offset)", 1);
-    timeCouplingCombo.addItem("Speed / Dilation Only (\u03b3)", 2);
-    timeCouplingCombo.addItem("Offset / Position Only (\u03c4)", 3);
+    timeCouplingCombo.addItem(juce::String(juce::CharPointer_UTF8("Both (\xce\xb3 Speed + \xcf\x84 Offset)")), 1);
+    timeCouplingCombo.addItem(juce::String(juce::CharPointer_UTF8("Speed / Dilation Only (\xce\xb3)")), 2);
+    timeCouplingCombo.addItem(juce::String(juce::CharPointer_UTF8("Offset / Position Only (\xcf\x84)")), 3);
     timeCouplingCombo.addItem("Bypassed / Coordinate Time", 4);
     timeCouplingCombo.setScrollWheelEnabled(false);
     addAndMakeVisible(timeCouplingCombo);
+    timeCouplingLabel.setText(juce::String(juce::CharPointer_UTF8("Time Coupling (\xce\xb3 Speed / \xcf\x84 Offset)")), juce::dontSendNotification);
     timeCouplingLabel.setFont(11.0f);
     timeCouplingLabel.setColour(juce::Label::textColourId, CarbonGoldLookAndFeel::cyberCyan);
     addAndMakeVisible(timeCouplingLabel);
@@ -123,6 +124,7 @@ NodeInspectorComponent::NodeInspectorComponent()
     offsetCouplingSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 50, 20);
     offsetCouplingSlider.setScrollWheelEnabled(false);
     addAndMakeVisible(offsetCouplingSlider);
+    offsetCouplingLabel.setText(juce::String(juce::CharPointer_UTF8("Offset Factor (\xcf\x84)")), juce::dontSendNotification);
     offsetCouplingLabel.setFont(11.0f);
     offsetCouplingLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
     addAndMakeVisible(offsetCouplingLabel);
@@ -236,8 +238,9 @@ void NodeInspectorComponent::updateUIForSelectedNode()
     };
 
     std::string sym = selectedNode->getSymbol();
-    std::transform(sym.begin(), sym.end(), sym.begin(), ::tolower);
-    bool isControlNode = (sym == "msg" || sym == "message" || sym == "bang" || sym == "bng" ||
+    bool isSequencer = (sym.rfind("seq", 0) == 0 || sym == "tidal" || sym == "pattern" || sym == "auto~");
+    bool isControlNode = isSequencer ||
+                          (sym == "msg" || sym == "message" || sym == "bang" || sym == "bng" ||
                           sym == "toggle" || sym == "tgl" || sym == "number" || sym == "num" ||
                           sym == "symbol" || sym == "sym" || sym == "radio" || sym == "hradio" ||
                           sym == "vradio" || sym == "display" || sym == "disp" || sym == "print" ||
@@ -497,7 +500,7 @@ void NodeInspectorComponent::updateUIForSelectedNode()
     }
     else if (sym == "time.warp")
     {
-        paramLabel1.setText("Time Warp Factor (\u03b3)", juce::dontSendNotification);
+        paramLabel1.setText(juce::String(juce::CharPointer_UTF8("Time Warp Factor (\xce\xb3)")), juce::dontSendNotification);
         paramLabel1.setVisible(true);
         paramSlider1.setRange(-100000.0, 100000.0, 0.05);
         paramSlider1.setValue(1.5, juce::dontSendNotification);
@@ -1153,7 +1156,7 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         paramSlider2.setVisible(false); paramLabel2.setVisible(false);
         optionLabel.setVisible(false); optionSelector.setVisible(false);
 
-        descLabel.setText("Relativistic control-rate metronome that sends periodic bangs. Pulse frequency dynamically scales with relativistic time dilation (\u03b3).", juce::dontSendNotification);
+        descLabel.setText(juce::String(juce::CharPointer_UTF8("Relativistic control-rate metronome that sends periodic bangs. Pulse frequency dynamically scales with relativistic time dilation (\xce\xb3).")), juce::dontSendNotification);
         templateMsgs = { "1", "0", "start", "stop", "250", "500", "1000" };
     }
     else if (sym == "del" || sym == "delay")
@@ -1170,7 +1173,7 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         paramSlider2.setVisible(false); paramLabel2.setVisible(false);
         optionLabel.setVisible(false); optionSelector.setVisible(false);
 
-        descLabel.setText("Relativistic delayed bang timer. Schedules a future bang scaled by proper time \u03c4.", juce::dontSendNotification);
+        descLabel.setText(juce::String(juce::CharPointer_UTF8("Relativistic delayed bang timer. Schedules a future bang scaled by proper time \xcf\x84.")), juce::dontSendNotification);
         templateMsgs = { "bang", "stop", "50", "100", "500" };
     }
     else if (sym == "random")
@@ -1282,7 +1285,7 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         paramSlider2.setVisible(false); paramLabel2.setVisible(false);
         optionLabel.setVisible(false); optionSelector.setVisible(false);
 
-        descLabel.setText("Relativistic control message delay pipe. Queues messages and delays them dynamically according to local proper time (\u03c4 = \u222b\u03b3 dt).", juce::dontSendNotification);
+        descLabel.setText(juce::String(juce::CharPointer_UTF8("Relativistic control message delay pipe. Queues messages and delays them dynamically according to local proper time (\xcf\x84 = \xe2\x88\xab\xce\xb3 dt).")), juce::dontSendNotification);
         templateMsgs = { "100", "500", "1000", "flush", "clear", "pitch 60 250", "vol -6 500" };
     }
     else if (sym == "timer" || sym == "time.timer")
@@ -1291,7 +1294,7 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         paramSlider2.setVisible(false); paramLabel2.setVisible(false);
         optionLabel.setVisible(false); optionSelector.setVisible(false);
 
-        descLabel.setText("Relativistic proper-time chronometer. Measures elapsed proper time (\u0394\u03c4 in ms) between a reset trigger and a measurement bang.", juce::dontSendNotification);
+        descLabel.setText(juce::String(juce::CharPointer_UTF8("Relativistic proper-time chronometer. Measures elapsed proper time (\xce\x94\xcf\x84 in ms) between a reset trigger and a measurement bang.")), juce::dontSendNotification);
         templateMsgs = { "reset", "bang", "measure" };
     }
     else if (sym == "snapshot~" || sym == "time.snapshot~")
@@ -1300,7 +1303,7 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         paramSlider2.setVisible(false); paramLabel2.setVisible(false);
         optionLabel.setVisible(false); optionSelector.setVisible(false);
 
-        descLabel.setText("Instantaneous signal & time frame sampler. Emits the current audio inlet value, \u03b3 dilation, or \u03c4 proper time upon receiving a bang.", juce::dontSendNotification);
+        descLabel.setText(juce::String(juce::CharPointer_UTF8("Instantaneous signal & time frame sampler. Emits the current audio inlet value, \xce\xb3 dilation, or \xcf\x84 proper time upon receiving a bang.")), juce::dontSendNotification);
         templateMsgs = { "bang", "gamma", "tau" };
     }
     else if (sym == "time.quantize" || sym == "quantize")
@@ -1322,7 +1325,7 @@ void NodeInspectorComponent::updateUIForSelectedNode()
     }
     else if (sym == "time.const~" || sym == "time.speed~")
     {
-        paramLabel1.setText("Time Speed (\u03b3)", juce::dontSendNotification);
+        paramLabel1.setText(juce::String(juce::CharPointer_UTF8("Time Speed (\xce\xb3)")), juce::dontSendNotification);
         paramLabel1.setVisible(true);
         paramSlider1.setRange(-4.0, 8.0, 0.05);
         paramSlider1.setValue(1.0, juce::dontSendNotification);
@@ -1331,7 +1334,7 @@ void NodeInspectorComponent::updateUIForSelectedNode()
             if (selectedNode) selectedNode->receiveMessage("speed " + std::to_string(paramSlider1.getValue()));
         };
 
-        paramLabel2.setText("Offset (\u03c4 ms)", juce::dontSendNotification);
+        paramLabel2.setText(juce::String(juce::CharPointer_UTF8("Offset (\xcf\x84 ms)")), juce::dontSendNotification);
         paramLabel2.setVisible(true);
         paramSlider2.setRange(-2000.0, 2000.0, 1.0);
         paramSlider2.setValue(0.0, juce::dontSendNotification);
@@ -1342,7 +1345,7 @@ void NodeInspectorComponent::updateUIForSelectedNode()
 
         optionLabel.setVisible(false); optionSelector.setVisible(false);
 
-        descLabel.setText("Static and stepped time dilation speed and proper-time offset generator. Supports frozen time (\u03b3 = 0) and time reversal (\u03b3 < 0).", juce::dontSendNotification);
+        descLabel.setText(juce::String(juce::CharPointer_UTF8("Static and stepped time dilation speed and proper-time offset generator. Supports frozen time (\xce\xb3 = 0) and time reversal (\xce\xb3 < 0).")), juce::dontSendNotification);
         templateMsgs = { "speed 1.0", "speed 2.0", "speed 0.5", "freeze", "resume", "reverse", "offset 200" };
     }
     else if (sym == "time.scale~" || sym == "time.mul~")
@@ -1367,12 +1370,12 @@ void NodeInspectorComponent::updateUIForSelectedNode()
 
         optionLabel.setVisible(false); optionSelector.setVisible(false);
 
-        descLabel.setText("Relativistic time multiplier and polyrhythmic divider. Scales incoming \u03b3 to create nested metric modulations and polyrhythms.", juce::dontSendNotification);
+        descLabel.setText(juce::String(juce::CharPointer_UTF8("Relativistic time multiplier and polyrhythmic divider. Scales incoming \xce\xb3 to create nested metric modulations and polyrhythms.")), juce::dontSendNotification);
         templateMsgs = { "mult 2.0", "mult 0.5", "mult 1.5", "mult 0.75", "invert", "offset 100" };
     }
     else if (sym == "time.add~")
     {
-        paramLabel1.setText("Delta Speed (\u0394\u03b3)", juce::dontSendNotification);
+        paramLabel1.setText(juce::String(juce::CharPointer_UTF8("Delta Speed (\xce\x94\xce\xb3)")), juce::dontSendNotification);
         paramLabel1.setVisible(true);
         paramSlider1.setRange(-4.0, 4.0, 0.01);
         paramSlider1.setValue(0.0, juce::dontSendNotification);
@@ -1381,7 +1384,7 @@ void NodeInspectorComponent::updateUIForSelectedNode()
             if (selectedNode) selectedNode->receiveMessage("gamma " + std::to_string(paramSlider1.getValue()));
         };
 
-        paramLabel2.setText("Delta Proper Time (\u0394\u03c4 ms)", juce::dontSendNotification);
+        paramLabel2.setText(juce::String(juce::CharPointer_UTF8("Delta Proper Time (\xce\x94\xcf\x84 ms)")), juce::dontSendNotification);
         paramLabel2.setVisible(true);
         paramSlider2.setRange(-2000.0, 2000.0, 1.0);
         paramSlider2.setValue(0.0, juce::dontSendNotification);
@@ -1414,7 +1417,7 @@ void NodeInspectorComponent::updateUIForSelectedNode()
     }
     else if (sym == "time.curve~" || sym == "time.ramp~")
     {
-        paramLabel1.setText("Target Speed (\u03b3)", juce::dontSendNotification);
+        paramLabel1.setText(juce::String(juce::CharPointer_UTF8("Target Speed (\xce\xb3)")), juce::dontSendNotification);
         paramLabel1.setVisible(true);
         paramSlider1.setRange(0.0, 8.0, 0.05);
         paramSlider1.setValue(1.0, juce::dontSendNotification);
@@ -1506,20 +1509,20 @@ void NodeInspectorComponent::updateUIForSelectedNode()
             if (!isOutlet) {
                 if (index == 0) return "Control Messages (size <ms>, set <name>)";
                 if (index == 1) return "Audio Signal Input to write into delay line (~)";
-                if (index == 2) return "Relativistic Time Clock Input (\u03b3)";
+                if (index == 2) return juce::String(juce::CharPointer_UTF8("Relativistic Time Clock Input (\xce\xb3)")).toStdString();
             } else {
                 if (index == 0) return "Message Output";
-                if (index == 1) return "Time Frame Output (\u03b3)";
+                if (index == 1) return juce::String(juce::CharPointer_UTF8("Time Frame Output (\xce\xb3)")).toStdString();
                 if (index == 2) return "Pass-Through Audio Output (~)";
             }
         }
         else if (sym == "delread~") {
             if (!isOutlet) {
                 if (index == 0) return "Delay Time (ms) or control messages";
-                if (index == 1) return "Relativistic Time Clock Input (\u03b3)";
+                if (index == 1) return juce::String(juce::CharPointer_UTF8("Relativistic Time Clock Input (\xce\xb3)")).toStdString();
             } else {
                 if (index == 0) return "Message Output";
-                if (index == 1) return "Time Frame Output (\u03b3)";
+                if (index == 1) return juce::String(juce::CharPointer_UTF8("Time Frame Output (\xce\xb3)")).toStdString();
                 if (index == 2) return "Delayed Audio Output (~)";
             }
         }
@@ -1527,48 +1530,48 @@ void NodeInspectorComponent::updateUIForSelectedNode()
             if (!isOutlet) {
                 if (index == 0) return "Control Messages (base delay, set <name>)";
                 if (index == 1) return "Delay Time Modulation Audio Signal in ms (~))";
-                if (index == 2) return "Relativistic Time Clock Input (\u03b3)";
+                if (index == 2) return juce::String(juce::CharPointer_UTF8("Relativistic Time Clock Input (\xce\xb3)")).toStdString();
             } else {
                 if (index == 0) return "Message Output";
-                if (index == 1) return "Time Frame Output (\u03b3)";
+                if (index == 1) return juce::String(juce::CharPointer_UTF8("Time Frame Output (\xce\xb3)")).toStdString();
                 if (index == 2) return "Variable Doppler Audio Output (~)";
             }
         }
         else if (sym == "pipe" || sym == "time.pipe") {
             if (!isOutlet) {
                 if (index == 0) return "Message / Number / List with optional delay time";
-                if (index == 1) return "Relativistic Time Clock Input (\u03b3)";
+                if (index == 1) return juce::String(juce::CharPointer_UTF8("Relativistic Time Clock Input (\xce\xb3)")).toStdString();
             } else {
                 if (index == 0) return "Delayed Message Output";
-                if (index == 1) return "Time Frame Output (\u03b3)";
+                if (index == 1) return juce::String(juce::CharPointer_UTF8("Time Frame Output (\xce\xb3)")).toStdString();
             }
         }
         else if (sym == "timer" || sym == "time.timer") {
             if (!isOutlet) {
-                if (index == 0) return "'reset' (start timer) or 'bang'/'measure' (output elapsed \u0394\u03c4)";
-                if (index == 1) return "Relativistic Time Clock Input (\u03b3)";
+                if (index == 0) return juce::String(juce::CharPointer_UTF8("'reset' (start timer) or 'bang'/'measure' (output elapsed \xce\x94\xcf\x84)")).toStdString();
+                if (index == 1) return juce::String(juce::CharPointer_UTF8("Relativistic Time Clock Input (\xce\xb3)")).toStdString();
             } else {
-                if (index == 0) return "Elapsed Proper Time (\u0394\u03c4 in ms) Output";
-                if (index == 1) return "Time Frame Output (\u03b3)";
+                if (index == 0) return juce::String(juce::CharPointer_UTF8("Elapsed Proper Time (\xce\x94\xcf\x84 in ms) Output")).toStdString();
+                if (index == 1) return juce::String(juce::CharPointer_UTF8("Time Frame Output (\xce\xb3)")).toStdString();
             }
         }
         else if (sym == "snapshot~" || sym == "time.snapshot~") {
             if (!isOutlet) {
-                if (index == 0) return "'bang' (sample audio), 'gamma' (sample \u03b3), 'tau' (sample \u03c4)";
+                if (index == 0) return juce::String(juce::CharPointer_UTF8("'bang' (sample audio), 'gamma' (sample \xce\xb3), 'tau' (sample \xcf\x84)")).toStdString();
                 if (index == 1) return "Audio Signal to Sample (~)";
-                if (index == 2) return "Relativistic Time Clock Input (\u03b3)";
+                if (index == 2) return juce::String(juce::CharPointer_UTF8("Relativistic Time Clock Input (\xce\xb3)")).toStdString();
             } else {
                 if (index == 0) return "Sampled Value Message Output";
-                if (index == 1) return "Time Frame Output (\u03b3)";
+                if (index == 1) return juce::String(juce::CharPointer_UTF8("Time Frame Output (\xce\xb3)")).toStdString();
             }
         }
         else if (sym == "time.quantize" || sym == "quantize") {
             if (!isOutlet) {
                 if (index == 0) return "Incoming message to quantize to grid, or 'div <ms>'";
-                if (index == 1) return "Relativistic Time Clock Input (\u03b3)";
+                if (index == 1) return juce::String(juce::CharPointer_UTF8("Relativistic Time Clock Input (\xce\xb3)")).toStdString();
             } else {
                 if (index == 0) return "Quantized Message Output";
-                if (index == 1) return "Time Frame Output (\u03b3)";
+                if (index == 1) return juce::String(juce::CharPointer_UTF8("Time Frame Output (\xce\xb3)")).toStdString();
             }
         }
         else if (sym == "trigger" || sym == "t") {
@@ -1586,28 +1589,28 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         else if (sym == "line~" || sym == "ramp~") {
             if (!isOutlet) {
                 if (index == 0) return "Target / Duration message (e.g. '<target> <time_ms>')";
-                if (index == 1) return "Relativistic Time Clock Input (\u03b3)";
+                if (index == 1) return juce::String(juce::CharPointer_UTF8("Relativistic Time Clock Input (\xce\xb3)")).toStdString();
             } else {
-                if (index == 0) return "Time Frame Output (\u03b3)";
+                if (index == 0) return juce::String(juce::CharPointer_UTF8("Time Frame Output (\xce\xb3)")).toStdString();
                 if (index == 1) return "Linear Audio Ramp Output (~)";
             }
         }
         else if (sym == "metro") {
             if (!isOutlet) {
                 if (index == 0) return "Start (1/bang), Stop (0), or Interval (ms)";
-                if (index == 1) return "Relativistic Time Clock Input (\u03b3)";
+                if (index == 1) return juce::String(juce::CharPointer_UTF8("Relativistic Time Clock Input (\xce\xb3)")).toStdString();
             } else {
                 if (index == 0) return "Periodic Bang Message Output";
-                if (index == 1) return "Time Frame Output (\u03b3)";
+                if (index == 1) return juce::String(juce::CharPointer_UTF8("Time Frame Output (\xce\xb3)")).toStdString();
             }
         }
         else if (sym == "del" || sym == "delay") {
             if (!isOutlet) {
                 if (index == 0) return "Trigger Bang / Delay Time (ms)";
-                if (index == 1) return "Relativistic Time Clock Input (\u03b3)";
+                if (index == 1) return juce::String(juce::CharPointer_UTF8("Relativistic Time Clock Input (\xce\xb3)")).toStdString();
             } else {
                 if (index == 0) return "Delayed Bang Message Output";
-                if (index == 1) return "Time Frame Output (\u03b3)";
+                if (index == 1) return juce::String(juce::CharPointer_UTF8("Time Frame Output (\xce\xb3)")).toStdString();
             }
         }
         else if (sym == "random") {
@@ -1625,10 +1628,10 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         else if (sym == "readsf~") {
             if (!isOutlet) {
                 if (index == 0) return "Control ('open <path>', 'start', 'stop', 'seek <sec>', 'speed <val>')";
-                if (index == 1) return "Relativistic Time Clock Input (\u03b3)";
+                if (index == 1) return juce::String(juce::CharPointer_UTF8("Relativistic Time Clock Input (\xce\xb3)")).toStdString();
             } else {
                 if (index == 0) return "End-of-File (EOF) Bang Output";
-                if (index == 1) return "Time Frame Output (\u03b3)";
+                if (index == 1) return juce::String(juce::CharPointer_UTF8("Time Frame Output (\xce\xb3)")).toStdString();
                 if (index == 2) return "Left Channel Stream Audio Output (~)";
                 if (index == 3) return "Right Channel Stream Audio Output (~)";
             }
@@ -1636,11 +1639,11 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         else if (sym == "osc~") {
             if (!isOutlet) {
                 if (index == 0) return "Control Messages (freq <hz>, wave <shape>, vol <db>)";
-                if (index == 1) return "Relativistic Time Input (modulates pitch via Doppler \u03b3)";
+                if (index == 1) return juce::String(juce::CharPointer_UTF8("Relativistic Time Input (modulates pitch via Doppler \xce\xb3)")).toStdString();
                 if (index == 2) return "Frequency Modulation (FM) Audio Input (~)";
             } else {
                 if (index == 0) return "Message Output";
-                if (index == 1) return "Time Frame Output (\u03b3)";
+                if (index == 1) return juce::String(juce::CharPointer_UTF8("Time Frame Output (\xce\xb3)")).toStdString();
                 if (index == 2) return "Anti-aliased Audio Output (~)";
             }
         }
@@ -1652,7 +1655,7 @@ void NodeInspectorComponent::updateUIForSelectedNode()
                 if (index == 3) return "Cutoff Audio Modulation Input (~)";
             } else {
                 if (index == 0) return "Message Output";
-                if (index == 1) return "Time Frame Output (\u03b3)";
+                if (index == 1) return juce::String(juce::CharPointer_UTF8("Time Frame Output (\xce\xb3)")).toStdString();
                 if (index == 2) return "Filtered Moog 4-Pole Audio Output (~)";
             }
         }
@@ -1663,7 +1666,7 @@ void NodeInspectorComponent::updateUIForSelectedNode()
                 if (index == 2) return "Audio Signal Input (~)";
             } else {
                 if (index == 0) return "Message Output";
-                if (index == 1) return "Time Frame Output (\u03b3)";
+                if (index == 1) return juce::String(juce::CharPointer_UTF8("Time Frame Output (\xce\xb3)")).toStdString();
                 if (index == 2) return "Tube Saturated Audio Output (~)";
             }
         }
@@ -1674,7 +1677,7 @@ void NodeInspectorComponent::updateUIForSelectedNode()
                 if (index == 2) return "Exciter Trigger Audio Input (~)";
             } else {
                 if (index == 0) return "Message Output";
-                if (index == 1) return "Time Frame Output (\u03b3)";
+                if (index == 1) return juce::String(juce::CharPointer_UTF8("Time Frame Output (\xce\xb3)")).toStdString();
                 if (index == 2) return "Karplus-Strong String Audio Output (~)";
             }
         }
