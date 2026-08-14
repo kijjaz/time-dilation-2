@@ -798,18 +798,41 @@ bool WorkstationContainerComponent::keyPressed(const juce::KeyPress& key)
 
 void WorkstationContainerComponent::newPatch()
 {
+    nodeGraph.clearGraph();
+    arrangementTimelineComponent.clearMessageEvents();
     currentPatchFile = juce::File{};
-    setupDefaultPatch();
+
+    // Add default Master Out~ node ready for immediate patching
+    auto outNode = RelativisticNodeFactory::createNode(1, "out~ master");
+    outNode->xPos = 450.0f;
+    outNode->yPos = 180.0f;
+    outNode->setOutputVolume(1.0f);
+
+    if (auto out = std::dynamic_pointer_cast<OutNode>(outNode))
+    {
+        out->onPlaybackStateChanged = [this](bool play) {
+            isPlaying = play;
+        };
+    }
+
+    nodeGraph.addNode(outNode);
+    nextNodeId = 2;
+
     titleLabel.setText("Time Dilation DAW 2 — Untitled.pdil", juce::dontSendNotification);
+    canvasComponent.repaint();
+    trackViewComponent.refreshTracks();
+    arrangementTimelineComponent.refreshTimeline();
+
+    ConsoleLogger::getInstance().log("Created new relativistic patch (Untitled.pdil)", "patch", LogLevel::System);
 }
 
 void WorkstationContainerComponent::savePatch()
 {
-    if (currentPatchFile.existsAsFile())
+    if (currentPatchFile.existsAsFile() || currentPatchFile != juce::File{})
     {
         juce::DynamicObject::Ptr rootObj = new juce::DynamicObject();
 
-        // 1. Serialize Node Graph
+        // 1. Serialize Node Graph (Nodes, Cables, Coordinates, Volume & Scope modes, Feedback Safety)
         juce::String graphJsonStr = nodeGraph.serializeToJSON();
         auto parsedGraph = juce::JSON::parse(graphJsonStr);
         if (parsedGraph.isObject())
@@ -838,12 +861,19 @@ void WorkstationContainerComponent::savePatch()
         transportObj->setProperty("loopStartSec", arrangementTimelineComponent.getLoopStartSec());
         transportObj->setProperty("loopEndSec", arrangementTimelineComponent.getLoopEndSec());
         transportObj->setProperty("isLoopEnabled", arrangementTimelineComponent.isLoopActive());
+        transportObj->setProperty("viewMode", static_cast<int>(currentViewMode));
         rootObj->setProperty("transport", juce::var(transportObj.get()));
 
-        juce::String fullJson = juce::JSON::toString(juce::var(rootObj.get()), false);
-        currentPatchFile.replaceWithText(fullJson);
-
-        titleLabel.setText("Time Dilation DAW 2 — " + currentPatchFile.getFileName(), juce::dontSendNotification);
+        juce::String fullJson = juce::JSON::toString(juce::var(rootObj.get()), true);
+        if (currentPatchFile.replaceWithText(fullJson))
+        {
+            titleLabel.setText("Time Dilation DAW 2 — " + currentPatchFile.getFileName(), juce::dontSendNotification);
+            ConsoleLogger::getInstance().log("Patch saved successfully: " + currentPatchFile.getFullPathName().toStdString(), "patch", LogLevel::System);
+        }
+        else
+        {
+            ConsoleLogger::getInstance().log("Failed to write patch file to: " + currentPatchFile.getFullPathName().toStdString(), "patch", LogLevel::Error);
+        }
     }
     else
     {
@@ -853,13 +883,17 @@ void WorkstationContainerComponent::savePatch()
 
 void WorkstationContainerComponent::savePatchAs()
 {
+    juce::File defaultDir = currentPatchFile.existsAsFile() ? currentPatchFile.getParentDirectory()
+                                                            : juce::File::getSpecialLocation(juce::File::userHomeDirectory);
+    juce::String defaultName = currentPatchFile.existsAsFile() ? currentPatchFile.getFileName() : "Untitled.pdil";
+
     activeFileChooser = std::make_unique<juce::FileChooser>(
         "Save Relativistic Patch As...",
-        juce::File::getSpecialLocation(juce::File::userHomeDirectory).getChildFile("Untitled.pdil"),
-        "*.pdil");
+        defaultDir.getChildFile(defaultName),
+        "*.pdil;*.json");
 
     activeFileChooser->launchAsync(
-        juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles,
+        juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles | juce::FileBrowserComponent::warnAboutOverwriting,
         [this](const juce::FileChooser& fc) {
             auto result = fc.getResult();
             if (result != juce::File{})
@@ -886,6 +920,13 @@ void WorkstationContainerComponent::loadPatchFromFile(const juce::File& fileToLo
                 {
                     juce::String graphStr = juce::JSON::toString(rootObj->getProperty("graph"));
                     nodeGraph.deserializeFromJSON(graphStr.toStdString());
+                }
+
+                // Update nextNodeId beyond any existing node
+                nextNodeId = 1;
+                for (const auto& n : nodeGraph.getNodes())
+                {
+                    nextNodeId = std::max(nextNodeId, n->getId() + 1);
                 }
 
                 // 2. Restore Timeline Message Events
@@ -920,6 +961,11 @@ void WorkstationContainerComponent::loadPatchFromFile(const juce::File& fileToLo
                         double lEnd = tObj->hasProperty("loopEndSec") ? static_cast<double>(tObj->getProperty("loopEndSec")) : 16.0;
                         bool lActive = tObj->hasProperty("isLoopEnabled") ? static_cast<bool>(tObj->getProperty("isLoopEnabled")) : true;
                         arrangementTimelineComponent.setLoopRange(lStart, lEnd, lActive);
+
+                        if (tObj->hasProperty("viewMode"))
+                        {
+                            currentViewMode = static_cast<ViewMode>(static_cast<int>(tObj->getProperty("viewMode")));
+                        }
                     }
                 }
 
@@ -928,15 +974,25 @@ void WorkstationContainerComponent::loadPatchFromFile(const juce::File& fileToLo
                 canvasComponent.repaint();
                 trackViewComponent.refreshTracks();
                 arrangementTimelineComponent.refreshTimeline();
+                resized();
+
+                ConsoleLogger::getInstance().log("Loaded patch: " + currentPatchFile.getFullPathName().toStdString() + " (" + std::to_string(nodeGraph.getNodes().size()) + " nodes)", "patch", LogLevel::System);
             }
+        }
+        else
+        {
+            ConsoleLogger::getInstance().log("Invalid patch format in: " + fileToLoad.getFullPathName().toStdString(), "patch", LogLevel::Error);
         }
     }
     else
     {
+        juce::File initialDir = currentPatchFile.existsAsFile() ? currentPatchFile.getParentDirectory()
+                                                                : juce::File::getSpecialLocation(juce::File::userHomeDirectory);
+
         activeFileChooser = std::make_unique<juce::FileChooser>(
-            "Open Relativistic Patch...",
-            juce::File::getSpecialLocation(juce::File::userHomeDirectory),
-            "*.pdil");
+            "Open Relativistic Patch (.pdil)...",
+            initialDir,
+            "*.pdil;*.json");
 
         activeFileChooser->launchAsync(
             juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
