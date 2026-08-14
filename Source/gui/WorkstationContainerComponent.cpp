@@ -105,17 +105,7 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
     fileMenuButton.onClick = [this]() {
         juce::PopupMenu m;
         m.addItem(1, "New Patch (Cmd+N)");
-        m.addItem(2, "Open Patch (.pdil)... (Cmd+O)");
-        m.addSeparator();
-
-        juce::PopupMenu examplesMenu;
-        examplesMenu.addItem(101, "01: Full Workstation Ensemble (Synth + Drums + FX)");
-        examplesMenu.addItem(102, "02: Analog Drum Machine & Groove (Focused Kick/Snare/Hat)");
-        examplesMenu.addItem(103, "03: Deterministic Tape Stop & Wobble Machine (Metro -> Select -> Time.Curve)");
-        examplesMenu.addItem(104, "04: Relativistic Delay & Pipe Synth (Doppler Delay + Proper Time Pipe)");
-        examplesMenu.addItem(105, "05: Multi-Branch Time Morph & Chaos Rig (Lorenz RK4 + Hermite Morph)");
-        m.addSubMenu("Examples & Presets", examplesMenu);
-
+        m.addItem(2, "Open Patch (.pdil) (Cmd+O)");
         m.addSeparator();
         m.addItem(3, "Save Patch (.pdil) (Cmd+S)");
         m.addItem(4, "Save As... (Cmd+Shift+S)");
@@ -130,11 +120,6 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
             else if (result == 4) savePatchAs();
             else if (result == 5) showAudioSettingsWindow();
             else if (result == 6) juce::JUCEApplication::getInstance()->systemRequestedQuit();
-            else if (result == 101) loadExampleFullEnsemble();
-            else if (result == 102) loadExampleDrumGroove();
-            else if (result == 103) loadExampleTapeStopWobble();
-            else if (result == 104) loadExampleDelayPipeSynth();
-            else if (result == 105) loadExampleChaosMorph();
         });
     };
 
@@ -253,26 +238,15 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
 
     workflowMenuButton.onClick = [this]() {
         juce::PopupMenu m;
-        m.addItem(1, "01: Full Workstation Ensemble (Synth + Drums + FX)");
-        m.addItem(2, "02: Analog Drum Machine & Groove (Kick, Snare, Hi-Hat)");
-        m.addItem(3, "03: Deterministic Tape Stop & Wobble Machine (Metro -> Select -> Time.Curve)");
-        m.addItem(4, "04: Relativistic Delay & Pipe Synth (Doppler Delay + Proper Time Pipe)");
-        m.addItem(5, "05: Multi-Branch Time Morph & Chaos Rig (Lorenz RK4 + Hermite Morph)");
-        m.addSeparator();
-        m.addItem(6, "Composer / Musician Mode (Synth Lead + Pluck String)");
-        m.addItem(7, "Sound Designer Mode (Moog Ladder Filter + WaveShaper)");
-        m.addItem(8, "Film & Game Sci-Fi Mode (Relativistic Doppler Wormhole)");
-        m.addItem(9, "Experimentalist Mode (Tarjan Feedback Chaos Loop)");
+        m.addItem(1, "Composer / Musician Mode (Synth Lead + Pluck String)");
+        m.addItem(2, "Sound Designer Mode (Moog Ladder Filter + WaveShaper)");
+        m.addItem(3, "Film & Game Sci-Fi Mode (Relativistic Doppler Wormhole)");
+        m.addItem(4, "Experimentalist Mode (Tarjan Feedback Chaos Loop)");
         m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&workflowMenuButton), [this](int result) {
-            if (result == 1) loadExampleFullEnsemble();
-            else if (result == 2) loadExampleDrumGroove();
-            else if (result == 3) loadExampleTapeStopWobble();
-            else if (result == 4) loadExampleDelayPipeSynth();
-            else if (result == 5) loadExampleChaosMorph();
-            else if (result == 6) setupComposerTemplate();
-            else if (result == 7) setupSoundDesignerTemplate();
-            else if (result == 8) setupFilmSciFiTemplate();
-            else if (result == 9) setupExperimentalistTemplate();
+            if (result == 1) setupComposerTemplate();
+            else if (result == 2) setupSoundDesignerTemplate();
+            else if (result == 3) setupFilmSciFiTemplate();
+            else if (result == 4) setupExperimentalistTemplate();
             trackViewComponent.refreshTracks();
             canvasComponent.repaint();
         });
@@ -280,11 +254,48 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
 
     helpMenuButton.onClick = [this]() {
         juce::PopupMenu m;
+
+        juce::PopupMenu examplesMenu;
+        examplesMenu.addItem(101, "01: Full Workstation Ensemble (Synth + Drums + Space FX)");
+        examplesMenu.addItem(102, "02: Analog Drum Machine & Groove (Kick, Snare, Hi-Hat)");
+        examplesMenu.addItem(103, "03: Deterministic Tape Stop & Wobble Machine (Metro -> Select -> Time.Curve)");
+        examplesMenu.addItem(104, "04: Relativistic Delay & Pipe Synth (Doppler Delay + Proper Time Pipe)");
+        examplesMenu.addItem(105, "05: Multi-Branch Time Morph & Chaos Rig (Lorenz RK4 + Hermite Morph)");
+        m.addSubMenu("Examples & Presets", examplesMenu);
+
+        m.addSeparator();
         m.addItem(1, "Node Symbol Reference (35+ Symbols)");
         m.addItem(2, "Relativistic Time Math Guide");
         m.addSeparator();
         m.addItem(3, "About Time Dilation DAW 2");
-        m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&helpMenuButton), nullptr);
+        m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&helpMenuButton), [this](int result) {
+            if (result == 101) loadExampleFullEnsemble();
+            else if (result == 102) loadExampleDrumGroove();
+            else if (result == 103) loadExampleTapeStopWobble();
+            else if (result == 104) loadExampleDelayPipeSynth();
+            else if (result == 105) loadExampleChaosMorph();
+            else if (result == 1) {
+                juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::InfoIcon,
+                    "Node Symbol Reference",
+                    "Time Objects:\n- time.curve~, time.chaos~, time.crossfade~, time.const~, time.scale~, time.add~, time.quantize~, time.split~, time.merge~\n\n"
+                    "Audio Sources:\n- osc~ (sin/saw/sqr/tri), noise~ (white/pink), pluck~, readsf~, tabread~\n\n"
+                    "Filters & FX:\n- ladder~, svf~, delwrite~, vd~, drive~, reverb~\n\n"
+                    "Control Logic:\n- metro, counter, random, select, route, t b b, pipe, timer, snapshot~, print, print~");
+            }
+            else if (result == 2) {
+                juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::InfoIcon,
+                    "Relativistic Time Math Guide",
+                    "Proper Time: \u03c4 = \u222b \u03b3(t) dt\n"
+                    "Doppler Read: d\u03c4_read / dt = 1 - (1/\u03b3) \u00b7 (v/c)\n"
+                    "C2 Hermite Smoothstep: h(u) = 3u\u00b2 - 2u\u00b3\n"
+                    "Lorenz Attractor: dx/dt = \u03c3(y-x), dy/dt = x(\u03c1-z)-y, dz/dt = xy - \u03b2z");
+            }
+            else if (result == 3) {
+                juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::InfoIcon,
+                    "About Time Dilation DAW 2",
+                    "Time Dilation DAW 2\nRelativistic Non-Linear Music Production Workstation\nEngine: 96 kHz Proper-Time Relativistic Vector Engine\nDesign: Carbon & Gold Pro Console");
+            }
+        });
     };
 
     addAndMakeVisible(canvasComponent);
