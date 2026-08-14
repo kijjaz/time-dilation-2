@@ -2,6 +2,8 @@
 #include "CarbonGoldLookAndFeel.h"
 #include "../dsp/CompositeNode.h"
 #include "../dsp/RelativisticNodeFactory.h"
+#include "../dsp/TidalSeqNode.h"
+#include "../dsp/RelativisticSequencerNodes.h"
 
 namespace TimeDilationDAW
 {
@@ -145,13 +147,59 @@ void RelativisticCanvasComponent::popSubGraphView()
     }
 }
 
+static bool isControlGuiSymbol(const std::string& sym)
+{
+    return (sym == "msg" || sym == "message" || sym == "bang" || sym == "bng" ||
+            sym == "toggle" || sym == "tgl" || sym == "number" || sym == "num" ||
+            sym == "symbol" || sym == "sym" || sym == "radio" || sym == "hradio" ||
+            sym == "vradio" || sym == "display" || sym == "disp" || sym == "print");
+}
+
+static bool isControlLogicSymbol(const std::string& sym)
+{
+    return (sym == "metro" || sym == "counter" || sym == "random" || sym == "select" ||
+            sym == "route" || sym == "t" || sym == "trigger" || sym == "pipe" ||
+            sym == "timer" || sym == "snapshot~" || sym == "mtof" || sym == "ftom" ||
+            sym == "pack" || sym == "unpack" || sym == "soundfiler" || sym == "table");
+}
+
+static bool isSequencerSymbol(const std::string& sym)
+{
+    return (sym.rfind("seq", 0) == 0 || sym == "tidal" || sym == "pattern" || sym == "auto~");
+}
+
+static bool isTimeSculptorSymbol(const std::string& sym)
+{
+    return (sym.rfind("time.", 0) == 0);
+}
+
 juce::Rectangle<float> RelativisticCanvasComponent::getNodeBounds(const RelativisticNode& node) const
 {
+    std::string sym = node.getSymbol();
+    std::transform(sym.begin(), sym.end(), sym.begin(), ::tolower);
+
     float fontWidth = juce::Font(12.0f, juce::Font::bold).getStringWidthFloat(node.getLabel());
     float minWidthForPorts = static_cast<float>(std::max(node.getInlets().size(), node.getOutlets().size()) + 1) * 24.0f;
-    float calculatedW = std::max({ node.width, fontWidth + 85.0f, minWidthForPorts, 130.0f });
 
-    float baseHeight = node.showRealtimeDisplay ? 85.0f : 45.0f;
+    if (isControlGuiSymbol(sym))
+    {
+        float w = std::max({ node.width, fontWidth + 24.0f, minWidthForPorts, 80.0f });
+        return { node.xPos + viewOffsetX, node.yPos + viewOffsetY, w, 28.0f };
+    }
+    if (isControlLogicSymbol(sym))
+    {
+        float w = std::max({ node.width, fontWidth + 24.0f, minWidthForPorts, 90.0f });
+        return { node.xPos + viewOffsetX, node.yPos + viewOffsetY, w, 32.0f };
+    }
+    if (isSequencerSymbol(sym))
+    {
+        float w = std::max({ node.width, fontWidth + 24.0f, minWidthForPorts, 170.0f });
+        return { node.xPos + viewOffsetX, node.yPos + viewOffsetY, w, 52.0f };
+    }
+
+    // Audio or Time Sculptor nodes
+    float calculatedW = std::max({ node.width, fontWidth + 85.0f, minWidthForPorts, 140.0f });
+    float baseHeight = node.showRealtimeDisplay ? 85.0f : 32.0f;
     float calculatedH = std::max(node.height, baseHeight);
 
     return { node.xPos + viewOffsetX, node.yPos + viewOffsetY, calculatedW, calculatedH };
@@ -427,14 +475,100 @@ void RelativisticCanvasComponent::paint(juce::Graphics& g)
             g.setFont(juce::Font(12.0f, juce::Font::bold));
             g.drawText("disp: " + dispStr, b.reduced(8.0f, 4.0f), juce::Justification::centredLeft, true);
         }
-        bool isControlGuiObject = (sym == "msg" || sym == "message" || sym == "bang" || sym == "bng" ||
-                                   sym == "toggle" || sym == "tgl" || sym == "number" || sym == "num" ||
-                                   sym == "symbol" || sym == "sym" || sym == "radio" || sym == "hradio" ||
-                                   sym == "vradio" || sym == "display" || sym == "disp" || sym == "print");
-
-        if (!isControlGuiObject)
+        else if (isControlLogicSymbol(sym))
         {
-            // Standard Processing / DSP Node Card
+            // Clean Compact Pure Data Style Control / Logic Object Card
+            g.setColour(isSelected ? CarbonGoldLookAndFeel::slatePanel.brighter(0.2f) : CarbonGoldLookAndFeel::slatePanel);
+            g.fillRoundedRectangle(b, 4.0f);
+            g.setColour(isSelected ? CarbonGoldLookAndFeel::goldAccent : CarbonGoldLookAndFeel::slatePanel.brighter(0.35f));
+            g.drawRoundedRectangle(b, 4.0f, isSelected ? 2.0f : 1.0f);
+
+            g.setColour(CarbonGoldLookAndFeel::goldAccent);
+            g.setFont(juce::Font(12.0f, juce::Font::bold));
+            g.drawText(node->getLabel(), b.reduced(8.0f, 2.0f), juce::Justification::centredLeft, true);
+        }
+        else if (isSequencerSymbol(sym))
+        {
+            // Dedicated Relativistic Sequencer Card (Mini-Notation & Progress Strip)
+            g.setColour(isSelected ? CarbonGoldLookAndFeel::slatePanel.brighter(0.2f) : CarbonGoldLookAndFeel::slatePanel);
+            g.fillRoundedRectangle(b, 5.0f);
+            g.setColour(isSelected ? CarbonGoldLookAndFeel::goldAccent : CarbonGoldLookAndFeel::goldAccent.withAlpha(0.6f));
+            g.drawRoundedRectangle(b, 5.0f, isSelected ? 2.0f : 1.0f);
+
+            auto headerRect = b.removeFromTop(20.0f);
+            g.setColour(CarbonGoldLookAndFeel::goldAccent);
+            g.setFont(juce::Font(11.0f, juce::Font::bold));
+            g.drawText("♩ " + node->getSymbol(), headerRect.reduced(6.0f, 0.0f), juce::Justification::centredLeft, true);
+
+            // Body Strip
+            auto bodyRect = b.reduced(4.0f, 3.0f);
+            g.setColour(juce::Colour::fromRGB(0x0a, 0x0e, 0x18));
+            g.fillRoundedRectangle(bodyRect, 3.0f);
+            g.setColour(CarbonGoldLookAndFeel::slatePanel.brighter(0.2f));
+            g.drawRoundedRectangle(bodyRect, 3.0f, 1.0f);
+
+            if (auto tidalNode = std::dynamic_pointer_cast<TidalSeqNode>(node))
+            {
+                // Live mini-notation string
+                g.setColour(CarbonGoldLookAndFeel::cyberCyan);
+                g.setFont(juce::Font(10.5f, juce::Font::bold));
+                auto textR = bodyRect.withTrimmedBottom(6.0f).reduced(4.0f, 0.0f);
+                g.drawText(tidalNode->getPatternString(), textR, juce::Justification::centredLeft, true);
+
+                // Strudel-style active cycle progress bar at bottom of card
+                auto progR = bodyRect.removeFromBottom(5.0f).reduced(2.0f, 1.0f);
+                g.setColour(CarbonGoldLookAndFeel::carbonBg);
+                g.fillRect(progR);
+
+                double phase = tidalNode->getCyclePhase();
+                float progW = static_cast<float>(phase) * progR.getWidth();
+                g.setColour(CarbonGoldLookAndFeel::goldAccent);
+                g.fillRect(progR.withWidth(progW));
+
+                // Strudel active head glow
+                g.setColour(juce::Colours::white);
+                g.drawVerticalLine(static_cast<int>(progR.getX() + progW), progR.getY(), progR.getBottom());
+            }
+            else if (auto euclidNode = std::dynamic_pointer_cast<EuclidSequencerNode>(node))
+            {
+                // Draw Euclidean step dots [● ○ ● ● ○ ●]
+                const auto& pat = euclidNode->getPattern();
+                int n = static_cast<int>(pat.size());
+                if (n > 0)
+                {
+                    float dotSpacing = bodyRect.getWidth() / static_cast<float>(n);
+                    float dotR = std::min(4.0f, dotSpacing * 0.35f);
+                    float midY = bodyRect.getCentreY();
+
+                    for (int i = 0; i < n; ++i)
+                    {
+                        float dx = bodyRect.getX() + (i + 0.5f) * dotSpacing;
+                        if (pat[static_cast<size_t>(i)])
+                        {
+                            g.setColour(CarbonGoldLookAndFeel::goldAccent);
+                            g.fillEllipse(dx - dotR, midY - dotR, dotR * 2.0f, dotR * 2.0f);
+                        }
+                        else
+                        {
+                            g.setColour(juce::Colours::grey.withAlpha(0.5f));
+                            g.drawEllipse(dx - dotR, midY - dotR, dotR * 2.0f, dotR * 2.0f, 1.0f);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                // Generic sequencer label / step info
+                g.setColour(CarbonGoldLookAndFeel::cyberCyan);
+                g.setFont(juce::Font(10.5f, juce::Font::bold));
+                g.drawText(node->getLabel(), bodyRect.reduced(6.0f, 2.0f), juce::Justification::centredLeft, true);
+            }
+        }
+        else
+        {
+            // Standard Audio Signal or Relativistic Time Sculptor Processing Card
+            bool isTimeSculptor = isTimeSculptorSymbol(sym);
+
             g.setColour(isSelected ? CarbonGoldLookAndFeel::slatePanel.brighter(0.2f) : CarbonGoldLookAndFeel::slatePanel);
             g.fillRoundedRectangle(b, 5.0f);
 
@@ -447,8 +581,12 @@ void RelativisticCanvasComponent::paint(juce::Graphics& g)
             // Realtime Display Toggle Button [👁]
             auto toggleBtnRect = headerRect.removeFromRight(22.0f).reduced(2.0f);
 
-            // Scope Mode Toggle Button
-            auto modeBtnRect = headerRect.removeFromRight(46.0f).reduced(2.0f);
+            // Scope Mode Toggle Button (Only for Time Sculptors or Multi-Mode nodes)
+            juce::Rectangle<float> modeBtnRect;
+            if (isTimeSculptor)
+            {
+                modeBtnRect = headerRect.removeFromRight(46.0f).reduced(2.0f);
+            }
 
             g.setColour(juce::Colours::white);
             g.setFont(juce::Font(12.0f, juce::Font::bold));
@@ -459,31 +597,28 @@ void RelativisticCanvasComponent::paint(juce::Graphics& g)
             g.setFont(10.0f);
             g.drawText("👁", toggleBtnRect, juce::Justification::centred, false);
 
-            g.setColour((node->displayType == RelativisticNode::ScopeDisplayType::AudioWaveform) ? CarbonGoldLookAndFeel::cyberCyan : CarbonGoldLookAndFeel::royalViolet);
-            g.drawRoundedRectangle(modeBtnRect, 3.0f, 1.0f);
-            g.setFont(9.0f);
-            juce::String modeStr;
-            if (node->displayType == RelativisticNode::ScopeDisplayType::AudioWaveform)
+            if (isTimeSculptor)
             {
-                modeStr = "Audio";
-            }
-            else
-            {
+                node->displayType = RelativisticNode::ScopeDisplayType::TimeFrame;
+                g.setColour(CarbonGoldLookAndFeel::royalViolet);
+                g.drawRoundedRectangle(modeBtnRect, 3.0f, 1.0f);
+                g.setFont(9.0f);
+                juce::String modeStr;
                 if (node->timeVarMode == RelativisticNode::TimeScopeVariable::SpeedGamma) modeStr = "Speed";
                 else if (node->timeVarMode == RelativisticNode::TimeScopeVariable::OffsetTau) modeStr = "Offset";
                 else if (node->timeVarMode == RelativisticNode::TimeScopeVariable::CouplingC) modeStr = "Flex";
                 else modeStr = "Multi";
+                g.drawText(modeStr, modeBtnRect, juce::Justification::centred, false);
             }
-            g.drawText(modeStr, modeBtnRect, juce::Justification::centred, false);
 
             // Realtime Scope & Value Display Area
             if (node->showRealtimeDisplay && b.getHeight() > 30.0f)
-        {
-            auto scopeBox = b.reduced(4.0f, 4.0f);
-            g.setColour(juce::Colour::fromRGB(0x10, 0x12, 0x18));
-            g.fillRoundedRectangle(scopeBox, 3.0f);
-            g.setColour(CarbonGoldLookAndFeel::slatePanel.brighter(0.3f));
-            g.drawRoundedRectangle(scopeBox, 3.0f, 1.0f);
+            {
+                auto scopeBox = b.reduced(4.0f, 4.0f);
+                g.setColour(juce::Colour::fromRGB(0x10, 0x12, 0x18));
+                g.fillRoundedRectangle(scopeBox, 3.0f);
+                g.setColour(CarbonGoldLookAndFeel::slatePanel.brighter(0.3f));
+                g.drawRoundedRectangle(scopeBox, 3.0f, 1.0f);
 
             // Fetch live TimePolyFrame data across all outlets (first) or inlets
             const TimePolyFrame* frame = nullptr;
@@ -1480,32 +1615,32 @@ void RelativisticCanvasComponent::mouseDown(const juce::MouseEvent& e)
             }
             nodeDragStartPos = pos;
 
-            if (onNodeSelected) onNodeSelected(node);
+            std::string sym = node->getSymbol();
+            std::transform(sym.begin(), sym.end(), sym.begin(), ::tolower);
 
-            // Check if clicked Realtime Toggle Button [👁]
-            auto headerRect = b.withHeight(22.0f);
-            auto toggleBtnRect = headerRect.removeFromRight(22.0f).reduced(2.0f);
-            if (toggleBtnRect.contains(pos))
+            // Check if clicked Realtime Toggle Button [👁] (Only for Audio / Time nodes)
+            if (!isControlGuiSymbol(sym) && !isControlLogicSymbol(sym) && !isSequencerSymbol(sym))
             {
-                node->toggleRealtimeDisplay();
-                repaint();
-                return;
-            }
+                auto headerRect = b.withHeight(22.0f);
+                auto toggleBtnRect = headerRect.removeFromRight(22.0f).reduced(2.0f);
+                if (toggleBtnRect.contains(pos))
+                {
+                    node->toggleRealtimeDisplay();
+                    repaint();
+                    return;
+                }
 
-            // Check if clicked Scope Mode Button [Audio / Speed / Offset / Flex]
-            auto modeBtnRect = headerRect.removeFromRight(46.0f).reduced(2.0f);
-            if (modeBtnRect.contains(pos))
-            {
-                if (node->displayType == RelativisticNode::ScopeDisplayType::TimeFrame)
+                // Check if clicked Scope Mode Button (Only for Time Sculptors)
+                if (isTimeSculptorSymbol(sym))
                 {
-                    node->cycleTimeVarMode();
+                    auto modeBtnRect = headerRect.removeFromRight(46.0f).reduced(2.0f);
+                    if (modeBtnRect.contains(pos))
+                    {
+                        node->cycleTimeVarMode();
+                        repaint();
+                        return;
+                    }
                 }
-                else
-                {
-                    node->displayType = RelativisticNode::ScopeDisplayType::TimeFrame;
-                }
-                repaint();
-                return;
             }
 
             // Check if clicked Resize Handle (bottom-right 14x14 px corner)
@@ -1526,9 +1661,6 @@ void RelativisticCanvasComponent::mouseDown(const juce::MouseEvent& e)
             }
 
             // Interactive Click Triggers for GUI Control Nodes!
-            std::string sym = node->getSymbol();
-            std::transform(sym.begin(), sym.end(), sym.begin(), ::tolower);
-
             if (sym == "bang" || sym == "bng")
             {
                 auto bNode = std::dynamic_pointer_cast<BangNode>(node);
