@@ -318,7 +318,7 @@ void VdTildeNode::process(int numSamples)
     for (int s = 0; s < numSamples; ++s)
     {
         double currentGamma = hasAudioRateGamma ? static_cast<double>(timeFrame.sampleGamma[static_cast<size_t>(s)]) : timeFrame.masterGamma;
-        double effectiveGamma = std::clamp(currentGamma, 0.001, 100.0);
+        double currentTau = timeFrame.masterTau;
 
         // Modulate delay by audio inlet if provided, else use baseDelayMs
         double targetDelayMs = (modBuf.getMagnitude(0, numSamples) > 0.0f) ? static_cast<double>(modL[s]) : baseDelayMs;
@@ -327,9 +327,32 @@ void VdTildeNode::process(int numSamples)
         // Smooth delay time transitions to prevent clicks
         smoothedDelayMs += 0.005 * (targetDelayMs - smoothedDelayMs);
 
-        // Relativistic proper-time delay calculation:
-        // Delay length in samples dynamically scaled by velocity factor
-        double delaySamples = (smoothedDelayMs * 0.001 * sRate) / effectiveGamma;
+        // Apply TimeCouplingMode (Speed gamma vs Offset tau)
+        double effectiveGamma = 1.0;
+        double tauOffsetSamples = 0.0;
+
+        switch (timeCouplingMode)
+        {
+            case TimeCouplingMode::Both:
+                effectiveGamma = std::clamp(currentGamma, 0.001, 100.0);
+                tauOffsetSamples = currentTau * sRate * 0.001 * offsetCouplingFactor;
+                break;
+            case TimeCouplingMode::SpeedOnly:
+                effectiveGamma = std::clamp(currentGamma, 0.001, 100.0);
+                tauOffsetSamples = 0.0;
+                break;
+            case TimeCouplingMode::OffsetOnly:
+                effectiveGamma = 1.0;
+                tauOffsetSamples = currentTau * sRate * 0.001 * offsetCouplingFactor;
+                break;
+            case TimeCouplingMode::Bypassed:
+                effectiveGamma = 1.0;
+                tauOffsetSamples = 0.0;
+                break;
+        }
+
+        double delaySamples = (smoothedDelayMs * 0.001 * sRate) / effectiveGamma + tauOffsetSamples;
+        if (delaySamples < 0.0) delaySamples = 0.0;
 
         float l = 0.0f, r = 0.0f;
         DelayLineManager::getInstance().readInterpolated(delayName, delaySamples, l, r);
@@ -404,6 +427,14 @@ void PipeNode::receiveMessage(const std::string& message)
     double sRate = (currentSampleRate > 1.0) ? currentSampleRate : 96000.0;
     double reqSamples = std::max(1.0, delayMs * 0.001 * sRate);
 
+    // If offset coupling is enabled, apply initial proper-time offset
+    if (timeCouplingMode == TimeCouplingMode::Both || timeCouplingMode == TimeCouplingMode::OffsetOnly)
+    {
+        const auto& timeFrame = getTimeInlet("timeIn");
+        reqSamples += timeFrame.masterTau * sRate * 0.001 * offsetCouplingFactor;
+        if (reqSamples < 1.0) reqSamples = 1.0;
+    }
+
     std::lock_guard<std::mutex> lock(queueMutex);
     eventQueue.push_back({ payload, reqSamples });
 }
@@ -416,10 +447,20 @@ void PipeNode::process(int numSamples)
     const bool hasAudioRateGamma = (timeFrame.sampleGamma.size() >= static_cast<size_t>(numSamples));
     double gammaDecaySum = 0.0;
 
-    for (int s = 0; s < numSamples; ++s)
+    switch (timeCouplingMode)
     {
-        double g = hasAudioRateGamma ? static_cast<double>(timeFrame.sampleGamma[static_cast<size_t>(s)]) : timeFrame.masterGamma;
-        gammaDecaySum += std::max(0.0, g);
+        case TimeCouplingMode::Both:
+        case TimeCouplingMode::SpeedOnly:
+            for (int s = 0; s < numSamples; ++s)
+            {
+                double g = hasAudioRateGamma ? static_cast<double>(timeFrame.sampleGamma[static_cast<size_t>(s)]) : timeFrame.masterGamma;
+                gammaDecaySum += std::max(0.0, g);
+            }
+            break;
+        case TimeCouplingMode::OffsetOnly:
+        case TimeCouplingMode::Bypassed:
+            gammaDecaySum = static_cast<double>(numSamples);
+            break;
     }
 
     std::lock_guard<std::mutex> lock(queueMutex);

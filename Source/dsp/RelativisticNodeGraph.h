@@ -289,6 +289,15 @@ public:
     enum class ScopeDisplayType { AudioWaveform, TimeFrame };
     enum class TimeScopeVariable { SpeedGamma, OffsetTau, CouplingC, MultiTime };
 
+    enum class TimeCouplingMode { Both, SpeedOnly, OffsetOnly, Bypassed };
+    TimeCouplingMode timeCouplingMode = TimeCouplingMode::Both;
+    double offsetCouplingFactor = 1.0; // 0.0 = Decoupled, 1.0 = Full Proper-Time Displacement
+
+    TimeCouplingMode getTimeCouplingMode() const { return timeCouplingMode; }
+    void setTimeCouplingMode(TimeCouplingMode mode) { timeCouplingMode = mode; }
+    double getOffsetCouplingFactor() const { return offsetCouplingFactor; }
+    void setOffsetCouplingFactor(double c) { offsetCouplingFactor = std::clamp(c, 0.0, 1.0); }
+
     ScopeRenderMode scopeMode = ScopeRenderMode::Waveform2D;
     ScopeDisplayType displayType = ScopeDisplayType::AudioWaveform;
     TimeScopeVariable timeVarMode = TimeScopeVariable::SpeedGamma;

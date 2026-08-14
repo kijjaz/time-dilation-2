@@ -95,6 +95,24 @@ NodeInspectorComponent::NodeInspectorComponent()
     optionLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
     addAndMakeVisible(optionLabel);
 
+    // Time Coupling Controls (Speed gamma vs Offset tau)
+    timeCouplingCombo.addItem("Both (\u03b3 Speed + \u03c4 Offset)", 1);
+    timeCouplingCombo.addItem("Speed / Dilation Only (\u03b3)", 2);
+    timeCouplingCombo.addItem("Offset / Position Only (\u03c4)", 3);
+    timeCouplingCombo.addItem("Bypassed / Coordinate Time", 4);
+    addAndMakeVisible(timeCouplingCombo);
+    timeCouplingLabel.setFont(11.0f);
+    timeCouplingLabel.setColour(juce::Label::textColourId, CarbonGoldLookAndFeel::cyberCyan);
+    addAndMakeVisible(timeCouplingLabel);
+
+    offsetCouplingSlider.setSliderStyle(juce::Slider::LinearHorizontal);
+    offsetCouplingSlider.setRange(0.0, 1.0, 0.01);
+    offsetCouplingSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 50, 20);
+    addAndMakeVisible(offsetCouplingSlider);
+    offsetCouplingLabel.setFont(11.0f);
+    offsetCouplingLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
+    addAndMakeVisible(offsetCouplingLabel);
+
     // Documentation & Methods
     docTitleLabel.setFont(juce::Font(12.0f, juce::Font::bold));
     docTitleLabel.setColour(juce::Label::textColourId, CarbonGoldLookAndFeel::goldAccent);
@@ -278,6 +296,47 @@ void NodeInspectorComponent::updateUIForSelectedNode()
                 if (selectedNode) selectedNode->setOutputVolume(static_cast<float>(volSlider.getValue()));
             };
         }
+    }
+
+    // Bind Time Coupling Mode & Offset Factor
+    bool hasTimeInlet = false;
+    for (const auto& in : selectedNode->getInlets())
+    {
+        if (in.dataType == PortDataType::Time) { hasTimeInlet = true; break; }
+    }
+
+    if (hasTimeInlet)
+    {
+        timeCouplingLabel.setVisible(true);
+        timeCouplingCombo.setVisible(true);
+        int modeIdx = 1;
+        if (selectedNode->getTimeCouplingMode() == RelativisticNode::TimeCouplingMode::Both) modeIdx = 1;
+        else if (selectedNode->getTimeCouplingMode() == RelativisticNode::TimeCouplingMode::SpeedOnly) modeIdx = 2;
+        else if (selectedNode->getTimeCouplingMode() == RelativisticNode::TimeCouplingMode::OffsetOnly) modeIdx = 3;
+        else if (selectedNode->getTimeCouplingMode() == RelativisticNode::TimeCouplingMode::Bypassed) modeIdx = 4;
+        timeCouplingCombo.setSelectedId(modeIdx, juce::dontSendNotification);
+        timeCouplingCombo.onChange = [this]() {
+            if (!selectedNode) return;
+            int id = timeCouplingCombo.getSelectedId();
+            if (id == 1) selectedNode->setTimeCouplingMode(RelativisticNode::TimeCouplingMode::Both);
+            else if (id == 2) selectedNode->setTimeCouplingMode(RelativisticNode::TimeCouplingMode::SpeedOnly);
+            else if (id == 3) selectedNode->setTimeCouplingMode(RelativisticNode::TimeCouplingMode::OffsetOnly);
+            else if (id == 4) selectedNode->setTimeCouplingMode(RelativisticNode::TimeCouplingMode::Bypassed);
+        };
+
+        offsetCouplingLabel.setVisible(true);
+        offsetCouplingSlider.setVisible(true);
+        offsetCouplingSlider.setValue(selectedNode->getOffsetCouplingFactor(), juce::dontSendNotification);
+        offsetCouplingSlider.onValueChange = [this]() {
+            if (selectedNode) selectedNode->setOffsetCouplingFactor(offsetCouplingSlider.getValue());
+        };
+    }
+    else
+    {
+        timeCouplingLabel.setVisible(false);
+        timeCouplingCombo.setVisible(false);
+        offsetCouplingLabel.setVisible(false);
+        offsetCouplingSlider.setVisible(false);
     }
 
     docTitleLabel.setVisible(true);
@@ -1462,6 +1521,15 @@ void NodeInspectorComponent::resized()
     {
         optionLabel.setBounds(12, y, w, 18); y += 20;
         optionSelector.setBounds(12, y, w, 26); y += 32;
+    }
+
+    if (timeCouplingLabel.isVisible())
+    {
+        timeCouplingLabel.setBounds(12, y, w, 18); y += 20;
+        timeCouplingCombo.setBounds(12, y, w, 26); y += 30;
+
+        offsetCouplingLabel.setBounds(12, y, w, 18); y += 20;
+        offsetCouplingSlider.setBounds(12, y, w, 24); y += 30;
     }
 
     y += 10;

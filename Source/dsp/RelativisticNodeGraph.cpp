@@ -133,6 +133,13 @@ void RelativisticNode::receiveMessage(const std::string& message)
     juce::String msgStr(message);
     juce::StringArray tokens;
     tokens.addTokens(msgStr, " ", "");
+
+    if (tokens.isEmpty()) return;
+
+    // Log control event to internal proper-time pipe
+    double curTau = !inletTimeFrames.empty() ? inletTimeFrames[0].masterTau : 0.0;
+    controlPipe.addEvent(curTau, message);
+
     if (tokens.size() >= 2 && (tokens[0] == "vol" || tokens[0] == "volume"))
     {
         juce::String valStr = tokens[1].toLowerCase();
@@ -153,6 +160,30 @@ void RelativisticNode::receiveMessage(const std::string& message)
                 setOutputVolume(val);
             }
         }
+    }
+    else if (tokens.size() >= 2 && (tokens[0] == "time_mode" || tokens[0] == "mode"))
+    {
+        juce::String modeStr = tokens[1].toLowerCase();
+        if (modeStr == "both" || modeStr == "full" || modeStr == "all")
+        {
+            setTimeCouplingMode(TimeCouplingMode::Both);
+        }
+        else if (modeStr == "speed" || modeStr == "speedonly" || modeStr == "gamma" || modeStr == "dilation")
+        {
+            setTimeCouplingMode(TimeCouplingMode::SpeedOnly);
+        }
+        else if (modeStr == "offset" || modeStr == "offsetonly" || modeStr == "tau" || modeStr == "position")
+        {
+            setTimeCouplingMode(TimeCouplingMode::OffsetOnly);
+        }
+        else if (modeStr == "none" || modeStr == "bypass" || modeStr == "off")
+        {
+            setTimeCouplingMode(TimeCouplingMode::Bypassed);
+        }
+    }
+    else if (tokens.size() >= 2 && (tokens[0] == "coupling" || tokens[0] == "time_coupling" || tokens[0] == "offset_coupling"))
+    {
+        setOffsetCouplingFactor(tokens[1].getDoubleValue());
     }
 }
 
@@ -842,6 +873,8 @@ std::string RelativisticNodeGraph::serializeToJSON() const
         nObj->setProperty("displayType", static_cast<int>(node->displayType));
         nObj->setProperty("timeVarMode", static_cast<int>(node->timeVarMode));
         nObj->setProperty("scopeMode", static_cast<int>(node->scopeMode));
+        nObj->setProperty("timeCouplingMode", static_cast<int>(node->timeCouplingMode));
+        nObj->setProperty("offsetCouplingFactor", node->offsetCouplingFactor);
         nodesArr.add(juce::var(nObj));
     }
     rootObj->setProperty("nodes", nodesArr);
@@ -909,6 +942,8 @@ bool RelativisticNodeGraph::deserializeFromJSON(const std::string& jsonStr)
                     if (nObj->hasProperty("displayType")) node->displayType = static_cast<RelativisticNode::ScopeDisplayType>(static_cast<int>(nObj->getProperty("displayType")));
                     if (nObj->hasProperty("timeVarMode")) node->timeVarMode = static_cast<RelativisticNode::TimeScopeVariable>(static_cast<int>(nObj->getProperty("timeVarMode")));
                     if (nObj->hasProperty("scopeMode")) node->scopeMode = static_cast<RelativisticNode::ScopeRenderMode>(static_cast<int>(nObj->getProperty("scopeMode")));
+                    if (nObj->hasProperty("timeCouplingMode")) node->timeCouplingMode = static_cast<RelativisticNode::TimeCouplingMode>(static_cast<int>(nObj->getProperty("timeCouplingMode")));
+                    if (nObj->hasProperty("offsetCouplingFactor")) node->offsetCouplingFactor = static_cast<double>(nObj->getProperty("offsetCouplingFactor"));
 
                     addNode(node);
                 }

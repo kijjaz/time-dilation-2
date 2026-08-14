@@ -61,6 +61,12 @@ private:
     juce::ComboBox optionSelector;
     juce::Label optionLabel;
 
+    // Time Coupling Controls (Speed gamma vs Offset tau)
+    juce::ComboBox timeCouplingCombo;
+    juce::Label timeCouplingLabel{ "TimeCouplingLabel", "Time Coupling (γ / τ)" };
+    juce::Slider offsetCouplingSlider;
+    juce::Label offsetCouplingLabel{ "OffsetCouplingLabel", "Offset Factor (τ)" };
+
     // Documentation & Method Reference Section
     juce::Label docTitleLabel{ "DocTitle", "DOCUMENTATION & METHODS" };
     juce::Label descLabel;
