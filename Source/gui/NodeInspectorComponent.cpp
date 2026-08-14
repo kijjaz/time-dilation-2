@@ -1626,7 +1626,14 @@ void NodeInspectorComponent::paint(juce::Graphics& g)
 
 void NodeInspectorComponent::resized()
 {
-    int w = std::max(120, getWidth() - 24);
+    int targetW = getWidth();
+    if (auto* parent = getParentComponent())
+    {
+        targetW = std::max(targetW, parent->getWidth() - 10);
+    }
+    targetW = std::max(targetW, 220);
+
+    int w = std::max(120, targetW - 24);
     int halfW = (w - 10) / 2;
 
     titleLabel.setBounds(12, 5, w, 22);
@@ -1729,9 +1736,9 @@ void NodeInspectorComponent::resized()
     }
 
     int totalRequiredH = y + 30;
-    if (getHeight() < totalRequiredH)
+    if (getHeight() < totalRequiredH || getWidth() < targetW)
     {
-        setSize(getWidth(), totalRequiredH);
+        setSize(targetW, std::max(getHeight(), totalRequiredH));
     }
 }
 

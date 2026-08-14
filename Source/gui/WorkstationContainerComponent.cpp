@@ -323,6 +323,13 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
 
     canvasComponent.onNodeSelected = [this](std::shared_ptr<RelativisticNode> node) {
         nodeInspectorComponent.setSelectedNode(node);
+        int consoleH = isConsoleVisible ? consoleHeight : 0;
+        int contentH = getHeight() - 60 - consoleH;
+        int targetW = std::max(180, inspectorWidth - 10);
+        nodeInspectorComponent.setBounds(0, 0, targetW, std::max(contentH, nodeInspectorComponent.getHeight()));
+        nodeInspectorComponent.resized();
+        nodeInspectorComponent.repaint();
+        inspectorViewport.repaint();
     };
 
     nodeInspectorComponent.onSpawnMessageBox = [this](int targetNodeId, const std::string& msgText) {

@@ -1599,7 +1599,11 @@ void RelativisticCanvasComponent::mouseDown(const juce::MouseEvent& e)
     }
 
     // 4. Clicked blank space: Start marquee lasso selection box
-    if (!isShift) clearSelection();
+    if (!isShift)
+    {
+        clearSelection();
+        if (onNodeSelected) onNodeSelected(nullptr);
+    }
     isMarqueeSelecting = true;
     marqueeStartPos = pos;
     marqueeRect = { pos.x, pos.y, 0.0f, 0.0f };
