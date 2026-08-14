@@ -141,11 +141,17 @@ std::shared_ptr<RelativisticNode> RelativisticNodeFactory::createNode(int nodeId
         if (ss >> sel) {}
         return std::make_shared<RadioNode>(nodeId, opts, sel);
     }
-    else if (symbol == "display" || symbol == "disp" || symbol == "print")
+    else if (symbol == "display" || symbol == "disp")
     {
         std::string tag;
         if (ss >> tag) {}
         return std::make_shared<DisplayNode>(nodeId, symbol, tag);
+    }
+    else if (symbol == "print")
+    {
+        std::string tag;
+        if (ss >> tag) {}
+        return std::make_shared<PrintNode>(nodeId, tag.empty() ? "print" : tag, false);
     }
     else if (symbol == "time.transport~" || symbol == "time.transport" || symbol == "transport~" || symbol == "transport" || symbol == "timeline~" || symbol == "timeline" || symbol == "time.timeline~")
     {

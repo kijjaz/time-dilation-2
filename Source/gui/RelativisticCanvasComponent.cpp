@@ -143,15 +143,16 @@ static bool isControlGuiSymbol(const std::string& sym)
     return (sym == "msg" || sym == "message" || sym == "bang" || sym == "bng" ||
             sym == "toggle" || sym == "tgl" || sym == "number" || sym == "num" ||
             sym == "symbol" || sym == "sym" || sym == "radio" || sym == "hradio" ||
-            sym == "vradio" || sym == "display" || sym == "disp" || sym == "print");
+            sym == "vradio" || sym == "display" || sym == "disp");
 }
 
 static bool isControlLogicSymbol(const std::string& sym)
 {
-    return (sym == "metro" || sym == "counter" || sym == "random" || sym == "select" ||
-            sym == "route" || sym == "t" || sym == "trigger" || sym == "pipe" ||
-            sym == "timer" || sym == "snapshot~" || sym == "mtof" || sym == "ftom" ||
-            sym == "pack" || sym == "unpack" || sym == "soundfiler" || sym == "table");
+    return (sym == "print" || sym == "metro" || sym == "counter" || sym == "random" ||
+            sym == "select" || sym == "route" || sym == "t" || sym == "trigger" ||
+            sym == "pipe" || sym == "timer" || sym == "snapshot~" || sym == "mtof" ||
+            sym == "ftom" || sym == "pack" || sym == "unpack" || sym == "soundfiler" ||
+            sym == "table");
 }
 
 static bool isSequencerSymbol(const std::string& sym)
@@ -451,12 +452,12 @@ void RelativisticCanvasComponent::paint(juce::Graphics& g)
                 }
             }
         }
-        else if (sym == "display" || sym == "disp" || sym == "print")
+        else if (sym == "display" || sym == "disp")
         {
-            // Recessed Terminal Display Screen Box
+            // Recessed Terminal Display Screen Box (Visual Canvas Readout Only)
             auto dNode = std::dynamic_pointer_cast<DisplayNode>(node);
             std::string dispStr = dNode ? dNode->getDisplayText() : "---";
-            std::string tag = dNode && !dNode->getCustomTag().empty() ? dNode->getCustomTag() : (sym == "print" ? "print" : "disp");
+            std::string tag = dNode && !dNode->getCustomTag().empty() ? dNode->getCustomTag() : "disp";
 
             g.setColour(juce::Colour::fromRGB(0x06, 0x0a, 0x12));
             g.fillRoundedRectangle(b, 4.0f);

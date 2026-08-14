@@ -878,10 +878,10 @@ void RadioNode::receiveMessage(const std::string& message)
 }
 
 // -----------------------------------------------------------------------------
-// DisplayNode Implementation (display / print / disp)
+// DisplayNode Implementation (display / disp) - Canvas Display Screen Only
 // -----------------------------------------------------------------------------
 DisplayNode::DisplayNode(int id, const std::string& sym, const std::string& tag)
-    : RelativisticNode(id, sym, (!tag.empty() ? tag + ": ---" : (sym + ": ---"))),
+    : RelativisticNode(id, sym, (!tag.empty() ? tag + ": ---" : "disp: ---")),
       customTag(tag)
 {
     addInlet("in", PortDataType::Message);
@@ -905,13 +905,9 @@ void DisplayNode::receiveMessage(const std::string& message)
     if (!customTag.empty())
         setLabel(customTag + ": " + message);
     else
-        setLabel(getSymbol() + ": " + message);
+        setLabel("disp: " + message);
 
-    // Stream message directly to the Terminal Console & Debug Stream panel
-    std::string tag = !customTag.empty() ? customTag : getSymbol();
-    ConsoleLogger::getInstance().log(message, tag, LogLevel::Message);
-
-    // Relay downstream to outlet
+    // Relay downstream to outlet (visual display on canvas only)
     emitMessageOnOutlet(0, message);
 }
 

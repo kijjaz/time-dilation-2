@@ -256,7 +256,7 @@ private:
     std::atomic<int> selectedIdx{ 0 };
 };
 
-// display node (disp / print / display)
+// display node (disp / display) - Visual canvas readout
 class DisplayNode : public RelativisticNode
 {
 public:

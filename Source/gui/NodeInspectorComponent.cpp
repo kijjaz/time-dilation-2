@@ -1074,6 +1074,19 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         descLabel.setText("Shared Audio Sample Buffer Array & Reader for custom waveform playback and sequencing.", juce::dontSendNotification);
         templateMsgs = { "size 44100", "size 88200", "clear" };
     }
+    else if (sym == "display" || sym == "disp")
+    {
+        paramSlider1.setVisible(false);
+        paramLabel1.setVisible(false);
+        paramSlider2.setVisible(false);
+        paramLabel2.setVisible(false);
+        optionLabel.setVisible(false);
+        optionSelector.setVisible(false);
+
+        descLabel.setText("Visual on-canvas display screen. Displays incoming numbers, messages, or text readouts directly on the canvas card without logging to the Terminal Console.", juce::dontSendNotification);
+        inletOutletLabel.setText("In 0: Msg/Value (Display on canvas) | Out 0: Pass-through Msg", juce::dontSendNotification);
+        templateMsgs = { "hello", "123", "60", "bang", "---" };
+    }
     else if (sym == "print" || sym == "print~")
     {
         bool isAudio = (sym == "print~");
@@ -1086,8 +1099,9 @@ void NodeInspectorComponent::updateUIForSelectedNode()
         optionSelector.setVisible(false);
 
         descLabel.setText(isAudio ? "Real-time audio signal & envelope inspector. Analyzes signal Peak dBFS, RMS dBFS, dynamic envelope, and activity, logging periodic stats to the Terminal Console."
-                                  : "Message & number inspector. Prints all incoming control messages, list elements, or numeric triggers to the Terminal Console.", juce::dontSendNotification);
-        templateMsgs = { "probe", "bang", "stat", "prefix test", "1", "0" };
+                                  : "Pure Data style console printer. Prints all incoming control messages, numbers, or lists directly to the bottom Terminal Console & Debug Stream panel.", juce::dontSendNotification);
+        inletOutletLabel.setText("In 0: Msg (Print to Terminal Console) | Out 0: Pass-through Msg", juce::dontSendNotification);
+        templateMsgs = { "test", "bang", "120", "60", "0" };
     }
     else if (sym == "trigger" || sym == "t")
     {
