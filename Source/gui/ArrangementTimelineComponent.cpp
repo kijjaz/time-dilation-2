@@ -1,5 +1,6 @@
 #include "ArrangementTimelineComponent.h"
 #include "CarbonGoldLookAndFeel.h"
+#include "../dsp/TidalSeqNode.h"
 #include <iomanip>
 #include <sstream>
 
@@ -741,8 +742,15 @@ void ArrangementTimelineComponent::drawTidalSubdivisionBlocks(juce::Graphics& g,
 
     int maxChan = 1;
     for (const auto& ev : clip.cachedEvents) maxChan = std::max(maxChan, ev.channel + 1);
-
     float chanH = (clipRect.getHeight() - 20.0f) / static_cast<float>(maxChan);
+
+    bool isClipPlaying = isTimelinePlaying && (playheadTimeSec >= clip.startTimeSec && playheadTimeSec < clip.startTimeSec + clip.durationSec);
+    double clipPhase = 0.0;
+    if (isClipPlaying && clip.durationSec > 0.001)
+    {
+        clipPhase = std::fmod((playheadTimeSec - clip.startTimeSec) / clip.durationSec, 1.0);
+        if (clipPhase < 0.0) clipPhase += 1.0;
+    }
 
     for (const auto& ev : clip.cachedEvents)
     {
@@ -750,12 +758,21 @@ void ArrangementTimelineComponent::drawTidalSubdivisionBlocks(juce::Graphics& g,
         float ew = std::max(2.0f, static_cast<float>((ev.endCycle - ev.startCycle) * clipRect.getWidth()) - 1.0f);
         float ey = clipRect.getY() + 18.0f + static_cast<float>(ev.channel) * chanH;
 
+        bool isActive = isClipPlaying && (clipPhase >= ev.startCycle && clipPhase < ev.endCycle);
+
         juce::Colour blkCol = (ev.channel == 0) ? clip.color :
                              (ev.channel == 1) ? CarbonGoldLookAndFeel::goldAccent :
                                                  CarbonGoldLookAndFeel::royalViolet;
 
-        g.setColour(blkCol.withAlpha(ev.velocity * 0.85f));
+        g.setColour(isActive ? blkCol.brighter(0.6f) : blkCol.withAlpha(ev.velocity * 0.85f));
         g.fillRoundedRectangle(ex, ey + 1.0f, ew, chanH - 2.0f, 2.0f);
+
+        // Strudel-style glowing white border for active step
+        if (isActive)
+        {
+            g.setColour(juce::Colours::white);
+            g.drawRoundedRectangle(ex, ey + 1.0f, ew, chanH - 2.0f, 2.0f, 1.8f);
+        }
     }
 }
 
@@ -823,6 +840,33 @@ void ArrangementTimelineComponent::drawPianoRollDrawer(juce::Graphics& g, const 
     for (const auto& ev : activeClip->cachedEvents) maxChan = std::max(maxChan, ev.channel + 1);
     float chanH = gridH / static_cast<float>(maxChan);
 
+    // Compute cycle phase for Strudel-style active block playback
+    double cyclePhase = 0.0;
+    bool isClipActive = false;
+    if (isTimelinePlaying && activeClip->durationSec > 0.001)
+    {
+        if (playheadTimeSec >= activeClip->startTimeSec && playheadTimeSec < activeClip->startTimeSec + activeClip->durationSec)
+        {
+            cyclePhase = std::fmod((playheadTimeSec - activeClip->startTimeSec) / activeClip->durationSec, 1.0);
+            if (cyclePhase < 0.0) cyclePhase += 1.0;
+            isClipActive = true;
+        }
+    }
+
+    // Check if any TidalSeqNode in nodeGraph is playing
+    if (!isClipActive)
+    {
+        for (const auto& n : nodeGraph.getNodes())
+        {
+            if (auto tn = std::dynamic_pointer_cast<TidalSeqNode>(n))
+            {
+                cyclePhase = tn->getCyclePhase();
+                isClipActive = isTimelinePlaying;
+                break;
+            }
+        }
+    }
+
     // Channel lane separators & background
     for (int ch = 0; ch < maxChan; ++ch)
     {
@@ -838,7 +882,7 @@ void ArrangementTimelineComponent::drawPianoRollDrawer(juce::Graphics& g, const 
         g.drawText("VOICE " + juce::String(ch + 1), 16, static_cast<int>(cy + 2), 60, 14, juce::Justification::left);
     }
 
-    // Draw Event Blocks
+    // Draw Event Blocks with Strudel-Style Active Border
     for (size_t i = 0; i < activeClip->cachedEvents.size(); ++i)
     {
         const auto& ev = activeClip->cachedEvents[i];
@@ -849,21 +893,53 @@ void ArrangementTimelineComponent::drawPianoRollDrawer(juce::Graphics& g, const 
 
         auto blockR = juce::Rectangle<float>(ex, ey, ew, eh);
 
+        bool isActive = isClipActive && (cyclePhase >= ev.startCycle && cyclePhase < ev.endCycle);
+
         juce::Colour blockCol = (ev.channel == 0) ? CarbonGoldLookAndFeel::cyberCyan :
                                 (ev.channel == 1) ? CarbonGoldLookAndFeel::goldAccent :
                                                     juce::Colour(0xffff9900);
 
-        g.setColour(blockCol.withAlpha(ev.velocity * 0.85f));
-        g.fillRoundedRectangle(blockR, 4.0f);
+        if (isActive)
+        {
+            // Strudel-style active block fill (bright flash)
+            g.setColour(blockCol.brighter(0.7f).withAlpha(0.95f));
+            g.fillRoundedRectangle(blockR, 4.0f);
 
-        g.setColour(CarbonGoldLookAndFeel::carbonBg);
-        g.drawRoundedRectangle(blockR, 4.0f, 1.0f);
+            // Strudel-style crisp glowing WHITE BORDER
+            g.setColour(juce::Colours::white);
+            g.drawRoundedRectangle(blockR, 4.0f, 2.5f);
+
+            // Inner white glow
+            g.setColour(juce::Colours::white.withAlpha(0.35f));
+            g.drawRoundedRectangle(blockR.reduced(1.0f), 3.0f, 1.0f);
+
+            // Active text: Bold bright white/black high-contrast
+            g.setFont(juce::Font(ew > 40.0f ? 12.0f : 10.0f, juce::Font::bold));
+            g.setColour(CarbonGoldLookAndFeel::carbonBg);
+        }
+        else
+        {
+            g.setColour(blockCol.withAlpha(ev.velocity * 0.85f));
+            g.fillRoundedRectangle(blockR, 4.0f);
+
+            g.setColour(CarbonGoldLookAndFeel::carbonBg.brighter(0.1f));
+            g.drawRoundedRectangle(blockR, 4.0f, 1.0f);
+
+            g.setFont(juce::Font(ew > 40.0f ? 11.0f : 9.0f, juce::Font::bold));
+            g.setColour(CarbonGoldLookAndFeel::carbonBg);
+        }
 
         // Pitch text / drum label
-        g.setFont(juce::Font(ew > 40.0f ? 11.0f : 9.0f, juce::Font::bold));
-        g.setColour(CarbonGoldLookAndFeel::carbonBg);
         juce::String label = ev.valueStr.empty() ? juce::String(ev.pitch) : juce::String(ev.valueStr);
         g.drawText(label, blockR, juce::Justification::centred);
+    }
+
+    // Strudel-style smooth playhead sweep cursor across drawer
+    if (isClipActive)
+    {
+        float sweepX = 12.0f + static_cast<float>(cyclePhase * areaW);
+        g.setColour(juce::Colours::white.withAlpha(0.9f));
+        g.drawVerticalLine(static_cast<int>(sweepX), gridY, gridY + gridH);
     }
 }
 
