@@ -103,10 +103,12 @@ NodeInspectorComponent::NodeInspectorComponent()
     descLabel.setFont(11.0f);
     descLabel.setColour(juce::Label::textColourId, juce::Colours::white);
     descLabel.setMinimumHorizontalScale(0.9f);
+    descLabel.setJustificationType(juce::Justification::topLeft);
     addAndMakeVisible(descLabel);
 
     inletOutletLabel.setFont(11.0f);
     inletOutletLabel.setColour(juce::Label::textColourId, CarbonGoldLookAndFeel::cyberCyan);
+    inletOutletLabel.setJustificationType(juce::Justification::topLeft);
     addAndMakeVisible(inletOutletLabel);
 
     setSelectedNode(nullptr);
@@ -1088,17 +1090,37 @@ void NodeInspectorComponent::resized()
     if (docTitleLabel.isVisible())
     {
         docTitleLabel.setBounds(10, y, w, 20); y += 22;
-        descLabel.setBounds(10, y, w, 36); y += 38;
 
-        int ioLines = selectedNode ? static_cast<int>(selectedNode->getInlets().size() + selectedNode->getOutlets().size() + 3) : 4;
-        int ioHeight = ioLines * 15;
-        inletOutletLabel.setBounds(10, y, w, ioHeight); y += ioHeight + 8;
+        // Accurate multi-line text height calculation
+        auto getDynamicTextHeight = [](const juce::String& text, const juce::Font& font, int width) -> int {
+            if (text.isEmpty() || width <= 10) return 20;
+            juce::AttributedString as(text);
+            as.setFont(font);
+            as.setWordWrap(juce::AttributedString::WordWrap::byWord);
+            juce::TextLayout tl;
+            tl.createLayout(as, static_cast<float>(width));
+            return static_cast<int>(std::ceil(tl.getHeight())) + 12;
+        };
+
+        int descH = getDynamicTextHeight(descLabel.getText(), descLabel.getFont(), w);
+        descLabel.setBounds(10, y, w, descH);
+        y += descH + 10;
+
+        int ioH = getDynamicTextHeight(inletOutletLabel.getText(), inletOutletLabel.getFont(), w);
+        inletOutletLabel.setBounds(10, y, w, ioH);
+        y += ioH + 12;
 
         for (auto& btn : methodButtons)
         {
-            btn->setBounds(10, y, w, 24);
-            y += 28;
+            btn->setBounds(10, y, w, 26);
+            y += 30;
         }
+    }
+
+    int totalRequiredH = y + 30;
+    if (getHeight() != totalRequiredH)
+    {
+        setSize(getWidth(), totalRequiredH);
     }
 }
 

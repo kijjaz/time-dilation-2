@@ -198,7 +198,10 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
     addAndMakeVisible(canvasComponent);
     addAndMakeVisible(trackViewComponent);
     addAndMakeVisible(arrangementTimelineComponent);
-    addAndMakeVisible(nodeInspectorComponent);
+    addAndMakeVisible(inspectorViewport);
+    inspectorViewport.setViewedComponent(&nodeInspectorComponent, false);
+    inspectorViewport.setScrollBarsShown(true, false, true, false);
+    inspectorViewport.getVerticalScrollBar().setColour(juce::ScrollBar::thumbColourId, CarbonGoldLookAndFeel::goldAccent.withAlpha(0.6f));
 
     trackViewComponent.onInspectNodePatch = [this](int nodeId) {
         juce::ignoreUnused(nodeId);
@@ -470,7 +473,9 @@ void WorkstationContainerComponent::resized()
         arrangementTimelineComponent.setBounds(0, 60, canvasW, topH);
         canvasComponent.setBounds(0, 60 + topH, canvasW, bottomH);
     }
-    nodeInspectorComponent.setBounds(canvasW + 2, 60, inspectorWidth - 2, contentH);
+    inspectorViewport.setBounds(canvasW + 2, 60, inspectorWidth - 2, contentH);
+    nodeInspectorComponent.setBounds(0, 0, std::max(120, inspectorViewport.getViewWidth()), std::max(contentH, nodeInspectorComponent.getHeight()));
+    nodeInspectorComponent.resized();
 }
 
 void WorkstationContainerComponent::prepareToPlay(int samplesPerBlockExpected, double sampleRate)

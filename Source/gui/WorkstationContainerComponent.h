@@ -42,6 +42,7 @@ private:
     TrackViewComponent trackViewComponent;
     ArrangementTimelineComponent arrangementTimelineComponent;
     OscilloscopeComponent oscilloscopeComponent;
+    juce::Viewport inspectorViewport;
     NodeInspectorComponent nodeInspectorComponent;
 
     enum class ViewMode { TrackView, ModularCanvas, DualViewSplit };
