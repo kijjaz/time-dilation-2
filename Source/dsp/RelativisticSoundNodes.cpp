@@ -521,8 +521,8 @@ void PluckNode::process(int numSamples)
 // MessageNode Implementation (msg)
 // ============================================================================
 
-MessageNode::MessageNode(int id, const std::string& messageText)
-    : RelativisticNode(id, "msg", messageText), messageText(messageText)
+MessageNode::MessageNode(int id, const std::string& msgText)
+    : RelativisticNode(id, "msg", msgText), messageText(msgText)
 {
     addInlet("trigger", PortDataType::Message);
     addOutlet("msgOut", PortDataType::Message);
@@ -537,6 +537,7 @@ void MessageNode::prepare(double sampleRate, int samplesPerBlock)
 void MessageNode::triggerMessage()
 {
     messagePending = true;
+    if (onMessageEmitted) onMessageEmitted(messageText);
 }
 
 void MessageNode::process(int numSamples)
@@ -548,6 +549,241 @@ void MessageNode::receiveMessage(const std::string& msg)
 {
     messageText = msg;
     setLabel(msg);
+    triggerMessage();
+}
+
+// -----------------------------------------------------------------------------
+// BangNode Implementation (bang / bng)
+// -----------------------------------------------------------------------------
+BangNode::BangNode(int id)
+    : RelativisticNode(id, "bang", "bang")
+{
+    addInlet("in", PortDataType::Message);
+    addOutlet("out", PortDataType::Message);
+}
+
+void BangNode::prepare(double sampleRate, int samplesPerBlock)
+{
+    RelativisticNode::prepare(sampleRate, samplesPerBlock);
+    flashTimer.store(0.0);
+}
+
+void BangNode::process(int numSamples)
+{
+    juce::ignoreUnused(numSamples);
+    double cur = flashTimer.load();
+    if (cur > 0.0) flashTimer.store(std::max(0.0, cur - 0.05));
+}
+
+void BangNode::triggerBang()
+{
+    flashTimer.store(1.0);
+    if (onMessageEmitted) onMessageEmitted("bang");
+}
+
+bool BangNode::isFlashing() const
+{
+    return flashTimer.load() > 0.01;
+}
+
+void BangNode::receiveMessage(const std::string& message)
+{
+    juce::ignoreUnused(message);
+    triggerBang();
+}
+
+// -----------------------------------------------------------------------------
+// ToggleNode Implementation (toggle / tgl)
+// -----------------------------------------------------------------------------
+ToggleNode::ToggleNode(int id, bool initialState)
+    : RelativisticNode(id, "toggle", initialState ? "toggle [X]" : "toggle [ ]"), state(initialState)
+{
+    addInlet("in", PortDataType::Message);
+    addOutlet("out", PortDataType::Message);
+}
+
+void ToggleNode::prepare(double sampleRate, int samplesPerBlock)
+{
+    RelativisticNode::prepare(sampleRate, samplesPerBlock);
+}
+
+void ToggleNode::process(int numSamples)
+{
+    juce::ignoreUnused(numSamples);
+}
+
+void ToggleNode::toggleState()
+{
+    setState(!state.load());
+}
+
+void ToggleNode::setState(bool newState)
+{
+    state.store(newState);
+    setLabel(newState ? "toggle [X]" : "toggle [ ]");
+    if (onMessageEmitted) onMessageEmitted(newState ? "1" : "0");
+}
+
+void ToggleNode::receiveMessage(const std::string& message)
+{
+    std::string s = message;
+    std::transform(s.begin(), s.end(), s.begin(), ::tolower);
+    if (s == "bang" || s == "toggle") toggleState();
+    else if (s == "1" || s == "on" || s == "true") setState(true);
+    else if (s == "0" || s == "off" || s == "false") setState(false);
+    else
+    {
+        float val = std::stof(s);
+        setState(val != 0.0f);
+    }
+}
+
+// -----------------------------------------------------------------------------
+// NumberNode Implementation (number / num)
+// -----------------------------------------------------------------------------
+NumberNode::NumberNode(int id, double val)
+    : RelativisticNode(id, "number", std::to_string(val)), value(val)
+{
+    addInlet("in", PortDataType::Message);
+    addOutlet("out", PortDataType::Message);
+}
+
+void NumberNode::prepare(double sampleRate, int samplesPerBlock)
+{
+    RelativisticNode::prepare(sampleRate, samplesPerBlock);
+}
+
+void NumberNode::process(int numSamples)
+{
+    juce::ignoreUnused(numSamples);
+}
+
+void NumberNode::setValue(double newVal)
+{
+    value.store(newVal);
+    char buf[64];
+    if (std::abs(newVal - std::round(newVal)) < 0.0001) std::snprintf(buf, sizeof(buf), "%.0f", newVal);
+    else std::snprintf(buf, sizeof(buf), "%.2f", newVal);
+    setLabel(buf);
+    if (onMessageEmitted) onMessageEmitted(buf);
+}
+
+void NumberNode::receiveMessage(const std::string& message)
+{
+    try
+    {
+        double val = std::stod(message);
+        setValue(val);
+    }
+    catch (...) {}
+}
+
+// -----------------------------------------------------------------------------
+// SymbolNode Implementation (symbol / sym)
+// -----------------------------------------------------------------------------
+SymbolNode::SymbolNode(int id, const std::string& symText)
+    : RelativisticNode(id, "symbol", symText), symbolText(symText)
+{
+    addInlet("in", PortDataType::Message);
+    addOutlet("out", PortDataType::Message);
+}
+
+void SymbolNode::prepare(double sampleRate, int samplesPerBlock)
+{
+    RelativisticNode::prepare(sampleRate, samplesPerBlock);
+}
+
+void SymbolNode::process(int numSamples)
+{
+    juce::ignoreUnused(numSamples);
+}
+
+void SymbolNode::setSymbolText(const std::string& text)
+{
+    symbolText = text;
+    setLabel(text);
+    if (onMessageEmitted) onMessageEmitted(text);
+}
+
+std::string SymbolNode::getSymbolText() const
+{
+    return symbolText;
+}
+
+void SymbolNode::receiveMessage(const std::string& message)
+{
+    setSymbolText(message);
+}
+
+// -----------------------------------------------------------------------------
+// RadioNode Implementation (radio / hradio / vradio)
+// -----------------------------------------------------------------------------
+RadioNode::RadioNode(int id, int numOpts, int initialIdx)
+    : RelativisticNode(id, "radio", "radio"), numOptions(numOpts), selectedIdx(initialIdx)
+{
+    addInlet("in", PortDataType::Message);
+    addOutlet("out", PortDataType::Message);
+}
+
+void RadioNode::prepare(double sampleRate, int samplesPerBlock)
+{
+    RelativisticNode::prepare(sampleRate, samplesPerBlock);
+}
+
+void RadioNode::process(int numSamples)
+{
+    juce::ignoreUnused(numSamples);
+}
+
+void RadioNode::selectOption(int index)
+{
+    if (index >= 0 && index < numOptions)
+    {
+        selectedIdx.store(index);
+        if (onMessageEmitted) onMessageEmitted(std::to_string(index));
+    }
+}
+
+void RadioNode::receiveMessage(const std::string& message)
+{
+    try
+    {
+        int idx = std::stoi(message);
+        selectOption(idx);
+    }
+    catch (...) {}
+}
+
+// -----------------------------------------------------------------------------
+// DisplayNode Implementation (display / print / disp)
+// -----------------------------------------------------------------------------
+DisplayNode::DisplayNode(int id)
+    : RelativisticNode(id, "display", "disp: ---")
+{
+    addInlet("in", PortDataType::Message);
+    addInlet("audioIn~", PortDataType::Audio);
+    addOutlet("out", PortDataType::Message);
+}
+
+void DisplayNode::prepare(double sampleRate, int samplesPerBlock)
+{
+    RelativisticNode::prepare(sampleRate, samplesPerBlock);
+}
+
+void DisplayNode::process(int numSamples)
+{
+    juce::ignoreUnused(numSamples);
+}
+
+void DisplayNode::receiveMessage(const std::string& message)
+{
+    displayText = message;
+    setLabel(message);
+}
+
+std::string DisplayNode::getDisplayText() const
+{
+    return displayText;
 }
 
 // ============================================================================

@@ -101,6 +101,43 @@ std::shared_ptr<RelativisticNode> RelativisticNodeFactory::createNode(int nodeId
     {
         return std::make_shared<OutNode>(nodeId);
     }
+    else if (symbol == "bang" || symbol == "bng")
+    {
+        return std::make_shared<BangNode>(nodeId);
+    }
+    else if (symbol == "toggle" || symbol == "tgl")
+    {
+        bool init = false;
+        std::string arg;
+        if (ss >> arg)
+        {
+            if (arg == "1" || arg == "on" || arg == "true" || arg == "[x]") init = true;
+        }
+        return std::make_shared<ToggleNode>(nodeId, init);
+    }
+    else if (symbol == "number" || symbol == "num")
+    {
+        double val = 0.0;
+        if (ss >> val) {}
+        return std::make_shared<NumberNode>(nodeId, val);
+    }
+    else if (symbol == "symbol" || symbol == "sym")
+    {
+        std::string text = "symbol";
+        if (ss >> text) {}
+        return std::make_shared<SymbolNode>(nodeId, text);
+    }
+    else if (symbol == "radio" || symbol == "hradio" || symbol == "vradio")
+    {
+        int opts = 4, sel = 0;
+        if (ss >> opts) {}
+        if (ss >> sel) {}
+        return std::make_shared<RadioNode>(nodeId, opts, sel);
+    }
+    else if (symbol == "display" || symbol == "disp" || symbol == "print")
+    {
+        return std::make_shared<DisplayNode>(nodeId);
+    }
     else if (symbol == "time.transport~" || symbol == "time.transport" || symbol == "transport~" || symbol == "transport")
     {
         return std::make_shared<TransportNode>(nodeId);

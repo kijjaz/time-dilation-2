@@ -257,12 +257,146 @@ void RelativisticCanvasComponent::paint(juce::Graphics& g)
         auto b = getNodeBounds(*node);
         bool isSelected = isNodeSelected(node->getId());
 
-        // Paint Nodes
-        g.setColour(isSelected ? CarbonGoldLookAndFeel::slatePanel.brighter(0.2f) : CarbonGoldLookAndFeel::slatePanel);
-        g.fillRoundedRectangle(b, 5.0f);
+        std::string sym = node->getSymbol();
+        std::transform(sym.begin(), sym.end(), sym.begin(), ::tolower);
 
-        g.setColour(isSelected ? CarbonGoldLookAndFeel::goldAccent : CarbonGoldLookAndFeel::slatePanel.brighter(0.4f));
-        g.drawRoundedRectangle(b, 5.0f, isSelected ? 2.5f : 1.0f);
+        // ---------------------------------------------------------------------
+        // Custom Distinct GUI Objects
+        // ---------------------------------------------------------------------
+        if (sym == "msg" || sym == "message")
+        {
+            // Pure Data Classic Flag Notch Box (Trapezoid right edge cut)
+            juce::Path msgPath;
+            float notch = 12.0f;
+            msgPath.startNewSubPath(b.getX(), b.getY());
+            msgPath.lineTo(b.getRight() - notch, b.getY());
+            msgPath.lineTo(b.getRight(), b.getY() + notch);
+            msgPath.lineTo(b.getRight(), b.getBottom());
+            msgPath.lineTo(b.getX(), b.getBottom());
+            msgPath.closeSubPath();
+
+            g.setColour(isSelected ? CarbonGoldLookAndFeel::slatePanel.brighter(0.25f) : juce::Colour::fromRGB(0x16, 0x1c, 0x28));
+            g.fillPath(msgPath);
+            g.setColour(isSelected ? CarbonGoldLookAndFeel::goldAccent : CarbonGoldLookAndFeel::goldAccent.withAlpha(0.85f));
+            g.strokePath(msgPath, juce::PathStrokeType(isSelected ? 2.5f : 1.5f));
+
+            g.setColour(CarbonGoldLookAndFeel::goldAccent);
+            g.setFont(juce::Font(12.0f, juce::Font::bold));
+            g.drawText(node->getLabel(), b.reduced(8.0f, 4.0f), juce::Justification::centredLeft, true);
+        }
+        else if (sym == "bang" || sym == "bng")
+        {
+            // Bang Circle Target Box
+            auto bNode = std::dynamic_pointer_cast<BangNode>(node);
+            bool flashing = bNode && bNode->isFlashing();
+
+            g.setColour(flashing ? CarbonGoldLookAndFeel::goldAccent.withAlpha(0.35f) : CarbonGoldLookAndFeel::slatePanel);
+            g.fillRoundedRectangle(b, 4.0f);
+            g.setColour(isSelected ? CarbonGoldLookAndFeel::goldAccent : (flashing ? CarbonGoldLookAndFeel::goldAccent : CarbonGoldLookAndFeel::cyberCyan));
+            g.drawRoundedRectangle(b, 4.0f, 1.5f);
+
+            auto centerCircle = b.reduced(b.getWidth() * 0.22f, b.getHeight() * 0.22f);
+            g.setColour(flashing ? juce::Colours::white : CarbonGoldLookAndFeel::goldAccent);
+            g.drawEllipse(centerCircle, 2.0f);
+            if (flashing) {
+                g.setColour(CarbonGoldLookAndFeel::goldAccent);
+                g.fillEllipse(centerCircle.reduced(3.0f));
+            }
+        }
+        else if (sym == "toggle" || sym == "tgl")
+        {
+            // Toggle [X] / [ ] Box
+            auto tNode = std::dynamic_pointer_cast<ToggleNode>(node);
+            bool state = tNode ? tNode->getState() : false;
+
+            g.setColour(state ? juce::Colour::fromRGB(0x1a, 0x22, 0x18) : CarbonGoldLookAndFeel::slatePanel);
+            g.fillRoundedRectangle(b, 4.0f);
+            g.setColour(isSelected ? CarbonGoldLookAndFeel::goldAccent : (state ? CarbonGoldLookAndFeel::goldAccent : CarbonGoldLookAndFeel::slatePanel.brighter(0.4f)));
+            g.drawRoundedRectangle(b, 4.0f, 1.5f);
+
+            g.setColour(state ? CarbonGoldLookAndFeel::goldAccent : juce::Colours::grey);
+            g.setFont(juce::Font(14.0f, juce::Font::bold));
+            g.drawText(state ? "[X]" : "[  ]", b, juce::Justification::centred, false);
+        }
+        else if (sym == "number" || sym == "num")
+        {
+            // Slanted Top-Right Corner Notch Box (/)
+            juce::Path numPath;
+            float notch = 10.0f;
+            numPath.startNewSubPath(b.getX(), b.getY());
+            numPath.lineTo(b.getRight() - notch, b.getY());
+            numPath.lineTo(b.getRight(), b.getY() + notch);
+            numPath.lineTo(b.getRight(), b.getBottom());
+            numPath.lineTo(b.getX(), b.getBottom());
+            numPath.closeSubPath();
+
+            g.setColour(isSelected ? CarbonGoldLookAndFeel::slatePanel.brighter(0.2f) : juce::Colour::fromRGB(0x0a, 0x14, 0x22));
+            g.fillPath(numPath);
+            g.setColour(isSelected ? CarbonGoldLookAndFeel::goldAccent : CarbonGoldLookAndFeel::cyberCyan);
+            g.strokePath(numPath, juce::PathStrokeType(isSelected ? 2.5f : 1.5f));
+
+            g.setColour(CarbonGoldLookAndFeel::cyberCyan);
+            g.setFont(juce::Font(12.5f, juce::Font::bold));
+            g.drawText(node->getLabel(), b.reduced(8.0f, 4.0f), juce::Justification::centredLeft, true);
+        }
+        else if (sym == "symbol" || sym == "sym")
+        {
+            // Symbol Text Box
+            g.setColour(isSelected ? CarbonGoldLookAndFeel::slatePanel.brighter(0.2f) : juce::Colour::fromRGB(0x0e, 0x16, 0x24));
+            g.fillRoundedRectangle(b, 4.0f);
+            g.setColour(isSelected ? CarbonGoldLookAndFeel::goldAccent : CarbonGoldLookAndFeel::cyberCyan.withAlpha(0.8f));
+            g.drawRoundedRectangle(b, 4.0f, 1.5f);
+
+            g.setColour(CarbonGoldLookAndFeel::cyberCyan);
+            g.setFont(juce::Font(12.0f, juce::Font::bold));
+            g.drawText(node->getLabel(), b.reduced(8.0f, 4.0f), juce::Justification::centredLeft, true);
+        }
+        else if (sym == "radio" || sym == "hradio" || sym == "vradio")
+        {
+            // Radio Buttons Strip
+            auto rNode = std::dynamic_pointer_cast<RadioNode>(node);
+            int opts = rNode ? rNode->getNumOptions() : 4;
+            int sel = rNode ? rNode->getSelectedIndex() : 0;
+
+            g.setColour(CarbonGoldLookAndFeel::slatePanel);
+            g.fillRoundedRectangle(b, 4.0f);
+            g.setColour(isSelected ? CarbonGoldLookAndFeel::goldAccent : CarbonGoldLookAndFeel::slatePanel.brighter(0.4f));
+            g.drawRoundedRectangle(b, 4.0f, 1.5f);
+
+            float btnW = b.getWidth() / static_cast<float>(opts);
+            for (int i = 0; i < opts; ++i) {
+                auto rBox = juce::Rectangle<float>(b.getX() + i * btnW, b.getY(), btnW, b.getHeight()).reduced(5.0f);
+                g.setColour(i == sel ? CarbonGoldLookAndFeel::goldAccent : CarbonGoldLookAndFeel::slatePanel.brighter(0.4f));
+                g.drawEllipse(rBox, 1.5f);
+                if (i == sel) {
+                    g.fillEllipse(rBox.reduced(3.0f));
+                }
+            }
+        }
+        else if (sym == "display" || sym == "disp" || sym == "print")
+        {
+            // Recessed Terminal Display Screen Box
+            auto dNode = std::dynamic_pointer_cast<DisplayNode>(node);
+            std::string dispStr = dNode ? dNode->getDisplayText() : node->getLabel();
+
+            g.setColour(juce::Colour::fromRGB(0x06, 0x0a, 0x12));
+            g.fillRoundedRectangle(b, 4.0f);
+            g.setColour(isSelected ? CarbonGoldLookAndFeel::goldAccent : CarbonGoldLookAndFeel::cyberCyan.withAlpha(0.6f));
+            g.drawRoundedRectangle(b, 4.0f, 1.5f);
+
+            g.setColour(CarbonGoldLookAndFeel::cyberCyan);
+            g.setFont(juce::Font(12.0f, juce::Font::bold));
+            g.drawText("disp: " + dispStr, b.reduced(8.0f, 4.0f), juce::Justification::centredLeft, true);
+        }
+        else
+        {
+            // Standard Processing / DSP Node Card
+            g.setColour(isSelected ? CarbonGoldLookAndFeel::slatePanel.brighter(0.2f) : CarbonGoldLookAndFeel::slatePanel);
+            g.fillRoundedRectangle(b, 5.0f);
+
+            g.setColour(isSelected ? CarbonGoldLookAndFeel::goldAccent : CarbonGoldLookAndFeel::slatePanel.brighter(0.4f));
+            g.drawRoundedRectangle(b, 5.0f, isSelected ? 2.5f : 1.0f);
+        }
 
         // Header Title Label with Wrapping Support
         auto headerRect = b.removeFromTop(22.0f);
@@ -1238,11 +1372,50 @@ void RelativisticCanvasComponent::mouseDown(const juce::MouseEvent& e)
                 return;
             }
 
+            // Interactive Click Triggers for GUI Control Nodes!
+            std::string sym = node->getSymbol();
+            std::transform(sym.begin(), sym.end(), sym.begin(), ::tolower);
+
+            if (sym == "bang" || sym == "bng")
+            {
+                auto bNode = std::dynamic_pointer_cast<BangNode>(node);
+                if (bNode) bNode->triggerBang();
+                repaint();
+                return;
+            }
+            else if (sym == "toggle" || sym == "tgl")
+            {
+                auto tNode = std::dynamic_pointer_cast<ToggleNode>(node);
+                if (tNode) tNode->toggleState();
+                repaint();
+                return;
+            }
+            else if (sym == "radio" || sym == "hradio" || sym == "vradio")
+            {
+                auto rNode = std::dynamic_pointer_cast<RadioNode>(node);
+                if (rNode)
+                {
+                    float relX = pos.x - b.getX();
+                    int opts = rNode->getNumOptions();
+                    int idx = std::clamp(static_cast<int>(relX / (b.getWidth() / static_cast<float>(opts))), 0, opts - 1);
+                    rNode->selectOption(idx);
+                }
+                repaint();
+                return;
+            }
+            else if (sym == "msg" || sym == "message")
+            {
+                auto mNode = std::dynamic_pointer_cast<MessageNode>(node);
+                if (mNode) mNode->triggerMessage();
+                repaint();
+                return;
+            }
+
             // ONLY DISPATCH MESSAGE ON Cmd-Click (or Ctrl-Click)! Normal click is strictly for editing/selection!
             if (e.mods.isCommandDown() || e.mods.isCtrlDown())
             {
-                juce::String sym = juce::String(node->getSymbol()).toLowerCase();
-                if (sym == "msg" || sym == "message" || sym == "bng" || sym == "bang" || sym == "number" || sym == "radio" || sym == "toggle")
+                juce::String symStr = juce::String(node->getSymbol()).toLowerCase();
+                if (symStr == "msg" || symStr == "message" || symStr == "bng" || symStr == "bang" || symStr == "number" || symStr == "radio" || symStr == "toggle")
                 {
                     auto msgNode = std::dynamic_pointer_cast<MessageNode>(node);
                     std::string msgText = msgNode ? msgNode->getMessageText() : node->getLabel();

@@ -163,6 +163,98 @@ private:
     bool messagePending = false;
 };
 
+// bang node (bng / bang)
+class BangNode : public RelativisticNode
+{
+public:
+    BangNode(int id);
+    void prepare(double sampleRate, int samplesPerBlock) override;
+    void process(int numSamples) override;
+    void receiveMessage(const std::string& message) override;
+    void triggerBang();
+    bool isFlashing() const;
+
+private:
+    std::atomic<double> flashTimer{ 0.0 };
+};
+
+// toggle node (tgl / toggle)
+class ToggleNode : public RelativisticNode
+{
+public:
+    ToggleNode(int id, bool initialState = false);
+    void prepare(double sampleRate, int samplesPerBlock) override;
+    void process(int numSamples) override;
+    void receiveMessage(const std::string& message) override;
+    void toggleState();
+    void setState(bool newState);
+    bool getState() const { return state.load(); }
+
+private:
+    std::atomic<bool> state{ false };
+};
+
+// number node (num / number)
+class NumberNode : public RelativisticNode
+{
+public:
+    NumberNode(int id, double val = 0.0);
+    void prepare(double sampleRate, int samplesPerBlock) override;
+    void process(int numSamples) override;
+    void receiveMessage(const std::string& message) override;
+    void setValue(double newVal);
+    double getValue() const { return value.load(); }
+
+private:
+    std::atomic<double> value{ 0.0 };
+};
+
+// symbol node (sym / symbol)
+class SymbolNode : public RelativisticNode
+{
+public:
+    SymbolNode(int id, const std::string& symText = "symbol");
+    void prepare(double sampleRate, int samplesPerBlock) override;
+    void process(int numSamples) override;
+    void receiveMessage(const std::string& message) override;
+    void setSymbolText(const std::string& text);
+    std::string getSymbolText() const;
+
+private:
+    std::string symbolText = "symbol";
+};
+
+// radio node (hradio / vradio / radio)
+class RadioNode : public RelativisticNode
+{
+public:
+    RadioNode(int id, int numOpts = 4, int initialIdx = 0);
+    void prepare(double sampleRate, int samplesPerBlock) override;
+    void process(int numSamples) override;
+    void receiveMessage(const std::string& message) override;
+    void selectOption(int index);
+    int getSelectedIndex() const { return selectedIdx.load(); }
+    int getNumOptions() const { return numOptions; }
+
+private:
+    int numOptions = 4;
+    std::atomic<int> selectedIdx{ 0 };
+};
+
+// display node (disp / print / display)
+class DisplayNode : public RelativisticNode
+{
+public:
+    DisplayNode(int id);
+    void prepare(double sampleRate, int samplesPerBlock) override;
+    void process(int numSamples) override;
+    void receiveMessage(const std::string& message) override;
+    std::string getDisplayText() const;
+
+private:
+    std::string displayText = "---";
+};
+
 // OutNode
 class OutNode : public RelativisticNode
 {
