@@ -4,6 +4,7 @@
 #include "PdSampleNodes.h"
 #include "PdDelayNodes.h"
 #include "RelativisticTimeNodes.h"
+#include "RelativisticSequencerNodes.h"
 #include <sstream>
 #include <vector>
 
@@ -463,6 +464,39 @@ std::shared_ptr<RelativisticNode> RelativisticNodeFactory::createNode(int nodeId
     else if (symbol == "time.merge~")
     {
         return std::make_shared<TimeMergeNode>(nodeId);
+    }
+    else if (symbol == "seq.euclid" || symbol == "euclid")
+    {
+        int k = 3, n = 8, rot = 0;
+        if (ss >> k) {}
+        if (ss >> n) {}
+        if (ss >> rot) {}
+        return std::make_shared<EuclidSequencerNode>(nodeId, k, n, rot);
+    }
+    else if (symbol == "seq.arp" || symbol == "arp")
+    {
+        std::string modeStr = "up";
+        int oct = 2;
+        double rate = 0.125;
+        if (ss >> modeStr) {}
+        if (ss >> oct) {}
+        if (ss >> rate) {}
+        auto mode = ArpNode::ArpMode::Up;
+        if (modeStr == "down") mode = ArpNode::ArpMode::Down;
+        else if (modeStr == "pingpong" || modeStr == "updown") mode = ArpNode::ArpMode::PingPong;
+        else if (modeStr == "random") mode = ArpNode::ArpMode::Random;
+        else if (modeStr == "asplayed" || modeStr == "order") mode = ArpNode::ArpMode::AsPlayed;
+        return std::make_shared<ArpNode>(nodeId, mode, oct, rate);
+    }
+    else if (symbol == "seq.poly")
+    {
+        return std::make_shared<PolySeqNode>(nodeId);
+    }
+    else if (symbol == "auto~" || symbol == "timeline.auto")
+    {
+        float defVal = 0.0f;
+        if (ss >> defVal) {}
+        return std::make_shared<TimelineAutomationNode>(nodeId, defVal);
     }
 
     // Default fallback to osc~

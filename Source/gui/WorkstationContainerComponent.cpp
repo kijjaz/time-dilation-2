@@ -179,7 +179,11 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
         ctrlMenu.addItem(507, "pipe (Proper-Time Timestamped Event Queue)");
         ctrlMenu.addItem(508, "timer (Relativistic Proper-Time Stopwatch)");
         ctrlMenu.addItem(509, "snapshot~ (Instantaneous Signal & Time Sampler)");
-        m.addSubMenu("Control Logic & Pipes", ctrlMenu);
+        ctrlMenu.addItem(510, "seq.euclid (Bjorklund Euclidean Rhythm Generator)");
+        ctrlMenu.addItem(511, "seq.arp (Relativistic Chord Arpeggiator)");
+        ctrlMenu.addItem(512, "seq.poly (Polyrhythmic Multi-Meter Sequencer)");
+        ctrlMenu.addItem(513, "auto~ (Timeline Parameter Automation Reader)");
+        m.addSubMenu("Control Logic & Sequencers", ctrlMenu);
 
         m.addSeparator();
         m.addItem(2, "osc~ Atomic Oscillator");
@@ -218,6 +222,10 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
             else if (result == 507) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "pipe 150"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
             else if (result == 508) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "timer"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
             else if (result == 509) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "snapshot~"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 510) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "seq.euclid 5 16"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 511) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "seq.arp up 2 0.125"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 512) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "seq.poly"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 513) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "auto~ 0.5"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
             else if (result == 5) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "out~"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
             trackViewComponent.refreshTracks();
         });
@@ -261,6 +269,7 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
         examplesMenu.addItem(103, "03: Deterministic Tape Stop & Wobble Machine (Metro -> Select -> Time.Curve)");
         examplesMenu.addItem(104, "04: Relativistic Delay & Pipe Synth (Doppler Delay + Proper Time Pipe)");
         examplesMenu.addItem(105, "05: Multi-Branch Time Morph & Chaos Rig (Lorenz RK4 + Hermite Morph)");
+        examplesMenu.addItem(106, "06: Relativistic Euclidean & Timeline Arrangement Rig (Euclid 5/16 + Arp + Automation)");
         m.addSubMenu("Examples & Presets", examplesMenu);
 
         m.addSeparator();
@@ -274,21 +283,21 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
             else if (result == 103) loadExampleTapeStopWobble();
             else if (result == 104) loadExampleDelayPipeSynth();
             else if (result == 105) loadExampleChaosMorph();
+            else if (result == 106) loadExampleEuclideanArrangement();
             else if (result == 1) {
                 juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::InfoIcon,
                     "Node Symbol Reference",
                     "Time Objects:\n- time.curve~, time.chaos~, time.crossfade~, time.const~, time.scale~, time.add~, time.quantize~, time.split~, time.merge~\n\n"
-                    "Audio Sources:\n- osc~ (sin/saw/sqr/tri), noise~ (white/pink), pluck~, readsf~, tabread~\n\n"
-                    "Filters & FX:\n- ladder~, svf~, delwrite~, vd~, drive~, reverb~\n\n"
-                    "Control Logic:\n- metro, counter, random, select, route, t b b, pipe, timer, snapshot~, print, print~");
+                    "Sequencer & Control:\n- seq.euclid, seq.arp, seq.poly, auto~, metro, counter, random, select, route, t b b, pipe, timer, snapshot~\n\n"
+                    "Audio Sources & FX:\n- osc~, noise~, pluck~, readsf~, tabread~, ladder~, svf~, delwrite~, vd~, drive~, reverb~, out~");
             }
             else if (result == 2) {
                 juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::InfoIcon,
                     "Relativistic Time Math Guide",
                     "Proper Time: \u03c4 = \u222b \u03b3(t) dt\n"
-                    "Doppler Read: d\u03c4_read / dt = 1 - (1/\u03b3) \u00b7 (v/c)\n"
-                    "C2 Hermite Smoothstep: h(u) = 3u\u00b2 - 2u\u00b3\n"
-                    "Lorenz Attractor: dx/dt = \u03c3(y-x), dy/dt = x(\u03c1-z)-y, dz/dt = xy - \u03b2z");
+                    "Bjorklund Euclidean: E(k, n) = maximally even pulse distribution\n"
+                    "Doppler Delay Read: d\u03c4_read / dt = 1 - (1/\u03b3) \u00b7 (v/c)\n"
+                    "C2 Hermite Smoothstep: h(u) = 3u\u00b2 - 2u\u00b3");
             }
             else if (result == 3) {
                 juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::InfoIcon,
@@ -848,6 +857,118 @@ void WorkstationContainerComponent::loadExampleChaosMorph()
 
     nextNodeId = 16;
     titleLabel.setText("Time Dilation DAW 2 — Multi-Branch Time Morph & Chaos Rig", juce::dontSendNotification);
+    arrangementTimelineComponent.refreshTimeline();
+    canvasComponent.repaint();
+    trackViewComponent.refreshTracks();
+}
+
+void WorkstationContainerComponent::loadExampleEuclideanArrangement()
+{
+    nodeGraph.clearGraph();
+
+    // 1. Spacetime Clock & Modulation Master
+    auto timeCurve  = RelativisticNodeFactory::createNode(1, "time.curve~ 1.0 400");
+    timeCurve->xPos = 60; timeCurve->yPos = 40;
+
+    auto timeLfo    = RelativisticNodeFactory::createNode(2, "osc~ sin");
+    timeLfo->xPos = 240; timeLfo->yPos = 40;
+
+    // 2. Euclidean Rhythm Generator & Drum Synthesizers
+    auto euclidKick = RelativisticNodeFactory::createNode(3, "seq.euclid 4 16 0");
+    euclidKick->setLabel("euclid.kick");
+    euclidKick->xPos = 420; euclidKick->yPos = 40;
+
+    auto kickSynth  = RelativisticNodeFactory::createNode(4, "kick~ 55 0.35");
+    kickSynth->setOutputVolume(0.95f);
+    kickSynth->xPos = 600; kickSynth->yPos = 40;
+
+    auto euclidHat  = RelativisticNodeFactory::createNode(5, "seq.euclid 7 16 2");
+    euclidHat->setLabel("euclid.hihat");
+    euclidHat->xPos = 780; euclidHat->yPos = 40;
+
+    auto hatSynth   = RelativisticNodeFactory::createNode(6, "hihat~ 0.08");
+    hatSynth->setOutputVolume(0.70f);
+    hatSynth->xPos = 960; hatSynth->yPos = 40;
+
+    // 3. Melodic Arpeggiator & Moog Ladder Synth Chain
+    auto arpNode    = RelativisticNodeFactory::createNode(7, "seq.arp updown 2 0.125");
+    arpNode->xPos = 60; arpNode->yPos = 220;
+
+    auto oscLead    = RelativisticNodeFactory::createNode(8, "osc~ saw");
+    oscLead->setOutputVolume(0.85f);
+    oscLead->xPos = 240; oscLead->yPos = 220;
+
+    auto ladderFilt = RelativisticNodeFactory::createNode(9, "ladder~ 2400 0.65");
+    ladderFilt->xPos = 420; ladderFilt->yPos = 220;
+
+    auto autoCutoff = RelativisticNodeFactory::createNode(10, "auto~ 0.5");
+    autoCutoff->xPos = 600; autoCutoff->yPos = 220;
+
+    // 4. Stereo Tape Doppler Echo & Master Output
+    auto delwrite   = RelativisticNodeFactory::createNode(11, "delwrite~ euclid_echo 2000");
+    delwrite->xPos = 780; delwrite->yPos = 220;
+
+    auto tapL       = RelativisticNodeFactory::createNode(12, "vd~ euclid_echo 160");
+    tapL->xPos = 60; tapL->yPos = 380;
+
+    auto tapR       = RelativisticNodeFactory::createNode(13, "vd~ euclid_echo 320");
+    tapR->xPos = 240; tapR->yPos = 380;
+
+    auto driveFx    = RelativisticNodeFactory::createNode(14, "drive~ 1.8");
+    driveFx->xPos = 420; driveFx->yPos = 380;
+
+    auto outMaster  = RelativisticNodeFactory::createNode(15, "out~ master");
+    outMaster->xPos = 640; outMaster->yPos = 380;
+
+    nodeGraph.addNode(timeCurve);
+    nodeGraph.addNode(timeLfo);
+    nodeGraph.addNode(euclidKick);
+    nodeGraph.addNode(kickSynth);
+    nodeGraph.addNode(euclidHat);
+    nodeGraph.addNode(hatSynth);
+    nodeGraph.addNode(arpNode);
+    nodeGraph.addNode(oscLead);
+    nodeGraph.addNode(ladderFilt);
+    nodeGraph.addNode(autoCutoff);
+    nodeGraph.addNode(delwrite);
+    nodeGraph.addNode(tapL);
+    nodeGraph.addNode(tapR);
+    nodeGraph.addNode(driveFx);
+    nodeGraph.addNode(outMaster);
+
+    // Relativistic Clock Connections
+    nodeGraph.addConnection(1, 1, 3, 1);  // timeCurve -> euclidKick
+    nodeGraph.addConnection(1, 1, 5, 1);  // timeCurve -> euclidHat
+    nodeGraph.addConnection(1, 1, 7, 1);  // timeCurve -> arpNode
+    nodeGraph.addConnection(1, 1, 8, 1);  // timeCurve -> oscLead
+    nodeGraph.addConnection(1, 1, 9, 1);  // timeCurve -> ladderFilt
+    nodeGraph.addConnection(1, 1, 11, 2); // timeCurve -> delwrite
+    nodeGraph.addConnection(1, 1, 12, 2); // timeCurve -> tapL
+    nodeGraph.addConnection(1, 1, 13, 2); // timeCurve -> tapR
+
+    // Rhythm Triggers
+    nodeGraph.addConnection(3, 1, 4, 1);  // euclidKick gate -> kick~ trig
+    nodeGraph.addConnection(5, 1, 6, 1);  // euclidHat gate -> hihat~ trig
+
+    // Melodic Arp -> Synth
+    nodeGraph.addConnection(7, 2, 8, 2);  // arp freq~ -> osc freq~
+    nodeGraph.addConnection(8, 2, 9, 2);  // osc -> ladder
+    nodeGraph.addConnection(10, 1, 9, 3); // auto~ -> ladder cutoff mod
+
+    // Effects & Stereo Master
+    nodeGraph.addConnection(9, 2, 11, 1);  // ladder -> delwrite
+    nodeGraph.addConnection(9, 2, 14, 2);  // ladder -> drive
+    nodeGraph.addConnection(14, 2, 15, 1); // drive -> out L
+    nodeGraph.addConnection(14, 2, 15, 2); // drive -> out R
+    nodeGraph.addConnection(4, 1, 15, 1);  // kick -> out L
+    nodeGraph.addConnection(4, 1, 15, 2);  // kick -> out R
+    nodeGraph.addConnection(6, 1, 15, 1);  // hihat -> out L
+    nodeGraph.addConnection(6, 1, 15, 2);  // hihat -> out R
+    nodeGraph.addConnection(12, 2, 15, 1); // tapL -> out L
+    nodeGraph.addConnection(13, 2, 15, 2); // tapR -> out R
+
+    nextNodeId = 16;
+    titleLabel.setText("Time Dilation DAW 2 — Relativistic Euclidean & Timeline Arrangement Rig", juce::dontSendNotification);
     arrangementTimelineComponent.refreshTimeline();
     canvasComponent.repaint();
     trackViewComponent.refreshTracks();

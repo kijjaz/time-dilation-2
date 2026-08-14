@@ -8,5 +8,6 @@
   "pdControlSuite": true,
   "audioSamplePlayback": true,
   "relativisticDelayAndPipes": true,
-  "relativisticTimeSculpting": true
+  "relativisticTimeSculpting": true,
+  "relativisticSequencersAndTimeline": true
 }

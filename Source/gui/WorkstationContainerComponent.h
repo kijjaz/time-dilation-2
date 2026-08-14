@@ -196,6 +196,7 @@ public:
     void loadExampleTapeStopWobble();
     void loadExampleDelayPipeSynth();
     void loadExampleChaosMorph();
+    void loadExampleEuclideanArrangement();
     void showAudioSettingsWindow();
 };
 

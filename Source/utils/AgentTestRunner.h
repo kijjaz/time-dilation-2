@@ -27,6 +27,7 @@ public:
     static bool testAudioSamplePlayback();
     static bool testRelativisticDelayAndPipeSuite();
     static bool testRelativisticTimeSculptingSuite();
+    static bool testRelativisticSequencersAndTimelineSuite();
 };
 
 } // namespace TimeDilationDAW

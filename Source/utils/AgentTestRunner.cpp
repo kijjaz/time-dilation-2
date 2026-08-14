@@ -1,6 +1,7 @@
 #include "AgentTestRunner.h"
 #include "../gui/WorkstationContainerComponent.h"
 #include "../dsp/RelativisticNodeFactory.h"
+#include "../dsp/RelativisticSequencerNodes.h"
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <iostream>
 #include <fstream>
@@ -703,6 +704,44 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
         }
     }
 
+    // =========================================================================
+    // WAV Observation 10: Relativistic Euclidean & Timeline Arrangement Suite
+    // (Euclid 4/16 Kick + Euclid 7/16 Hat + Ping-Pong Arpeggiator + Automated Moog Sweep)
+    // =========================================================================
+    {
+        workstation.loadExampleEuclideanArrangement();
+
+        juce::File obs10Wav("artifacts/observation_10_timeline_sequencer_suite.wav");
+        auto fileStream10 = obs10Wav.createOutputStream();
+        if (fileStream10 != nullptr)
+        {
+            juce::WavAudioFormat wavFormat;
+            std::unique_ptr<juce::AudioFormatWriter> writer10(wavFormat.createWriterFor(fileStream10.release(), sampleRate, 2, 16, {}, 0));
+            if (writer10 != nullptr)
+            {
+                int totalBlocks10 = static_cast<int>((6.0 * sampleRate) / blockSize); // 6-second render
+                auto autoNode = workstation.getNodeGraph().getNode(10);
+                if (autoNode)
+                {
+                    // Program dynamic cutoff envelope
+                    autoNode->receiveMessage("clear");
+                    autoNode->receiveMessage("add 0.0 0.15");
+                    autoNode->receiveMessage("add 2.0 0.85");
+                    autoNode->receiveMessage("add 4.0 0.30");
+                    autoNode->receiveMessage("add 6.0 0.95");
+                }
+
+                for (int b = 0; b < totalBlocks10; ++b)
+                {
+                    workstation.getNextAudioBlock(channelInfo);
+                    writer10->writeFromAudioSampleBuffer(masterBuffer, 0, blockSize);
+                }
+                writer10->flush();
+                std::cout << "[AgentTestRunner] Exported WAV Observation 10 (Relativistic Euclidean & Timeline Arrangement Suite): " << obs10Wav.getFullPathName().toStdString() << "\n";
+            }
+        }
+    }
+
     int totalBlocks = static_cast<int>((5.0 * sampleRate) / blockSize);
     float maxPeak = masterBuffer.getMagnitude(0, blockSize);
     int activeNodes = static_cast<int>(workstation.getNodeGraph().getNodes().size());
@@ -788,8 +827,9 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
     bool samplePlaybackPass = testAudioSamplePlayback();
     bool delayPipePass = testRelativisticDelayAndPipeSuite();
     bool timeSculptPass = testRelativisticTimeSculptingSuite();
+    bool seqTimelinePass = testRelativisticSequencersAndTimelineSuite();
 
-    bool allPhasesPass = allPhase1Pass && gravPass && lorentzPass && tachyonPass && jsonPass && dynamicLatPass && pdControlPass && samplePlaybackPass && delayPipePass && timeSculptPass;
+    bool allPhasesPass = allPhase1Pass && gravPass && lorentzPass && tachyonPass && jsonPass && dynamicLatPass && pdControlPass && samplePlaybackPass && delayPipePass && timeSculptPass && seqTimelinePass;
     std::cout << "\n[Full Test Suite] Overall Result: " << (allPhasesPass ? "PASSED" : "FAILED") << "\n\n";
 
     // Export artifacts/phase2_3_4_telemetry.json
@@ -805,7 +845,8 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
     fullOut << "  \"pdControlSuite\": " << (pdControlPass ? "true" : "false") << ",\n";
     fullOut << "  \"audioSamplePlayback\": " << (samplePlaybackPass ? "true" : "false") << ",\n";
     fullOut << "  \"relativisticDelayAndPipes\": " << (delayPipePass ? "true" : "false") << ",\n";
-    fullOut << "  \"relativisticTimeSculpting\": " << (timeSculptPass ? "true" : "false") << "\n";
+    fullOut << "  \"relativisticTimeSculpting\": " << (timeSculptPass ? "true" : "false") << ",\n";
+    fullOut << "  \"relativisticSequencersAndTimeline\": " << (seqTimelinePass ? "true" : "false") << "\n";
     fullOut << "}\n";
     fullOut.close();
 
@@ -1699,6 +1740,97 @@ bool AgentTestRunner::testRelativisticTimeSculptingSuite()
     if (std::abs(mergeOut.masterGamma - 4.0) > 0.05)
     {
         std::cout << "FAILED (time.split~ -> time.merge~ roundtrip gamma mismatch: " << mergeOut.masterGamma << ", expected 4.0)\n";
+        return false;
+    }
+
+    std::cout << "PASSED\n";
+    return true;
+}
+
+bool AgentTestRunner::testRelativisticSequencersAndTimelineSuite()
+{
+    std::cout << "[Test 17] Relativistic Sequencers & Timeline Arrangement Suite (seq.euclid, seq.arp, seq.poly, auto~, Timeline Arranger)... ";
+    RelativisticNodeGraph graph;
+    graph.prepare(96000.0, 512);
+
+    juce::AudioBuffer<float> dummyBuf(2, 512);
+
+    // 1. Test [seq.euclid] (Bjorklund Euclidean Algorithm)
+    auto euclid = std::dynamic_pointer_cast<EuclidSequencerNode>(RelativisticNodeFactory::createNode(1, "seq.euclid 3 8 0"));
+    if (!euclid)
+    {
+        std::cout << "FAILED (Could not create EuclidSequencerNode)\n";
+        return false;
+    }
+
+    // E(3, 8) pattern must have exactly 3 true hits
+    const auto& pattern3_8 = euclid->getPattern();
+    int trueHits = 0;
+    for (bool h : pattern3_8) if (h) trueHits++;
+    if (pattern3_8.size() != 8 || trueHits != 3)
+    {
+        std::cout << "FAILED (Bjorklund pattern E(3,8) count mismatch: " << trueHits << " hits, expected 3)\n";
+        return false;
+    }
+
+    // Test E(5, 16) Cinquillo rhythm
+    euclid->setParams(5, 16, 0, 0.0f);
+    const auto& pattern5_16 = euclid->getPattern();
+    int hits5_16 = 0;
+    for (bool h : pattern5_16) if (h) hits5_16++;
+    if (pattern5_16.size() != 16 || hits5_16 != 5)
+    {
+        std::cout << "FAILED (Bjorklund pattern E(5,16) count mismatch: " << hits5_16 << " hits, expected 5)\n";
+        return false;
+    }
+
+    // 2. Test [seq.arp] (Relativistic Arpeggiator)
+    auto arp = std::dynamic_pointer_cast<ArpNode>(RelativisticNodeFactory::createNode(2, "seq.arp up 2 0.05"));
+    if (!arp)
+    {
+        std::cout << "FAILED (Could not create ArpNode)\n";
+        return false;
+    }
+    arp->setChordNotes({ 48, 52, 55, 59 }); // C, E, G, B
+    graph.addNode(arp);
+
+    // 3. Test [auto~] (Timeline Parameter Automation Reader)
+    auto autoNode = std::dynamic_pointer_cast<TimelineAutomationNode>(RelativisticNodeFactory::createNode(3, "auto~ 0.0"));
+    if (!autoNode)
+    {
+        std::cout << "FAILED (Could not create TimelineAutomationNode)\n";
+        return false;
+    }
+    autoNode->clearBreakpoints();
+    autoNode->addBreakpoint(0.0, 0.0f);
+    autoNode->addBreakpoint(1.0, 1.0f);
+    graph.addNode(autoNode);
+
+    // Evaluate midpoint at 0.5 sec -> must be ~0.5f (Hermite C2 midpoint)
+    float midVal = autoNode->evaluateAt(0.5);
+    if (std::abs(midVal - 0.5f) > 0.01f)
+    {
+        std::cout << "FAILED (auto~ Hermite midpoint interpolation mismatch: " << midVal << ", expected 0.5)\n";
+        return false;
+    }
+
+    // 4. Test Timeline Arranger Component operations
+    ArrangementTimelineComponent timeline(graph);
+    timeline.setSize(1280, 720);
+    timeline.addClip(0, 0.0, 4.0, "Test Clip 1", ClipType::Pattern);
+    timeline.addClip(1, 4.0, 8.0, "Test Automation", ClipType::Automation);
+
+    if (timeline.getClips().size() < 2)
+    {
+        std::cout << "FAILED (Timeline clips not registered properly)\n";
+        return false;
+    }
+
+    // Test loop range and playhead
+    timeline.setLoopRange(2.0, 6.0, true);
+    if (!timeline.isLoopActive() || timeline.getLoopStartSec() != 2.0 || timeline.getLoopEndSec() != 6.0)
+    {
+        std::cout << "FAILED (Timeline loop range configuration failed)\n";
         return false;
     }
 

@@ -1,5 +1,7 @@
 #include "ArrangementTimelineComponent.h"
 #include "CarbonGoldLookAndFeel.h"
+#include <iomanip>
+#include <sstream>
 
 namespace TimeDilationDAW
 {
@@ -26,6 +28,23 @@ ArrangementTimelineComponent::ArrangementTimelineComponent(RelativisticNodeGraph
     loopButton.setColour(juce::TextButton::textColourOffId, CarbonGoldLookAndFeel::royalViolet);
     addAndMakeVisible(loopButton);
 
+    addClipButton.onClick = [this]() {
+        addClip(0, playheadTimeSec, 4.0, "Pattern Clip", ClipType::Pattern);
+    };
+    addClipButton.setColour(juce::TextButton::buttonColourId, CarbonGoldLookAndFeel::slatePanel.brighter(0.1f));
+    addClipButton.setColour(juce::TextButton::textColourOffId, CarbonGoldLookAndFeel::cyberCyan);
+    addAndMakeVisible(addClipButton);
+
+    togglePianoRollBtn.onClick = [this]() {
+        isPianoRollVisible = !isPianoRollVisible;
+        togglePianoRollBtn.setColour(juce::TextButton::textColourOffId, isPianoRollVisible ? CarbonGoldLookAndFeel::goldAccent : juce::Colours::grey);
+        resized();
+        repaint();
+    };
+    togglePianoRollBtn.setColour(juce::TextButton::buttonColourId, CarbonGoldLookAndFeel::slatePanel.brighter(0.1f));
+    togglePianoRollBtn.setColour(juce::TextButton::textColourOffId, CarbonGoldLookAndFeel::goldAccent);
+    addAndMakeVisible(togglePianoRollBtn);
+
     timeDisplayLabel.setFont(juce::Font(12.0f, juce::Font::bold));
     timeDisplayLabel.setColour(juce::Label::textColourId, CarbonGoldLookAndFeel::goldAccent);
     addAndMakeVisible(timeDisplayLabel);
@@ -41,7 +60,7 @@ ArrangementTimelineComponent::ArrangementTimelineComponent(RelativisticNodeGraph
     addChildComponent(eventEditor);
 
     refreshTimeline();
-    startTimerHz(30); // 30 FPS timer for playhead animation when playing
+    startTimerHz(30);
 }
 
 ArrangementTimelineComponent::~ArrangementTimelineComponent()
@@ -63,6 +82,75 @@ void ArrangementTimelineComponent::rewindToStart()
     playheadTimeSec = isLoopEnabled ? loopStartSec : 0.0;
     for (auto& ev : messageEvents) ev.triggeredInCurrentPass = false;
     repaint();
+}
+
+void ArrangementTimelineComponent::addClip(int trackIdx, double startSec, double durationSec, const juce::String& name, ClipType type)
+{
+    static int nextClipId = 1;
+    TimelineClip clip;
+    clip.clipId = nextClipId++;
+    clip.trackIndex = trackIdx;
+    clip.startTimeSec = std::max(0.0, startSec);
+    clip.durationSec = std::max(0.5, durationSec);
+    clip.name = name;
+    clip.type = type;
+
+    if (type == ClipType::Automation)
+    {
+        clip.color = CarbonGoldLookAndFeel::royalViolet;
+    }
+    else if (type == ClipType::AudioSample)
+    {
+        clip.color = juce::Colour(0xffd02040);
+    }
+    else
+    {
+        clip.color = CarbonGoldLookAndFeel::cyberCyan;
+    }
+
+    clips.push_back(clip);
+    selectedClipId = clip.clipId;
+    repaint();
+}
+
+void ArrangementTimelineComponent::deleteClip(int clipId)
+{
+    clips.erase(std::remove_if(clips.begin(), clips.end(), [clipId](const TimelineClip& c) {
+        return c.clipId == clipId;
+    }), clips.end());
+    if (selectedClipId == clipId) selectedClipId = -1;
+    repaint();
+}
+
+void ArrangementTimelineComponent::duplicateSelectedClip()
+{
+    for (const auto& c : clips)
+    {
+        if (c.clipId == selectedClipId)
+        {
+            addClip(c.trackIndex, c.startTimeSec + c.durationSec, c.durationSec, c.name + " (Copy)", c.type);
+            break;
+        }
+    }
+}
+
+void ArrangementTimelineComponent::splitClipAtPlayhead()
+{
+    for (size_t i = 0; i < clips.size(); ++i)
+    {
+        auto& c = clips[i];
+        if (c.clipId == selectedClipId || (playheadTimeSec > c.startTimeSec && playheadTimeSec < c.startTimeSec + c.durationSec))
+        {
+            double splitTime = playheadTimeSec;
+            if (splitTime > c.startTimeSec + 0.1 && splitTime < c.startTimeSec + c.durationSec - 0.1)
+            {
+                double oldDur = c.durationSec;
+                c.durationSec = splitTime - c.startTimeSec;
+                addClip(c.trackIndex, splitTime, oldDur - c.durationSec, c.name + " (Pt 2)", c.type);
+                break;
+            }
+        }
+    }
 }
 
 void ArrangementTimelineComponent::addMessageEvent(int targetNodeId, int trackIdx, double timeSec, const juce::String& msgText)
@@ -99,44 +187,35 @@ void ArrangementTimelineComponent::spawnEventEditor(int targetNodeId, int trackI
     editingTrackIndex = trackIdx;
     editingTimeSec = timeSec;
 
-    int timelineW = getWidth() - trackHeaderWidth;
-    if (timelineW <= 0) return;
-
-    float x = trackHeaderWidth + static_cast<float>(timeSec / totalDurationSec) * timelineW;
-    int contentStartY = transportBarHeight + rulerHeight;
-    int y = contentStartY + trackIdx * trackHeight + 30;
-
-    juce::String currentText = "";
     if (existingEventId != -1)
     {
         for (const auto& ev : messageEvents)
         {
-            if (ev.eventId == existingEventId) { currentText = ev.messageText; break; }
+            if (ev.eventId == existingEventId)
+            {
+                eventEditor.setText(ev.messageText);
+                break;
+            }
         }
     }
     else
     {
-        auto node = nodeGraph.getNode(targetNodeId);
-        if (node)
-        {
-            if (node->getSymbol() == "ladder~") currentText = "cutoff 2000";
-            else if (node->getSymbol() == "osc~") currentText = "freq 440";
-            else if (node->getSymbol() == "drive~") currentText = "drive 3.5";
-            else currentText = "trigger";
-        }
+        eventEditor.setText("stop 600");
     }
 
-    eventEditor.setText(currentText);
-    eventEditor.setBounds(static_cast<int>(x), y, 120, 24);
+    int timelineW = getWidth() - trackHeaderWidth;
+    int x = trackHeaderWidth + static_cast<int>((timeSec / totalDurationSec) * timelineW);
+    int y = transportBarHeight + rulerHeight + trackIdx * trackHeight + 15;
+
+    eventEditor.setBounds(x - 40, y, 120, 24);
     eventEditor.setVisible(true);
-    eventEditor.selectAll();
     eventEditor.grabKeyboardFocus();
+    eventEditor.selectAll();
 }
 
 void ArrangementTimelineComponent::commitEventEditor()
 {
     if (!isEditingEvent) return;
-
     juce::String text = eventEditor.getText().trim();
     eventEditor.setVisible(false);
     isEditingEvent = false;
@@ -159,103 +238,69 @@ void ArrangementTimelineComponent::commitEventEditor()
             addMessageEvent(editingTargetNodeId, editingTrackIndex, editingTimeSec, text);
         }
     }
-    editingEventId = -1;
     repaint();
 }
 
 void ArrangementTimelineComponent::refreshTimeline()
 {
     clips.clear();
-    messageEvents.clear();
-    loopStartSec = 0.0;
-    loopEndSec = 8.0;
-
     const auto& nodes = nodeGraph.getNodes();
-    int trackIdx = 0;
-    std::unordered_map<std::string, int> nodeTrackMap;
 
+    int trackIdx = 0;
     for (const auto& node : nodes)
     {
-        if (node->getSymbol() == "out~") continue;
-
-        TimelineClip c;
-        c.clipId = node->getId();
-        c.trackIndex = trackIdx;
-        c.startTimeSec = 0.0;
-        c.durationSec = 8.0;
-        c.name = juce::String(node->getLabel());
-
         std::string sym = node->getSymbol();
-        if (sym == "osc~") c.color = CarbonGoldLookAndFeel::cyberCyan;
-        else if (sym == "seq" || sym == "mtof~") c.color = CarbonGoldLookAndFeel::goldAccent;
-        else if (sym == "ladder~" || sym == "svf~") c.color = CarbonGoldLookAndFeel::royalViolet;
-        else if (sym == "kick~" || sym == "snare~" || sym == "hihat~") c.color = juce::Colours::deeppink;
-        else if (sym == "reverb~" || sym == "delay~") c.color = juce::Colours::mediumseagreen;
-        else c.color = juce::Colours::darkgrey;
+        std::transform(sym.begin(), sym.end(), sym.begin(), ::tolower);
 
-        clips.push_back(c);
-        nodeTrackMap[node->getSymbol() + "_" + std::to_string(node->getId())] = trackIdx;
+        if (sym == "seq" || sym == "seq.euclid" || sym == "seq.arp" || sym == "seq.poly" || sym == "step" || sym == "drum")
+        {
+            TimelineClip c;
+            c.clipId = static_cast<int>(clips.size()) + 1;
+            c.trackIndex = trackIdx;
+            c.startTimeSec = 0.0;
+            c.durationSec = 8.0;
+            c.name = node->getLabel();
+            c.type = ClipType::Pattern;
+            c.color = CarbonGoldLookAndFeel::cyberCyan;
+            clips.push_back(c);
+
+            // Add second phrase
+            TimelineClip c2;
+            c2.clipId = static_cast<int>(clips.size()) + 1;
+            c2.trackIndex = trackIdx;
+            c2.startTimeSec = 8.0;
+            c2.durationSec = 8.0;
+            c2.name = node->getLabel() + " (Var)";
+            c2.type = ClipType::Pattern;
+            c2.color = CarbonGoldLookAndFeel::goldAccent;
+            clips.push_back(c2);
+        }
+        else if (sym == "time.curve~" || sym == "time.chaos~" || sym == "auto~")
+        {
+            TimelineClip c;
+            c.clipId = static_cast<int>(clips.size()) + 1;
+            c.trackIndex = trackIdx;
+            c.startTimeSec = 0.0;
+            c.durationSec = 16.0;
+            c.name = node->getLabel() + " Automation";
+            c.type = ClipType::Automation;
+            c.color = CarbonGoldLookAndFeel::royalViolet;
+            clips.push_back(c);
+        }
+
         trackIdx++;
     }
 
-    // Populate Musical 4-Bar Rhythm & Melodic Groove Events (120 BPM: 0.5s = quarter note, 0.25s = 8th note)
-    for (const auto& node : nodes)
+    if (clips.empty())
     {
-        std::string sym = node->getSymbol();
-        int id = node->getId();
-        std::string key = sym + "_" + std::to_string(id);
-        int tIdx = nodeTrackMap.count(key) ? nodeTrackMap[key] : 0;
+        addClip(0, 0.0, 8.0, "Synth Pattern 1", ClipType::Pattern);
+        addClip(0, 8.0, 8.0, "Synth Pattern 2", ClipType::Pattern);
+        addClip(1, 0.0, 16.0, "Time Dilation Curve", ClipType::Automation);
+    }
 
-        if (sym == "kick~")
-        {
-            // 4-on-the-floor groove + syncopated pulses
-            double kickTimes[] = { 0.0, 1.0, 2.0, 2.75, 3.0, 4.0, 5.0, 6.0, 6.75, 7.0 };
-            for (double t : kickTimes)
-            {
-                addMessageEvent(id, tIdx, t, "play");
-            }
-        }
-        else if (sym == "snare~")
-        {
-            // Backbeat on beats 2 and 4 + ghost note fills
-            double snareTimes[] = { 0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.25, 7.5 };
-            for (double t : snareTimes)
-            {
-                addMessageEvent(id, tIdx, t, "play");
-            }
-        }
-        else if (sym == "hihat~")
-        {
-            // 8th-note driving groove with open hats on the off-beats
-            for (double t = 0.0; t < 8.0; t += 0.25)
-            {
-                bool isOpen = (std::fmod(t + 0.25, 1.0) < 0.01);
-                addMessageEvent(id, tIdx, t, isOpen ? "open" : "play");
-            }
-        }
-        else if (sym == "ladder~")
-        {
-            // Dynamic progressive filter cutoff sweep across the 4 bars
-            addMessageEvent(id, tIdx, 0.0, "cutoff 900");
-            addMessageEvent(id, tIdx, 2.0, "cutoff 1600");
-            addMessageEvent(id, tIdx, 4.0, "cutoff 2800");
-            addMessageEvent(id, tIdx, 6.0, "cutoff 4200");
-            addMessageEvent(id, tIdx, 7.5, "cutoff 1200");
-        }
-        else if (sym == "delay~")
-        {
-            // Dub delay feedback build-up
-            addMessageEvent(id, tIdx, 0.0, "feedback 0.35");
-            addMessageEvent(id, tIdx, 4.0, "feedback 0.55");
-            addMessageEvent(id, tIdx, 6.5, "feedback 0.78");
-            addMessageEvent(id, tIdx, 7.5, "feedback 0.35");
-        }
-        else if (sym == "seq")
-        {
-            // Harmonic progression modulation
-            addMessageEvent(id, tIdx, 0.0, "notes 48 55 58 60 62 65 67 70");
-            addMessageEvent(id, tIdx, 4.0, "notes 51 55 58 63 67 70 72 75");
-        }
+    if (!clips.empty() && selectedClipId == -1)
+    {
+        selectedClipId = clips.front().clipId;
     }
 
     repaint();
@@ -263,17 +308,16 @@ void ArrangementTimelineComponent::refreshTimeline()
 
 void ArrangementTimelineComponent::setPlayheadPosition(double timeInSeconds)
 {
-    playheadTimeSec = timeInSeconds;
+    playheadTimeSec = std::clamp(timeInSeconds, 0.0, totalDurationSec);
     repaint();
 }
 
 void ArrangementTimelineComponent::timerCallback()
 {
-    double prevTimeSec = playheadTimeSec;
-
     if (isTimelinePlaying)
     {
-        playheadTimeSec += 1.0 / 30.0;
+        lastPlayheadTimeSec = playheadTimeSec;
+        playheadTimeSec += (1.0 / 30.0);
 
         if (isLoopEnabled && playheadTimeSec >= loopEndSec)
         {
@@ -285,426 +329,496 @@ void ArrangementTimelineComponent::timerCallback()
             playheadTimeSec = 0.0;
             for (auto& ev : messageEvents) ev.triggeredInCurrentPass = false;
         }
-    }
 
-    if (playheadTimeSec < prevTimeSec)
-    {
-        for (auto& ev : messageEvents) ev.triggeredInCurrentPass = false;
-    }
-
-    // Real-time Event Dispatch Engine during Playback!
-    if (isTimelinePlaying)
-    {
+        // Check and dispatch scheduled timeline message events
         for (auto& ev : messageEvents)
         {
-            if (!ev.triggeredInCurrentPass && playheadTimeSec >= ev.timeSec)
+            if (!ev.triggeredInCurrentPass && playheadTimeSec >= ev.timeSec && lastPlayheadTimeSec <= ev.timeSec)
             {
                 ev.triggeredInCurrentPass = true;
-                auto destNode = nodeGraph.getNode(ev.targetNodeId);
-                if (destNode)
+                auto node = nodeGraph.getNode(ev.targetNodeId);
+                if (node)
                 {
-                    destNode->receiveMessage(ev.messageText.toStdString());
+                    node->receiveMessage(ev.messageText.toStdString());
                 }
             }
         }
+
+        // Format time display: Bar.Beat.Tick | MM:SS.CC
+        double beatDuration = 60.0 / bpm;
+        int totalBeats = static_cast<int>(playheadTimeSec / beatDuration);
+        int bar = (totalBeats / 4) + 1;
+        int beat = (totalBeats % 4) + 1;
+        int tick = static_cast<int>((std::fmod(playheadTimeSec, beatDuration) / beatDuration) * 16.0) + 1;
+
+        int mins = static_cast<int>(playheadTimeSec) / 60;
+        int secs = static_cast<int>(playheadTimeSec) % 60;
+        int cents = static_cast<int>((playheadTimeSec - std::floor(playheadTimeSec)) * 100.0);
+
+        std::ostringstream oss;
+        oss << "Bar " << bar << "." << beat << "." << tick << " | "
+            << std::setfill('0') << std::setw(2) << mins << ":"
+            << std::setfill('0') << std::setw(2) << secs << "."
+            << std::setfill('0') << std::setw(2) << cents;
+
+        timeDisplayLabel.setText(oss.str(), juce::dontSendNotification);
+        repaint();
     }
-
-    // Query JUCE AudioPlayHead PositionInfo metrics
-    double bpm = 120.0;
-    int numBeats = 4;
-    int beatValue = 4;
-
-    if (auto* ph = nodeGraph.getAudioPlayHead())
-    {
-        if (auto posOpt = ph->getPosition())
-        {
-            auto pos = *posOpt;
-            if (pos.getBpm()) bpm = *pos.getBpm();
-            if (pos.getTimeSignature())
-            {
-                numBeats = pos.getTimeSignature()->numerator;
-                beatValue = pos.getTimeSignature()->denominator;
-            }
-        }
-    }
-
-    // Calculate PPQ (Pulses Per Quarter Note) and Bar.Beat position from JUCE PositionInfo metrics
-    double ppq = playheadTimeSec * (bpm / 60.0);
-    double quarterNotesPerBeat = 4.0 / static_cast<double>(beatValue);
-    double quarterNotesPerBar = static_cast<double>(numBeats) * quarterNotesPerBeat;
-
-    int currentBar = 1 + static_cast<int>(std::floor(ppq / std::max(0.1, quarterNotesPerBar)));
-    double ppqInBar = std::fmod(ppq, quarterNotesPerBar);
-    int currentBeat = 1 + static_cast<int>(std::floor(ppqInBar / std::max(0.1, quarterNotesPerBeat)));
-
-    int mins = static_cast<int>(playheadTimeSec) / 60;
-    int secs = static_cast<int>(playheadTimeSec) % 60;
-    int ms = static_cast<int>((playheadTimeSec - std::floor(playheadTimeSec)) * 100.0);
-
-    char buf[80];
-    std::snprintf(buf, sizeof(buf), "Bar %d.%d (%d/%d) | %02d:%02d.%02d", currentBar, currentBeat, numBeats, beatValue, mins, secs, ms);
-    timeDisplayLabel.setText(buf, juce::dontSendNotification);
-
-    repaint();
 }
 
-bool ArrangementTimelineComponent::keyPressed(const juce::KeyPress& key)
+void ArrangementTimelineComponent::paint(juce::Graphics& g)
 {
-    if (key.getKeyCode() == juce::KeyPress::spaceKey)
+    auto b = getLocalBounds().toFloat();
+    g.fillAll(CarbonGoldLookAndFeel::carbonBg);
+
+    // 1. Top Transport Header
+    g.setColour(CarbonGoldLookAndFeel::slatePanel.darker(0.2f));
+    g.fillRect(0, 0, getWidth(), transportBarHeight);
+
+    // 2. Timeline Ruler Header
+    auto rulerRect = juce::Rectangle<float>(static_cast<float>(trackHeaderWidth), static_cast<float>(transportBarHeight),
+                                           b.getWidth() - trackHeaderWidth, static_cast<float>(rulerHeight));
+    g.setColour(CarbonGoldLookAndFeel::slatePanel);
+    g.fillRect(rulerRect);
+
+    // Draw Bar & Beat Grid Markers
+    float timelineW = b.getWidth() - trackHeaderWidth;
+    int totalBars = static_cast<int>(totalDurationSec / (4.0 * (60.0 / bpm))) + 1;
+
+    for (int bar = 0; bar <= totalBars; ++bar)
     {
-        togglePlayback();
-        return true;
-    }
-    else if (key.getKeyCode() == juce::KeyPress::backspaceKey || key.getKeyCode() == juce::KeyPress::deleteKey)
-    {
-        if (selectedEventId != -1)
+        double barTime = bar * 4.0 * (60.0 / bpm);
+        float x = static_cast<float>(trackHeaderWidth) + static_cast<float>((barTime / totalDurationSec) * timelineW);
+
+        g.setColour(CarbonGoldLookAndFeel::goldAccent.withAlpha(0.5f));
+        g.drawVerticalLine(static_cast<int>(x), static_cast<float>(transportBarHeight), static_cast<float>(transportBarHeight + rulerHeight));
+
+        g.setFont(juce::Font(10.0f, juce::Font::bold));
+        g.setColour(CarbonGoldLookAndFeel::goldAccent);
+        g.drawText("BAR " + juce::String(bar + 1), static_cast<int>(x + 4), transportBarHeight + 4, 50, 16, juce::Justification::left);
+
+        // Sub-beat ticks
+        for (int beat = 1; beat < 4; ++beat)
         {
-            deleteMessageEvent(selectedEventId);
-            return true;
+            double beatTime = barTime + beat * (60.0 / bpm);
+            float bx = static_cast<float>(trackHeaderWidth) + static_cast<float>((beatTime / totalDurationSec) * timelineW);
+            g.setColour(juce::Colours::dimgrey);
+            g.drawVerticalLine(static_cast<int>(bx), static_cast<float>(transportBarHeight + rulerHeight - 8), static_cast<float>(transportBarHeight + rulerHeight));
         }
     }
-    return false;
+
+    // 3. Loop Region Highlight
+    if (isLoopEnabled)
+    {
+        float loopX1 = static_cast<float>(trackHeaderWidth) + static_cast<float>((loopStartSec / totalDurationSec) * timelineW);
+        float loopX2 = static_cast<float>(trackHeaderWidth) + static_cast<float>((loopEndSec / totalDurationSec) * timelineW);
+
+        g.setColour(CarbonGoldLookAndFeel::royalViolet.withAlpha(0.2f));
+        g.fillRect(loopX1, static_cast<float>(transportBarHeight + rulerHeight), loopX2 - loopX1, b.getHeight() - (isPianoRollVisible ? pianoRollHeight : 0));
+
+        g.setColour(CarbonGoldLookAndFeel::royalViolet);
+        g.drawRect(loopX1, static_cast<float>(transportBarHeight), loopX2 - loopX1, static_cast<float>(rulerHeight), 2.0f);
+    }
+
+    // 4. Tracks & Clips Area
+    int yStart = transportBarHeight + rulerHeight;
+    const auto& nodes = nodeGraph.getNodes();
+    int numTracks = std::max(4, static_cast<int>(nodes.size()));
+
+    int tracksVisibleH = getHeight() - yStart - (isPianoRollVisible ? pianoRollHeight : 0);
+
+    for (int t = 0; t < numTracks; ++t)
+    {
+        int y = yStart + t * trackHeight;
+        if (y + trackHeight > yStart + tracksVisibleH) break;
+
+        // Track Header Panel
+        auto headerR = juce::Rectangle<float>(0.0f, static_cast<float>(y), static_cast<float>(trackHeaderWidth), static_cast<float>(trackHeight));
+        g.setColour(CarbonGoldLookAndFeel::slatePanel.darker(0.1f));
+        g.fillRect(headerR);
+
+        g.setColour(CarbonGoldLookAndFeel::goldAccent.withAlpha(0.3f));
+        g.drawRect(headerR, 1.0f);
+
+        juce::String trackLabel = "Track " + juce::String(t + 1);
+        juce::String nodeSym = "Pattern";
+        if (t < static_cast<int>(nodes.size()))
+        {
+            trackLabel = nodes[static_cast<size_t>(t)]->getLabel();
+            nodeSym = nodes[static_cast<size_t>(t)]->getSymbol();
+        }
+
+        g.setFont(juce::Font(11.0f, juce::Font::bold));
+        g.setColour(CarbonGoldLookAndFeel::goldAccent);
+        g.drawText(trackLabel, 10, y + 8, trackHeaderWidth - 20, 18, juce::Justification::left);
+
+        g.setFont(juce::Font(10.0f, juce::Font::italic));
+        g.setColour(CarbonGoldLookAndFeel::cyberCyan);
+        g.drawText(nodeSym, 10, y + 26, trackHeaderWidth - 20, 16, juce::Justification::left);
+
+        // Track Lane Background
+        auto laneR = juce::Rectangle<float>(static_cast<float>(trackHeaderWidth), static_cast<float>(y), timelineW, static_cast<float>(trackHeight));
+        g.setColour((t % 2 == 0) ? CarbonGoldLookAndFeel::carbonBg.brighter(0.02f) : CarbonGoldLookAndFeel::carbonBg);
+        g.fillRect(laneR);
+
+        g.setColour(juce::Colours::white.withAlpha(0.05f));
+        g.drawHorizontalLine(y + trackHeight, static_cast<float>(trackHeaderWidth), b.getWidth());
+    }
+
+    // 5. Draw Timeline Clips
+    for (const auto& clip : clips)
+    {
+        int y = yStart + clip.trackIndex * trackHeight;
+        if (y + trackHeight > yStart + tracksVisibleH) continue;
+
+        float cx = static_cast<float>(trackHeaderWidth) + static_cast<float>((clip.startTimeSec / totalDurationSec) * timelineW);
+        float cw = static_cast<float>((clip.durationSec / totalDurationSec) * timelineW);
+        auto clipR = juce::Rectangle<float>(cx, static_cast<float>(y + 4), cw, static_cast<float>(trackHeight - 8));
+
+        bool isSelected = (clip.clipId == selectedClipId);
+
+        g.setColour(clip.color.withAlpha(isSelected ? 0.35f : 0.20f));
+        g.fillRoundedRectangle(clipR, 4.0f);
+
+        g.setColour(isSelected ? CarbonGoldLookAndFeel::goldAccent : clip.color);
+        g.drawRoundedRectangle(clipR, 4.0f, isSelected ? 2.0f : 1.0f);
+
+        // Clip Title
+        g.setFont(juce::Font(11.0f, juce::Font::bold));
+        g.setColour(juce::Colours::white);
+        g.drawText(clip.name, static_cast<int>(cx + 6), y + 6, static_cast<int>(cw - 12), 16, juce::Justification::left);
+
+        // Miniature note / automation preview
+        if (clip.type == ClipType::Pattern)
+        {
+            int numSteps = static_cast<int>(clip.stepPitches.size());
+            float stepW = cw / static_cast<float>(numSteps);
+            for (int s = 0; s < numSteps; ++s)
+            {
+                if (s < static_cast<int>(clip.stepGates.size()) && clip.stepGates[static_cast<size_t>(s)])
+                {
+                    float noteNorm = (clip.stepPitches[static_cast<size_t>(s)] - 36) / 48.0f;
+                    float ny = clipR.getBottom() - 4.0f - noteNorm * (clipR.getHeight() - 24.0f);
+                    g.setColour(clip.color);
+                    g.fillRect(cx + s * stepW + 1.0f, ny, stepW - 2.0f, 4.0f);
+                }
+            }
+        }
+        else if (clip.type == ClipType::Automation)
+        {
+            drawAutomationCurves(g, clip, clipR);
+        }
+    }
+
+    // 6. Draw Scheduled Message Events
+    for (const auto& ev : messageEvents)
+    {
+        int y = yStart + ev.trackIndex * trackHeight;
+        if (y + trackHeight > yStart + tracksVisibleH) continue;
+
+        float ex = static_cast<float>(trackHeaderWidth) + static_cast<float>((ev.timeSec / totalDurationSec) * timelineW);
+        auto badgeR = juce::Rectangle<float>(ex - 35.0f, static_cast<float>(y + 12), 70.0f, 22.0f);
+
+        bool isSelected = (ev.eventId == selectedEventId);
+        g.setColour(isSelected ? CarbonGoldLookAndFeel::goldAccent : CarbonGoldLookAndFeel::royalViolet);
+        g.fillRoundedRectangle(badgeR, 3.0f);
+
+        g.setFont(juce::Font(9.0f, juce::Font::bold));
+        g.setColour(CarbonGoldLookAndFeel::carbonBg);
+        g.drawText(ev.messageText, badgeR, juce::Justification::centred);
+    }
+
+    // 7. Master Playhead Line
+    float px = static_cast<float>(trackHeaderWidth) + static_cast<float>((playheadTimeSec / totalDurationSec) * timelineW);
+    g.setColour(juce::Colour(0xffff2050));
+    g.drawVerticalLine(static_cast<int>(px), static_cast<float>(transportBarHeight), b.getHeight() - (isPianoRollVisible ? pianoRollHeight : 0));
+
+    juce::Path head;
+    head.addTriangle(px - 6.0f, static_cast<float>(transportBarHeight), px + 6.0f, static_cast<float>(transportBarHeight), px, static_cast<float>(transportBarHeight + 10));
+    g.fillPath(head);
+
+    // 8. Piano Roll & Step Grid Drawer
+    if (isPianoRollVisible)
+    {
+        auto drawerBounds = juce::Rectangle<float>(0.0f, b.getHeight() - pianoRollHeight, b.getWidth(), static_cast<float>(pianoRollHeight));
+        drawPianoRollDrawer(g, drawerBounds);
+    }
+}
+
+void ArrangementTimelineComponent::drawAutomationCurves(juce::Graphics& g, const TimelineClip& clip, const juce::Rectangle<float>& clipRect)
+{
+    if (clip.automationPoints.size() < 2) return;
+
+    juce::Path p;
+    for (size_t i = 0; i < clip.automationPoints.size(); ++i)
+    {
+        float x = clipRect.getX() + static_cast<float>(clip.automationPoints[i].first) * clipRect.getWidth();
+        float y = clipRect.getBottom() - 4.0f - clip.automationPoints[i].second * (clipRect.getHeight() - 16.0f);
+
+        if (i == 0) p.startNewSubPath(x, y);
+        else p.lineTo(x, y);
+
+        // Breakpoint dot
+        g.setColour(CarbonGoldLookAndFeel::goldAccent);
+        g.fillEllipse(x - 3.0f, y - 3.0f, 6.0f, 6.0f);
+    }
+
+    g.setColour(CarbonGoldLookAndFeel::royalViolet);
+    g.strokePath(p, juce::PathStrokeType(2.0f));
+}
+
+void ArrangementTimelineComponent::drawPianoRollDrawer(juce::Graphics& g, const juce::Rectangle<float>& bounds)
+{
+    g.setColour(CarbonGoldLookAndFeel::slatePanel.darker(0.3f));
+    g.fillRect(bounds);
+
+    g.setColour(CarbonGoldLookAndFeel::goldAccent.withAlpha(0.4f));
+    g.drawHorizontalLine(static_cast<int>(bounds.getY()), 0.0f, bounds.getWidth());
+
+    // Drawer Header
+    g.setFont(juce::Font(12.0f, juce::Font::bold));
+    g.setColour(CarbonGoldLookAndFeel::goldAccent);
+
+    juce::String clipName = "No Clip Selected";
+    const TimelineClip* activeClip = nullptr;
+    for (const auto& c : clips)
+    {
+        if (c.clipId == selectedClipId) { activeClip = &c; clipName = c.name; break; }
+    }
+
+    g.drawText("PIANO ROLL / 16-STEP GRID: " + clipName, 12, static_cast<int>(bounds.getY() + 4), 300, 20, juce::Justification::left);
+
+    if (!activeClip) return;
+
+    // Draw 16 Step Buttons
+    int numSteps = 16;
+    float stepAreaW = bounds.getWidth() - 24.0f;
+    float stepW = stepAreaW / static_cast<float>(numSteps);
+    float gridY = bounds.getY() + 30.0f;
+    float gridH = bounds.getHeight() - 65.0f;
+
+    for (int s = 0; s < numSteps; ++s)
+    {
+        auto stepR = juce::Rectangle<float>(12.0f + s * stepW, gridY, stepW - 4.0f, gridH);
+        bool hasGate = (s < static_cast<int>(activeClip->stepGates.size())) && activeClip->stepGates[static_cast<size_t>(s)];
+
+        g.setColour(hasGate ? CarbonGoldLookAndFeel::goldAccent.withAlpha(0.85f) : CarbonGoldLookAndFeel::slatePanel);
+        g.fillRoundedRectangle(stepR, 3.0f);
+
+        g.setColour(hasGate ? CarbonGoldLookAndFeel::carbonBg : juce::Colours::dimgrey);
+        g.setFont(juce::Font(10.0f, juce::Font::bold));
+        g.drawText(juce::String(s + 1), stepR.withHeight(16.0f), juce::Justification::centred);
+
+        if (hasGate && s < static_cast<int>(activeClip->stepPitches.size()))
+        {
+            int pitch = activeClip->stepPitches[static_cast<size_t>(s)];
+            g.setFont(juce::Font(11.0f, juce::Font::bold));
+            g.drawText(juce::String(pitch), stepR.reduced(2.0f), juce::Justification::centred);
+        }
+
+        // Velocity Bar at bottom
+        float vel = (s < static_cast<int>(activeClip->stepVelocities.size())) ? activeClip->stepVelocities[static_cast<size_t>(s)] : 0.8f;
+        float velY = bounds.getBottom() - 25.0f;
+        g.setColour(CarbonGoldLookAndFeel::cyberCyan);
+        g.fillRect(12.0f + s * stepW, velY + (1.0f - vel) * 18.0f, stepW - 4.0f, vel * 18.0f);
+    }
+}
+
+void ArrangementTimelineComponent::resized()
+{
+    int y = 4;
+    int btnH = 26;
+
+    playStopButton.setBounds(10, y, 70, btnH);
+    rewindButton.setBounds(85, y, 75, btnH);
+    loopButton.setBounds(165, y, 80, btnH);
+    addClipButton.setBounds(250, y, 85, btnH);
+    togglePianoRollBtn.setBounds(340, y, 95, btnH);
+
+    timeDisplayLabel.setBounds(getWidth() - 240, y, 230, btnH);
 }
 
 void ArrangementTimelineComponent::mouseDown(const juce::MouseEvent& e)
 {
-    grabKeyboardFocus();
     auto pos = e.position;
-    int timelineW = getWidth() - trackHeaderWidth;
-    if (timelineW <= 0) return;
+    float timelineW = static_cast<float>(getWidth() - trackHeaderWidth);
 
-    if (isEditingEvent && !eventEditor.getBounds().contains(pos.toInt()))
+    // 1. Clicked Transport Ruler: Scrub Playhead or Set Loop Range
+    if (pos.y >= transportBarHeight && pos.y <= transportBarHeight + rulerHeight)
     {
-        commitEventEditor();
-    }
-
-    int contentStartY = transportBarHeight + rulerHeight;
-
-    // Check if clicked an Event (Trigger Pin, Automation Breakpoint, or Message Badge)
-    for (const auto& ev : messageEvents)
-    {
-        int y = contentStartY + ev.trackIndex * trackHeight;
-        float x = trackHeaderWidth + static_cast<float>(ev.timeSec / totalDurationSec) * timelineW;
-
-        juce::Rectangle<float> hitRect(x - 8.0f, static_cast<float>(y + 4), 20.0f, static_cast<float>(trackHeight - 8));
-        bool isTrigger = (ev.messageText == "play" || ev.messageText == "open" || ev.messageText == "bang" || ev.messageText == "trigger");
-        if (!isTrigger)
-        {
-            hitRect = juce::Rectangle<float>(x - 4.0f, static_cast<float>(y + 18), 85.0f, 24.0f);
-        }
-
-        if (hitRect.contains(pos))
-        {
-            selectedEventId = ev.eventId;
-            isDraggingEvent = true;
-
-            // Double Click Event -> Edit Text
-            if (e.getNumberOfClicks() >= 2)
-            {
-                spawnEventEditor(ev.targetNodeId, ev.trackIndex, ev.timeSec, ev.eventId);
-                return;
-            }
-
-            // Right Click Event -> Context Menu
-            if (e.mods.isPopupMenu())
-            {
-                juce::PopupMenu m;
-                m.addItem(1, "Edit Message Payload...");
-                m.addItem(2, "Duplicate Message Event");
-                m.addSeparator();
-                m.addItem(3, "Delete Event");
-                m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this), [this, ev](int result) {
-                    if (result == 1) spawnEventEditor(ev.targetNodeId, ev.trackIndex, ev.timeSec, ev.eventId);
-                    else if (result == 2) addMessageEvent(ev.targetNodeId, ev.trackIndex, std::min(totalDurationSec, ev.timeSec + 2.0), ev.messageText);
-                    else if (result == 3) deleteMessageEvent(ev.eventId);
-                });
-                return;
-            }
-            repaint();
-            return;
-        }
-    }
-
-    selectedEventId = -1;
-
-    // Check if clicked inside Ruler Area
-    if (pos.y >= transportBarHeight && pos.y < (transportBarHeight + rulerHeight) && pos.x >= trackHeaderWidth)
-    {
-        double clickedSec = std::clamp(static_cast<double>((pos.x - trackHeaderWidth) / timelineW) * totalDurationSec, 0.0, totalDurationSec);
+        double clickTime = ((pos.x - trackHeaderWidth) / timelineW) * totalDurationSec;
+        clickTime = std::clamp(clickTime, 0.0, totalDurationSec);
 
         if (e.mods.isShiftDown())
         {
             isSettingLoop = true;
-            loopStartSec = clickedSec;
-            loopEndSec = std::min(totalDurationSec, clickedSec + 4.0);
+            loopStartSec = clickTime;
+            loopEndSec = clickTime + 4.0;
         }
         else
         {
-            playheadTimeSec = clickedSec;
+            isDraggingPlayhead = true;
+            setPlayheadPosition(clickTime);
         }
         repaint();
         return;
     }
 
-    // Check if double-clicked inside Track Lane -> Spawn New Message Event!
-    if (pos.y >= contentStartY && pos.x >= trackHeaderWidth)
+    // 2. Clicked in Piano Roll Drawer: Toggle step gates or edit pitches
+    if (isPianoRollVisible && pos.y >= getHeight() - pianoRollHeight)
     {
-        int clickedTrackIdx = static_cast<int>((pos.y - contentStartY) / trackHeight);
-        const auto& nodes = nodeGraph.getNodes();
+        float gridY = getHeight() - pianoRollHeight + 30.0f;
+        float stepAreaW = getWidth() - 24.0f;
+        float stepW = stepAreaW / 16.0f;
 
-        int currentTrackIdx = 0;
-        for (const auto& node : nodes)
+        int stepIdx = static_cast<int>((pos.x - 12.0f) / stepW);
+        if (stepIdx >= 0 && stepIdx < 16)
         {
-            if (node->getSymbol() == "out~") continue;
-            if (currentTrackIdx == clickedTrackIdx)
+            for (auto& clip : clips)
             {
-                double clickedSec = std::clamp(static_cast<double>((pos.x - trackHeaderWidth) / timelineW) * totalDurationSec, 0.0, totalDurationSec);
-                if (e.getNumberOfClicks() >= 2)
+                if (clip.clipId == selectedClipId)
                 {
-                    spawnEventEditor(node->getId(), clickedTrackIdx, clickedSec, -1);
-                    return;
+                    if (clip.stepGates.size() <= static_cast<size_t>(stepIdx)) clip.stepGates.resize(16, false);
+                    if (clip.stepPitches.size() <= static_cast<size_t>(stepIdx)) clip.stepPitches.resize(16, 60);
+                    if (clip.stepVelocities.size() <= static_cast<size_t>(stepIdx)) clip.stepVelocities.resize(16, 0.85f);
+
+                    clip.stepGates[static_cast<size_t>(stepIdx)] = !clip.stepGates[static_cast<size_t>(stepIdx)];
+                    selectedStepIndex = stepIdx;
+                    repaint();
+                    break;
                 }
-                break;
             }
-            currentTrackIdx++;
+        }
+        return;
+    }
+
+    // 3. Clicked in Tracks Area: Select / Drag Clips or Messages
+    int yStart = transportBarHeight + rulerHeight;
+    int tracksVisibleH = getHeight() - yStart - (isPianoRollVisible ? pianoRollHeight : 0);
+
+    for (const auto& clip : clips)
+    {
+        int y = yStart + clip.trackIndex * trackHeight;
+        if (y + trackHeight > yStart + tracksVisibleH) continue;
+
+        float cx = static_cast<float>(trackHeaderWidth) + static_cast<float>((clip.startTimeSec / totalDurationSec) * timelineW);
+        float cw = static_cast<float>((clip.durationSec / totalDurationSec) * timelineW);
+        auto clipR = juce::Rectangle<float>(cx, static_cast<float>(y + 4), cw, static_cast<float>(trackHeight - 8));
+
+        if (clipR.contains(pos))
+        {
+            selectedClipId = clip.clipId;
+            draggingClipId = clip.clipId;
+            dragStartClipTime = clip.startTimeSec;
+            isResizingClipEnd = (pos.x >= clipR.getRight() - 10.0f);
+            repaint();
+            return;
         }
     }
-    repaint();
 }
 
 void ArrangementTimelineComponent::mouseDrag(const juce::MouseEvent& e)
 {
     auto pos = e.position;
-    int timelineW = getWidth() - trackHeaderWidth;
-    if (timelineW <= 0) return;
+    float timelineW = static_cast<float>(getWidth() - trackHeaderWidth);
 
-    if (isDraggingEvent && selectedEventId != -1 && pos.x >= trackHeaderWidth)
+    if (isDraggingPlayhead)
     {
-        double currentSec = std::clamp(static_cast<double>((pos.x - trackHeaderWidth) / timelineW) * totalDurationSec, 0.0, totalDurationSec);
-        for (auto& ev : messageEvents)
-        {
-            if (ev.eventId == selectedEventId)
-            {
-                ev.timeSec = currentSec;
-                break;
-            }
-        }
+        double scrubTime = ((pos.x - trackHeaderWidth) / timelineW) * totalDurationSec;
+        setPlayheadPosition(scrubTime);
+        return;
+    }
+
+    if (isSettingLoop)
+    {
+        double curTime = ((pos.x - trackHeaderWidth) / timelineW) * totalDurationSec;
+        loopEndSec = std::clamp(curTime, loopStartSec + 0.5, totalDurationSec);
         repaint();
         return;
     }
 
-    if (isSettingLoop && pos.x >= trackHeaderWidth)
+    if (draggingClipId != -1)
     {
-        double currentSec = std::clamp(static_cast<double>((pos.x - trackHeaderWidth) / timelineW) * totalDurationSec, 0.0, totalDurationSec);
-        if (currentSec > loopStartSec)
+        double deltaTime = (e.getDistanceFromDragStartX() / timelineW) * totalDurationSec;
+        for (auto& clip : clips)
         {
-            loopEndSec = currentSec;
+            if (clip.clipId == draggingClipId)
+            {
+                if (isResizingClipEnd)
+                {
+                    clip.durationSec = std::max(0.5, clip.durationSec + deltaTime);
+                }
+                else
+                {
+                    clip.startTimeSec = std::max(0.0, dragStartClipTime + deltaTime);
+                }
+                repaint();
+                break;
+            }
         }
-        else
-        {
-            loopEndSec = loopStartSec;
-            loopStartSec = currentSec;
-        }
-        repaint();
     }
 }
 
 void ArrangementTimelineComponent::mouseUp(const juce::MouseEvent& e)
 {
     juce::ignoreUnused(e);
+    isDraggingPlayhead = false;
     isSettingLoop = false;
-    isDraggingEvent = false;
+    draggingClipId = -1;
+    isResizingClipEnd = false;
 }
 
-void ArrangementTimelineComponent::paint(juce::Graphics& g)
+void ArrangementTimelineComponent::mouseDoubleClick(const juce::MouseEvent& e)
 {
-    g.fillAll(CarbonGoldLookAndFeel::carbonBg);
+    auto pos = e.position;
+    float timelineW = static_cast<float>(getWidth() - trackHeaderWidth);
 
-    int timelineW = getWidth() - trackHeaderWidth;
-    if (timelineW <= 0) return;
-
-    // 1. Top Transport Header Bar Background
-    g.setColour(CarbonGoldLookAndFeel::slatePanel.darker(0.2f));
-    g.fillRect(0, 0, getWidth(), transportBarHeight);
-    g.setColour(CarbonGoldLookAndFeel::slatePanel.brighter(0.2f));
-    g.drawHorizontalLine(transportBarHeight - 1, 0.0f, static_cast<float>(getWidth()));
-
-    // 2. Timeline Ruler Bar
-    int rulerY = transportBarHeight;
-    g.setColour(CarbonGoldLookAndFeel::slatePanel);
-    g.fillRect(0, rulerY, getWidth(), rulerHeight);
-    g.setColour(CarbonGoldLookAndFeel::goldAccent.withAlpha(0.4f));
-    g.drawHorizontalLine(rulerY + rulerHeight, 0.0f, static_cast<float>(getWidth()));
-
-    // Ruler Ticks (Bar 1..32 / Time 0s..30s)
-    g.setColour(juce::Colours::lightgrey);
-    g.setFont(juce::Font(11.0f, juce::Font::bold));
-    for (int bar = 0; bar <= 16; ++bar)
+    if (pos.x > trackHeaderWidth && pos.y > transportBarHeight + rulerHeight)
     {
-        float x = trackHeaderWidth + (bar / 16.0f) * timelineW;
-        g.drawVerticalLine(static_cast<int>(x), static_cast<float>(rulerY), static_cast<float>(rulerY + rulerHeight));
-        g.drawText("Bar " + juce::String(bar * 2 + 1), static_cast<int>(x) + 4, rulerY + 4, 50, 16, juce::Justification::left);
+        int yStart = transportBarHeight + rulerHeight;
+        int trackIdx = static_cast<int>((pos.y - yStart) / trackHeight);
+        double clickTime = ((pos.x - trackHeaderWidth) / timelineW) * totalDurationSec;
+
+        addClip(trackIdx, clickTime, 4.0, "Sequence Clip " + juce::String(clips.size() + 1), ClipType::Pattern);
+    }
+}
+
+bool ArrangementTimelineComponent::keyPressed(const juce::KeyPress& key)
+{
+    bool isCmdOrCtrl = key.getModifiers().isCommandDown() || key.getModifiers().isCtrlDown();
+
+    // Spacebar toggles playback
+    if (key.getKeyCode() == juce::KeyPress::spaceKey)
+    {
+        togglePlayback();
+        return true;
     }
 
-    // 3. Render Loop Region Overlay (Translucent Gold Box)
-    if (isLoopEnabled && loopEndSec > loopStartSec)
+    // Cmd+D duplicates selected clip
+    if (isCmdOrCtrl && (key.getKeyCode() == 'd' || key.getKeyCode() == 'D'))
     {
-        float loopX1 = trackHeaderWidth + static_cast<float>(loopStartSec / totalDurationSec) * timelineW;
-        float loopX2 = trackHeaderWidth + static_cast<float>(loopEndSec / totalDurationSec) * timelineW;
-
-        juce::Rectangle<float> loopRect(loopX1, static_cast<float>(rulerY), loopX2 - loopX1, static_cast<float>(getHeight() - rulerY));
-        g.setColour(CarbonGoldLookAndFeel::goldAccent.withAlpha(0.12f));
-        g.fillRect(loopRect);
-
-        g.setColour(CarbonGoldLookAndFeel::goldAccent);
-        g.drawVerticalLine(static_cast<int>(loopX1), static_cast<float>(rulerY), static_cast<float>(getHeight()));
-        g.drawVerticalLine(static_cast<int>(loopX2), static_cast<float>(rulerY), static_cast<float>(getHeight()));
-
-        g.setFont(10.0f);
-        g.drawText("LOOP IN", static_cast<int>(loopX1) + 4, rulerY + 16, 50, 14, juce::Justification::left);
-        g.drawText("LOOP OUT", static_cast<int>(loopX2) - 54, rulerY + 16, 50, 14, juce::Justification::right);
+        duplicateSelectedClip();
+        return true;
     }
 
-    // 4. Track Lanes Backgrounds & Headers
-    const auto& nodes = nodeGraph.getNodes();
-    int trackIdx = 0;
-    int contentStartY = transportBarHeight + rulerHeight;
-    for (const auto& node : nodes)
+    // Cmd+B splits clip at playhead
+    if (isCmdOrCtrl && (key.getKeyCode() == 'b' || key.getKeyCode() == 'B'))
     {
-        if (node->getSymbol() == "out~") continue;
-        int y = contentStartY + trackIdx * trackHeight;
-
-        // Track Header Box
-        g.setColour(CarbonGoldLookAndFeel::slatePanel.brighter(0.05f));
-        g.fillRect(0, y, trackHeaderWidth - 2, trackHeight - 2);
-
-        g.setColour(CarbonGoldLookAndFeel::goldAccent);
-        g.setFont(juce::Font(12.0f, juce::Font::bold));
-        g.drawText("Tr " + juce::String(trackIdx + 1) + ": " + juce::String(node->getLabel()), 10, y + 8, trackHeaderWidth - 20, 18, juce::Justification::left);
-
-        g.setColour(juce::Colours::grey);
-        g.setFont(10.0f);
-        g.drawText("Node #" + juce::String(node->getId()) + " [" + juce::String(node->getSymbol()) + "]", 10, y + 30, trackHeaderWidth - 20, 16, juce::Justification::left);
-
-        // Track Lane Grid Line
-        g.setColour(CarbonGoldLookAndFeel::slatePanel.darker(0.3f));
-        g.drawHorizontalLine(y + trackHeight - 1, static_cast<float>(trackHeaderWidth), static_cast<float>(getWidth()));
-
-        trackIdx++;
+        splitClipAtPlayhead();
+        return true;
     }
 
-    // 5. Render Audio / MIDI Timeline Clip Blocks
-    for (const auto& c : clips)
+    // Backspace/Delete deletes selected clip or event
+    if (key.getKeyCode() == juce::KeyPress::deleteKey || key.getKeyCode() == juce::KeyPress::backspaceKey)
     {
-        int y = contentStartY + c.trackIndex * trackHeight + 4;
-        float startX = trackHeaderWidth + static_cast<float>(c.startTimeSec / totalDurationSec) * timelineW;
-        float clipW = static_cast<float>(c.durationSec / totalDurationSec) * timelineW;
-
-        juce::Rectangle<float> clipRect(startX, static_cast<float>(y), clipW, static_cast<float>(trackHeight - 10));
-
-        g.setColour(c.color.withAlpha(0.25f));
-        g.fillRoundedRectangle(clipRect, 4.0f);
-
-        g.setColour(c.color);
-        g.drawRoundedRectangle(clipRect, 4.0f, 1.5f);
-
-        g.setColour(juce::Colours::white);
-        g.setFont(juce::Font(11.0f, juce::Font::bold));
-        g.drawText(c.name, clipRect.reduced(6.0f), juce::Justification::topLeft, true);
-    }
-
-    // 6. Render Discrete Message & Value Point Events (No connecting lines)
-    for (const auto& ev : messageEvents)
-    {
-        int trackY = contentStartY + ev.trackIndex * trackHeight;
-        float x = trackHeaderWidth + static_cast<float>(ev.timeSec / totalDurationSec) * timelineW;
-        bool isSel = (selectedEventId == ev.eventId);
-        bool isTrigger = (ev.messageText == "play" || ev.messageText == "open" || ev.messageText == "bang" || ev.messageText == "trigger");
-
-        if (isTrigger)
+        if (selectedClipId != -1)
         {
-            // Sleek Vertical Rhythm Trigger Tick (Drum sequencer / Piano roll style)
-            float tickH = static_cast<float>(trackHeight - 26);
-            float topY = static_cast<float>(trackY + 18);
-            float botY = topY + tickH;
-
-            juce::Colour pinCol = (ev.messageText == "open") ? CarbonGoldLookAndFeel::cyberCyan : (isSel ? juce::Colours::white : CarbonGoldLookAndFeel::goldAccent);
-
-            // Vertical Stem Line at exact trigger moment
-            g.setColour(pinCol.withAlpha(0.85f));
-            g.drawLine(x, topY + 4.0f, x, botY, isSel ? 2.5f : 1.5f);
-
-            // Glowing Pin Head (Diamond / Rounded Dot)
-            juce::Rectangle<float> headRect(x - 3.5f, topY - 1.0f, 7.0f, 7.0f);
-            g.setColour(pinCol);
-            g.fillEllipse(headRect);
-
-            if (isSel)
-            {
-                // Floating Tooltip for Selected Trigger
-                juce::Rectangle<float> tagRect(x - 20.0f, topY - 14.0f, 40.0f, 13.0f);
-                g.setColour(CarbonGoldLookAndFeel::slatePanel.darker(0.5f));
-                g.fillRoundedRectangle(tagRect, 2.0f);
-                g.setColour(CarbonGoldLookAndFeel::goldAccent);
-                g.drawRoundedRectangle(tagRect, 2.0f, 1.0f);
-                g.setFont(8.5f);
-                g.drawText(ev.messageText, tagRect, juce::Justification::centred, false);
-            }
-        }
-        else
-        {
-            // Discrete Point Event Marker (Exact scheduled moment)
-            float topY = static_cast<float>(trackY + 16);
-            float botY = static_cast<float>(trackY + trackHeight - 8);
-
-            // Subtle vertical timing marker
-            g.setColour(CarbonGoldLookAndFeel::goldAccent.withAlpha(isSel ? 0.6f : 0.25f));
-            g.drawVerticalLine(static_cast<int>(x), topY + 2.0f, botY);
-
-            // Point Handle Node
-            float nodeY = topY + (botY - topY) * 0.5f;
-            g.setColour(isSel ? juce::Colours::white : CarbonGoldLookAndFeel::goldAccent);
-            g.fillEllipse(x - 4.0f, nodeY - 4.0f, 8.0f, 8.0f);
-            g.setColour(CarbonGoldLookAndFeel::slatePanel.darker(0.8f));
-            g.drawEllipse(x - 4.0f, nodeY - 4.0f, 8.0f, 8.0f, 1.2f);
-
-            // Compact Point Value / Message Badge
-            juce::String labelText = ev.messageText;
-            if (ev.messageText.startsWith("cutoff ")) labelText = ev.messageText.substring(7) + "Hz";
-            else if (ev.messageText.startsWith("feedback ")) labelText = "fb " + ev.messageText.substring(9);
-            else if (ev.messageText.startsWith("notes ")) labelText = "notes [" + ev.messageText.substring(6, 12) + "..]";
-
-            int badgeW = std::clamp(static_cast<int>(labelText.length() * 7 + 12), 36, 110);
-            juce::Rectangle<float> labelRect(x - (badgeW * 0.5f), nodeY - 18.0f, static_cast<float>(badgeW), 14.0f);
-
-            g.setColour(CarbonGoldLookAndFeel::slatePanel.darker(0.7f));
-            g.fillRoundedRectangle(labelRect, 2.0f);
-            g.setColour(isSel ? juce::Colours::white : CarbonGoldLookAndFeel::goldAccent.withAlpha(0.8f));
-            g.drawRoundedRectangle(labelRect, 2.0f, 0.8f);
-
-            g.setColour(isSel ? juce::Colours::white : CarbonGoldLookAndFeel::goldAccent);
-            g.setFont(juce::Font(8.5f, juce::Font::bold));
-            g.drawText(labelText, labelRect, juce::Justification::centred, false);
+            deleteClip(selectedClipId);
+            return true;
         }
     }
 
-    // 7. Moving Playhead Scrubber Line
-    float playheadX = trackHeaderWidth + static_cast<float>(playheadTimeSec / totalDurationSec) * timelineW;
-    g.setColour(CarbonGoldLookAndFeel::goldAccent);
-    g.drawVerticalLine(static_cast<int>(playheadX), static_cast<float>(rulerY), static_cast<float>(getHeight()));
-
-    // Playhead Header Triangle
-    juce::Path p;
-    p.addTriangle(playheadX - 6.0f, static_cast<float>(rulerY), playheadX + 6.0f, static_cast<float>(rulerY), playheadX, static_cast<float>(rulerY + 10));
-    g.fillPath(p);
-}
-
-void ArrangementTimelineComponent::resized()
-{
-    playStopButton.setBounds(6, 4, 80, 24);
-    rewindButton.setBounds(90, 4, 80, 24);
-    loopButton.setBounds(174, 4, 90, 24);
-    timeDisplayLabel.setBounds(272, 4, 200, 24);
+    return false;
 }
 
 } // namespace TimeDilationDAW

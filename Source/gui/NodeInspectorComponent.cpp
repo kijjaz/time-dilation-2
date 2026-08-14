@@ -505,6 +505,101 @@ void NodeInspectorComponent::updateUIForSelectedNode()
 
         templateMsgs = { "notes 60 62 64 65 67 69 71 72", "notes 60 63 67 70 72 75 74 70", "notes 36 38 40 43 45", "bpm 140", "bpm 90" };
     }
+    else if (sym == "seq.euclid" || sym == "euclid")
+    {
+        paramLabel1.setText("Active Pulses (k)", juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setRange(0, 32, 1);
+        paramSlider1.setValue(3, juce::dontSendNotification);
+        paramSlider1.setVisible(true);
+        paramSlider1.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("k " + std::to_string(static_cast<int>(paramSlider1.getValue())));
+        };
+
+        paramLabel2.setText("Total Steps (n)", juce::dontSendNotification);
+        paramLabel2.setVisible(true);
+        paramSlider2.setRange(1, 32, 1);
+        paramSlider2.setValue(8, juce::dontSendNotification);
+        paramSlider2.setVisible(true);
+        paramSlider2.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("n " + std::to_string(static_cast<int>(paramSlider2.getValue())));
+        };
+
+        optionSelector.setVisible(false);
+        optionLabel.setVisible(false);
+
+        descLabel.setText("Bjorklund Euclidean Rhythm Generator. Distributes k pulses maximally evenly over n proper-time steps.", juce::dontSendNotification);
+        templateMsgs = { "params 3 8 0 0", "params 5 16 0 0.1", "params 7 12 1 0", "params 4 12 0 0", "rotate 1", "swing 0.2" };
+    }
+    else if (sym == "seq.arp" || sym == "arp")
+    {
+        paramLabel1.setText("Octave Range", juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setRange(1, 4, 1);
+        paramSlider1.setValue(2, juce::dontSendNotification);
+        paramSlider1.setVisible(true);
+        paramSlider1.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("oct " + std::to_string(static_cast<int>(paramSlider1.getValue())));
+        };
+
+        paramLabel2.setText("Step Rate (sec)", juce::dontSendNotification);
+        paramLabel2.setVisible(true);
+        paramSlider2.setRange(0.02, 1.0, 0.01);
+        paramSlider2.setValue(0.125, juce::dontSendNotification);
+        paramSlider2.setVisible(true);
+        paramSlider2.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("rate " + std::to_string(paramSlider2.getValue()));
+        };
+
+        optionLabel.setText("Arp Direction Mode", juce::dontSendNotification);
+        optionLabel.setVisible(true);
+        optionSelector.clear(juce::dontSendNotification);
+        optionSelector.addItem("Up", 1);
+        optionSelector.addItem("Down", 2);
+        optionSelector.addItem("PingPong (Up/Down)", 3);
+        optionSelector.addItem("Random", 4);
+        optionSelector.addItem("As Played (Order)", 5);
+        optionSelector.setSelectedId(1, juce::dontSendNotification);
+        optionSelector.setVisible(true);
+        optionSelector.onChange = [this]() {
+            if (!selectedNode) return;
+            int id = optionSelector.getSelectedId();
+            if (id == 1) selectedNode->receiveMessage("mode up");
+            else if (id == 2) selectedNode->receiveMessage("mode down");
+            else if (id == 3) selectedNode->receiveMessage("mode pingpong");
+            else if (id == 4) selectedNode->receiveMessage("mode random");
+            else if (id == 5) selectedNode->receiveMessage("mode asplayed");
+        };
+
+        descLabel.setText("Relativistic Chord Arpeggiator. Traverses notes in harmonic patterns clocked by proper time.", juce::dontSendNotification);
+        templateMsgs = { "chord 60 64 67 71", "chord 48 51 55 58", "chord 36 48 55 60", "mode up", "mode pingpong", "oct 3" };
+    }
+    else if (sym == "seq.poly")
+    {
+        paramSlider1.setVisible(false); paramLabel1.setVisible(false);
+        paramSlider2.setVisible(false); paramLabel2.setVisible(false);
+        optionSelector.setVisible(false); optionLabel.setVisible(false);
+
+        descLabel.setText("Polyrhythmic Multi-Meter Sequencer. Drives independent 3, 4, 5 step lanes clocked by proper time.", juce::dontSendNotification);
+        templateMsgs = { "lane 1 60 64 67", "lane 2 48 51 55 58", "lane 3 72 74 76 79 81", "rate 0.125" };
+    }
+    else if (sym == "auto~" || sym == "timeline.auto")
+    {
+        paramLabel1.setText("Current Value", juce::dontSendNotification);
+        paramLabel1.setVisible(true);
+        paramSlider1.setRange(0.0, 1.0, 0.01);
+        paramSlider1.setValue(0.5, juce::dontSendNotification);
+        paramSlider1.setVisible(true);
+        paramSlider1.onValueChange = [this]() {
+            if (selectedNode) selectedNode->receiveMessage("val " + std::to_string(paramSlider1.getValue()));
+        };
+
+        paramSlider2.setVisible(false); paramLabel2.setVisible(false);
+        optionSelector.setVisible(false); optionLabel.setVisible(false);
+
+        descLabel.setText("Timeline Parameter Automation Reader. Evaluates continuous multi-breakpoint envelopes sample-accurately.", juce::dontSendNotification);
+        templateMsgs = { "add 0.0 0.0", "add 1.0 1.0", "add 2.0 0.2", "clear" };
+    }
     else if (sym == "pluck~")
     {
         paramLabel1.setText("Pitch Frequency (Hz)", juce::dontSendNotification);
