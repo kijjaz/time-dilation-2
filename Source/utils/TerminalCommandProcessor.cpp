@@ -55,6 +55,7 @@ std::string TerminalCommandProcessor::getHelpText()
     ss << "  bpm <val>                    - Set project tempo in BPM\n";
     ss << "  save <filepath>              - Save patch to .pdil JSON file\n";
     ss << "  load <filepath>              - Load patch from .pdil JSON file\n";
+    ss << "  feedback <safety|softclip|dcblock|status> [on|off] - Configure feedback loop safety\n";
     ss << "  help                         - Show this help text\n";
     ss << "  quit / exit                  - Exit CLI mode\n";
     ss << "======================================================================\n";
@@ -325,6 +326,58 @@ std::string TerminalCommandProcessor::processCommand(WorkstationContainerCompone
         workstation.loadPatchFromFile(file); // sets active file
         workstation.savePatch();
         return "[SUCCESS] Patch saved to '" + file.getFullPathName().toStdString() + "'. Excellent work!";
+    }
+    else if (cmd == "feedback" || cmd == "fb")
+    {
+        if (tokens.size() < 2 || tokens[1].equalsIgnoreCase("status"))
+        {
+            std::ostringstream ss;
+            ss << "--- FEEDBACK LOOP PROTECTION STATUS ---\n"
+               << "  Global Safety Active: " << (graph.isFeedbackProtectionEnabled() ? "ENABLED (ON)" : "DISABLED (OFF)") << "\n"
+               << "  Soft-Clipper (tanh):  " << (graph.isFeedbackSoftClipEnabled() ? "ENABLED (ON)" : "DISABLED (OFF)") << "\n"
+               << "  DC Blocker (5Hz HPF): " << (graph.isFeedbackDcBlockEnabled() ? "ENABLED (ON)" : "DISABLED (OFF)") << "\n";
+            int fbCount = 0;
+            for (const auto& c : graph.getConnections())
+            {
+                if (c.isFeedbackCycle)
+                {
+                    ss << "  [Feedback Loop #" << c.connectionId << "] Node #" << c.sourceNodeId << " -> Node #" << c.destNodeId
+                       << " | SoftClip: " << (c.enableSoftClip ? "ON" : "OFF")
+                       << " | DCBlock: " << (c.enableDcBlock ? "ON" : "OFF") << "\n";
+                    fbCount++;
+                }
+            }
+            if (fbCount == 0) ss << "  No active feedback cycles currently detected by Tarjan SCC.\n";
+            return ss.str();
+        }
+
+        juce::String sub = tokens[1].toLowerCase();
+        bool enable = true;
+        if (tokens.size() >= 3)
+        {
+            juce::String arg = tokens[2].toLowerCase();
+            enable = (arg == "on" || arg == "true" || arg == "1" || arg == "enable");
+        }
+
+        if (sub == "safety" || sub == "all" || sub == "protect")
+        {
+            graph.setFeedbackProtectionEnabled(enable);
+            return "[SUCCESS] Feedback safety protection (Soft-Clipper + DC Blocker) set to " + std::string(enable ? "ENABLED" : "DISABLED") + ".";
+        }
+        else if (sub == "softclip" || sub == "clip" || sub == "tanh")
+        {
+            graph.setFeedbackSoftClipEnabled(enable);
+            return "[SUCCESS] Feedback Soft-Clipper set to " + std::string(enable ? "ENABLED" : "DISABLED") + ".";
+        }
+        else if (sub == "dcblock" || sub == "dc" || sub == "hpf")
+        {
+            graph.setFeedbackDcBlockEnabled(enable);
+            return "[SUCCESS] Feedback DC Blocker set to " + std::string(enable ? "ENABLED" : "DISABLED") + ".";
+        }
+        else
+        {
+            return "[ERROR] Usage: feedback <safety|softclip|dcblock|status> [on|off]";
+        }
     }
     else if (cmd == "load")
     {

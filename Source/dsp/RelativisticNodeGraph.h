@@ -46,6 +46,12 @@ struct PatchConnection
     PortDataType dataType = PortDataType::Audio;
     bool isFeedbackCycle = false;
     double lastMessageTriggerTime = -100.0;
+
+    // Per-connection Feedback Protection (DC Blocker & Soft Clipper)
+    bool enableSoftClip = true;
+    bool enableDcBlock = true;
+    float dcX1[2] = { 0.0f, 0.0f };
+    float dcY1[2] = { 0.0f, 0.0f };
 };
 
 class RelativisticAudioHistoryBuffer
@@ -530,6 +536,18 @@ public:
     double getManualLatencyDemand() const { return manualDemandSec; }
     RelativisticPreCausalBuffer& getPreCausalBuffer() { return preCausalBuffer; }
 
+    // Feedback Loop Protection & DC Blocking (User-toggleable)
+    void setFeedbackProtectionEnabled(bool enabled) { feedbackSoftClipEnabled = enabled; feedbackDcBlockEnabled = enabled; }
+    bool isFeedbackProtectionEnabled() const { return feedbackSoftClipEnabled || feedbackDcBlockEnabled; }
+
+    void setFeedbackSoftClipEnabled(bool enabled) { feedbackSoftClipEnabled = enabled; }
+    bool isFeedbackSoftClipEnabled() const { return feedbackSoftClipEnabled; }
+
+    void setFeedbackDcBlockEnabled(bool enabled) { feedbackDcBlockEnabled = enabled; }
+    bool isFeedbackDcBlockEnabled() const { return feedbackDcBlockEnabled; }
+
+    void setConnectionFeedbackProtection(int connectionId, bool softClip, bool dcBlock);
+
     // Composite node sub-graph helper
     std::string serializeToJSON() const;
     bool deserializeFromJSON(const std::string& jsonStr);
@@ -549,6 +567,12 @@ private:
     // Tarjan SCC Cycle Resolution Buffers
     std::unordered_map<int, std::vector<juce::AudioBuffer<float>>> previousBlockBuffers;
     std::unordered_map<int, std::vector<TimePolyFrame>> previousBlockTimeFrames;
+
+    // Feedback Loop Protection & DC Filter Settings
+    bool feedbackSoftClipEnabled = true;
+    bool feedbackDcBlockEnabled = true;
+    float dcR = 0.99967f;
+    juce::AudioBuffer<float> feedbackScratchBuffer;
 
     RelativisticPreCausalBuffer preCausalBuffer;
     AdaptiveLatencyEngine latencyEngine;

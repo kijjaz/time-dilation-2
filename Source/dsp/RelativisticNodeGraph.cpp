@@ -219,6 +219,10 @@ void RelativisticNodeGraph::prepare(double sRate, int sPerBlock)
     sampleRate = sRate;
     samplesPerBlock = sPerBlock;
 
+    dcR = std::clamp(static_cast<float>(1.0 - (2.0 * 3.14159265358979323846 * 5.0 / sRate)), 0.99f, 0.99999f);
+    feedbackScratchBuffer.setSize(2, sPerBlock, false, true, true);
+    feedbackScratchBuffer.clear();
+
     preCausalBuffer.prepare(sRate, 10.0);
 
     for (auto& node : nodes)
@@ -246,6 +250,19 @@ void RelativisticNodeGraph::prepare(double sRate, int sPerBlock)
     }
 
     updateTopologicalSort();
+}
+
+void RelativisticNodeGraph::setConnectionFeedbackProtection(int connectionId, bool softClip, bool dcBlock)
+{
+    for (auto& c : connections)
+    {
+        if (c.connectionId == connectionId)
+        {
+            c.enableSoftClip = softClip;
+            c.enableDcBlock = dcBlock;
+            break;
+        }
+    }
 }
 
 int RelativisticNodeGraph::addNode(std::shared_ptr<RelativisticNode> node)
@@ -540,7 +557,7 @@ void RelativisticNodeGraph::process(juce::AudioBuffer<float>& masterOutBuffer, i
     }
 
     // 2. Transfer feedback cycle connection data using 1-block history
-    for (const auto& conn : connections)
+    for (auto& conn : connections)
     {
         auto destNode = getNode(conn.destNodeId);
         if (!destNode || !conn.isFeedbackCycle) continue;
@@ -550,7 +567,55 @@ void RelativisticNodeGraph::process(juce::AudioBuffer<float>& masterOutBuffer, i
             if (previousBlockBuffers.count(conn.sourceNodeId) &&
                 conn.sourcePortIndex < static_cast<int>(previousBlockBuffers[conn.sourceNodeId].size()))
             {
-                destNode->setInletBufferData(conn.destPortIndex, previousBlockBuffers[conn.sourceNodeId][conn.sourcePortIndex]);
+                const auto& srcBuf = previousBlockBuffers[conn.sourceNodeId][conn.sourcePortIndex];
+
+                // If soft-clipper or DC blocker is enabled globally and for this connection, filter audio to prevent explosion
+                if ((feedbackSoftClipEnabled || feedbackDcBlockEnabled) && (conn.enableSoftClip || conn.enableDcBlock))
+                {
+                    int numChans = std::min(2, srcBuf.getNumChannels());
+                    feedbackScratchBuffer.setSize(numChans, numSamples, false, false, true);
+
+                    const bool applyDc = feedbackDcBlockEnabled && conn.enableDcBlock;
+                    const bool applyClip = feedbackSoftClipEnabled && conn.enableSoftClip;
+
+                    for (int ch = 0; ch < numChans; ++ch)
+                    {
+                        const float* rPtr = srcBuf.getReadPointer(ch);
+                        float* wPtr = feedbackScratchBuffer.getWritePointer(ch);
+                        float x1 = conn.dcX1[ch];
+                        float y1 = conn.dcY1[ch];
+
+                        for (int s = 0; s < numSamples; ++s)
+                        {
+                            float x = rPtr[s];
+                            // Sanitize against NaNs and Infs
+                            if (std::isnan(x) || std::isinf(x)) x = 0.0f;
+
+                            if (applyDc)
+                            {
+                                float y = x - x1 + dcR * y1;
+                                x1 = x;
+                                if (std::abs(y) < 1.0e-15f) y = 0.0f; // Denormal protection
+                                y1 = y;
+                                x = y;
+                            }
+
+                            if (applyClip)
+                            {
+                                x = std::tanh(x);
+                            }
+
+                            wPtr[s] = x;
+                        }
+                        conn.dcX1[ch] = x1;
+                        conn.dcY1[ch] = y1;
+                    }
+                    destNode->setInletBufferData(conn.destPortIndex, feedbackScratchBuffer);
+                }
+                else
+                {
+                    destNode->setInletBufferData(conn.destPortIndex, srcBuf);
+                }
             }
         }
         else // Time
@@ -781,6 +846,9 @@ std::string RelativisticNodeGraph::serializeToJSON() const
     }
     rootObj->setProperty("nodes", nodesArr);
 
+    rootObj->setProperty("feedbackSoftClipEnabled", feedbackSoftClipEnabled);
+    rootObj->setProperty("feedbackDcBlockEnabled", feedbackDcBlockEnabled);
+
     juce::Array<juce::var> connsArr;
     for (const auto& conn : connections)
     {
@@ -790,6 +858,8 @@ std::string RelativisticNodeGraph::serializeToJSON() const
         cObj->setProperty("srcPort", conn.sourcePortIndex);
         cObj->setProperty("destNode", conn.destNodeId);
         cObj->setProperty("destPort", conn.destPortIndex);
+        cObj->setProperty("enableSoftClip", conn.enableSoftClip);
+        cObj->setProperty("enableDcBlock", conn.enableDcBlock);
         connsArr.add(juce::var(cObj));
     }
     rootObj->setProperty("connections", connsArr);
@@ -805,6 +875,11 @@ bool RelativisticNodeGraph::deserializeFromJSON(const std::string& jsonStr)
     clearGraph();
     auto rootObj = parsed.getDynamicObject();
     if (!rootObj) return false;
+
+    if (rootObj->hasProperty("feedbackSoftClipEnabled"))
+        feedbackSoftClipEnabled = rootObj->getProperty("feedbackSoftClipEnabled");
+    if (rootObj->hasProperty("feedbackDcBlockEnabled"))
+        feedbackDcBlockEnabled = rootObj->getProperty("feedbackDcBlockEnabled");
 
     auto nodesVar = rootObj->getProperty("nodes");
     if (nodesVar.isArray())
@@ -856,6 +931,15 @@ bool RelativisticNodeGraph::deserializeFromJSON(const std::string& jsonStr)
                 int destPort = cObj->getProperty("destPort");
 
                 addConnection(srcNode, srcPort, destNode, destPort);
+
+                if (!connections.empty())
+                {
+                    auto& lastConn = connections.back();
+                    if (cObj->hasProperty("enableSoftClip"))
+                        lastConn.enableSoftClip = cObj->getProperty("enableSoftClip");
+                    if (cObj->hasProperty("enableDcBlock"))
+                        lastConn.enableDcBlock = cObj->getProperty("enableDcBlock");
+                }
             }
         }
     }

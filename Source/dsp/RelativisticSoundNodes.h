@@ -56,7 +56,7 @@ private:
     double frequency = 440.0;
     double phase = 0.0;
 
-    float getSampleAtPhase(double p) const;
+    float getSampleAtPhase(double p, double dt = 0.0) const;
 };
 
 // table node

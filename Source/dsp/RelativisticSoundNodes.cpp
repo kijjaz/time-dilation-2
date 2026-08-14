@@ -90,6 +90,45 @@ float GlobalSineTable::lookup(double p) const noexcept
     return ((c3 * frac + c2) * frac + c1) * frac + c0;
 }
 
+// -----------------------------------------------------------------------------
+// PolyBLEP & PolyBLAMP Band-Limited Step & Ramp Functions
+// -----------------------------------------------------------------------------
+inline float polyBlep(double t, double dt) noexcept
+{
+    if (dt <= 1.0e-9) return 0.0f;
+    // 0 <= t < dt (just after discontinuity)
+    if (t < dt)
+    {
+        double r = t / dt;
+        return static_cast<float>(2.0 * r - r * r - 1.0);
+    }
+    // 1 - dt < t < 1 (just before discontinuity)
+    if (t > 1.0 - dt)
+    {
+        double r = (t - 1.0) / dt;
+        return static_cast<float>(2.0 * r + r * r + 1.0);
+    }
+    return 0.0f;
+}
+
+inline float polyBlamp(double t, double dt) noexcept
+{
+    if (dt <= 1.0e-9) return 0.0f;
+    // 0 <= t < dt
+    if (t < dt)
+    {
+        double r = t / dt;
+        return static_cast<float>(dt * ((-1.0 / 3.0) * r * r * r + r * r - r + (1.0 / 3.0)));
+    }
+    // 1 - dt < t < 1
+    if (t > 1.0 - dt)
+    {
+        double r = (t - 1.0) / dt;
+        return static_cast<float>(dt * ((1.0 / 3.0) * r * r * r + r * r + r + (1.0 / 3.0)));
+    }
+    return 0.0f;
+}
+
 // ============================================================================
 // OscNode Implementation (osc~)
 // ============================================================================
@@ -109,29 +148,42 @@ void OscNode::prepare(double sampleRate, int samplesPerBlock)
     phase = 0.0;
 }
 
-float OscNode::getSampleAtPhase(double p) const
+float OscNode::getSampleAtPhase(double p, double dt) const
 {
     // Normalize phase to [0, 1)
     double normP = p - std::floor(p);
-    if (waveformType == "saw")
+
+    if (waveformType == "saw" || waveformType == "sawtooth")
     {
-        return static_cast<float>(2.0 * normP - 1.0);
+        // 2 * phase - 1.0 with PolyBLEP step correction (-2.0 step at t=0)
+        double naive = 2.0 * normP - 1.0;
+        return static_cast<float>(naive - polyBlep(normP, dt));
     }
-    else if (waveformType == "sqr" || waveformType == "square")
+    else if (waveformType == "sqr" || waveformType == "square" || waveformType == "pulse")
     {
-        return normP < 0.5 ? 1.0f : -1.0f;
+        // Square wave with PolyBLEP corrections at t=0 (+2.0 step) and t=0.5 (-2.0 step)
+        double naive = (normP < 0.5) ? 1.0 : -1.0;
+        double pShift = normP - 0.5;
+        pShift = pShift - std::floor(pShift);
+        return static_cast<float>(naive + polyBlep(normP, dt) - polyBlep(pShift, dt));
     }
     else if (waveformType == "tri" || waveformType == "triangle")
     {
-        return static_cast<float>(4.0 * std::abs(normP - 0.5) - 1.0);
+        // Continuous triangle wave 4 * |phase - 0.5| - 1.0 with PolyBLAMP slope corrections (+8 at t=0, -8 at t=0.5)
+        double naive = 4.0 * std::abs(normP - 0.5) - 1.0;
+        double pShift = normP - 0.5;
+        pShift = pShift - std::floor(pShift);
+        return static_cast<float>(naive + 8.0 * polyBlamp(normP, dt) - 8.0 * polyBlamp(pShift, dt));
     }
 
-    // High-performance CPU-friendly Sine Wavetable with 4-point Hermite interpolation
+    // High-performance CPU-friendly Sine Wavetable with 4-point Hermite interpolation (>140 dB SNR)
     return GlobalSineTable::getInstance().lookup(normP);
 }
 
 void OscNode::process(int numSamples)
 {
+    juce::ScopedNoDenormals noDenormals;
+
     auto& outBuf = getAudioOutlet("out~");
     outBuf.clear();
 
@@ -152,9 +204,13 @@ void OscNode::process(int numSamples)
 
         // Continuous audio-rate Doppler phase step modulated by local gamma clock
         double phaseStep = (currentFreq / currentSampleRate) * currentGamma;
-        phase += phaseStep;
+        double dt = std::min(0.5, std::abs(phaseStep));
 
-        float val = getSampleAtPhase(phase);
+        float val = getSampleAtPhase(phase, dt);
+
+        phase += phaseStep;
+        if (phase >= 1.0 || phase < 0.0)
+            phase = phase - std::floor(phase);
 
         outL[s] = val;
         outR[s] = val;
@@ -277,6 +333,8 @@ void SVFNode::prepare(double sampleRate, int samplesPerBlock)
 
 void SVFNode::process(int numSamples)
 {
+    juce::ScopedNoDenormals noDenormals;
+
     const auto& inBuf = getInletBuffer(1);
     const auto& cutBuf = getInletBuffer(2);
 
@@ -311,6 +369,10 @@ void SVFNode::process(int numSamples)
 
         s1 = 2.0 * v1 - s1;
         s2 = 2.0 * v2 - s2;
+
+        // Subnormal / Denormal protection
+        if (std::abs(s1) < 1.0e-15) s1 = 0.0;
+        if (std::abs(s2) < 1.0e-15) s2 = 0.0;
 
         double lp = v2;
         double hp = x - k * v1 - v2;
@@ -531,6 +593,8 @@ void PluckNode::triggerPluck()
 
 void PluckNode::process(int numSamples)
 {
+    juce::ScopedNoDenormals noDenormals;
+
     const auto& timeFrame = getTimeInlet("timeIn");
     const auto& trigBuf = getAudioInlet("trigger");
     const auto& pitchBuf = getAudioInlet("pitch");
@@ -1190,6 +1254,8 @@ void LorentzWarpFilterNode::receiveMessage(const std::string& message)
 
 void LorentzWarpFilterNode::process(int numSamples)
 {
+    juce::ScopedNoDenormals noDenormals;
+
     auto& outBuf = getAudioOutlet("out~");
     const auto& inBuf = getAudioInlet("in~");
     const auto& timeFrame = getTimeInlet("timeIn");
@@ -1218,6 +1284,10 @@ void LorentzWarpFilterNode::process(int numSamples)
         s1 = v2 + g_coeff * v1;
         double v3 = s2 + g_coeff * v2;
         s2 = v3 + g_coeff * v2;
+
+        // Subnormal / Denormal protection
+        if (std::abs(s1) < 1.0e-15) s1 = 0.0;
+        if (std::abs(s2) < 1.0e-15) s2 = 0.0;
 
         outL[i] = static_cast<float>(v3);
         outR[i] = static_cast<float>(v3);

@@ -1,7 +1,7 @@
 {
   "test": "Dynamic Adaptive Latency 4-Stage Smoothness Audit",
   "sampleRate": 96000,
-  "globalMaxClickDiscontinuity": 0,
+  "globalMaxClickDiscontinuity": 0.0293473,
   "c2HermiteRampSmoothness": true,
   "stages": [
     {
@@ -9,28 +9,28 @@
       "demandMs": 0,
       "startLatencyMs": 5.33333,
       "endLatencyMs": 5.33333,
-      "maxClickDelta": 0
+      "maxClickDelta": 0.00354377
     },
     {
       "stage": "Stage 2 (Medium Look-Ahead 250ms)",
       "demandMs": 250,
       "startLatencyMs": 5.33333,
       "endLatencyMs": 250,
-      "maxClickDelta": 0
+      "maxClickDelta": 0.00474556
     },
     {
       "stage": "Stage 3 (High Look-Ahead 800ms)",
       "demandMs": 800,
       "startLatencyMs": 250,
       "endLatencyMs": 800,
-      "maxClickDelta": 0
+      "maxClickDelta": 0.0147609
     },
     {
       "stage": "Stage 4 (Return to Realtime 0ms)",
       "demandMs": 0,
       "startLatencyMs": 800,
       "endLatencyMs": 5.3,
-      "maxClickDelta": 0
+      "maxClickDelta": 0.0293473
     }
   ]
 }

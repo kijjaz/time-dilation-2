@@ -533,7 +533,7 @@ bool AgentTestRunner::testGravitationalRedshiftNode()
     auto out = RelativisticNodeFactory::createNode(2, "out~");
     graph.addNode(grav);
     graph.addNode(out);
-    graph.addConnection(1, 2, 2, 0); // grav out~ (Outlet 2) -> out~ in1~ (Inlet 0)
+    graph.addConnection(1, 2, 2, 1); // grav out~ (Outlet 2) -> out~ in1~ (Inlet 1)
 
     juce::AudioBuffer<float> masterOut(2, 512);
     for (int b = 0; b < 5; ++b)
@@ -566,7 +566,7 @@ bool AgentTestRunner::testLorentzWarpFilterNode()
     graph.addNode(out);
 
     graph.addConnection(1, 2, 2, 2); // osc out~ (Outlet 2) -> lorentz in~ (Inlet 2)
-    graph.addConnection(2, 2, 3, 0); // lorentz out~ (Outlet 2) -> out~ in1~ (Inlet 0)
+    graph.addConnection(2, 2, 3, 1); // lorentz out~ (Outlet 2) -> out~ in1~ (Inlet 1)
 
     juce::AudioBuffer<float> masterOut(2, 512);
     graph.process(masterOut, 512);
@@ -596,7 +596,7 @@ bool AgentTestRunner::testTachyonGranularNode()
     graph.addNode(out);
 
     graph.addConnection(1, 2, 2, 2); // osc out~ (Outlet 2) -> tachyon in~ (Inlet 2)
-    graph.addConnection(2, 2, 3, 0); // tachyon out~ (Outlet 2) -> out~ in1~ (Inlet 0)
+    graph.addConnection(2, 2, 3, 1); // tachyon out~ (Outlet 2) -> out~ in1~ (Inlet 1)
 
     juce::AudioBuffer<float> masterOut(2, 512);
     graph.process(masterOut, 512);
