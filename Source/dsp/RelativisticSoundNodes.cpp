@@ -1447,6 +1447,8 @@ std::string DisplayNode::getDisplayText() const
 
 void OscNode::receiveMessage(const std::string& msg)
 {
+    RelativisticNode::receiveMessage(msg);
+
     juce::String s(msg);
     auto tokens = juce::StringArray::fromTokens(s, " ", "");
     if (tokens.isEmpty()) return;
@@ -1469,6 +1471,11 @@ void OscNode::receiveMessage(const std::string& msg)
     {
         frequency = tokens[1].getDoubleValue();
     }
+    else if ((key == "pitch" || key == "note") && tokens.size() >= 2)
+    {
+        double note = tokens[1].getDoubleValue();
+        frequency = 440.0 * std::pow(2.0, (note - 69.0) / 12.0);
+    }
     else if ((key == "wave" || key == "shape") && tokens.size() >= 2)
     {
         waveformType = tokens[1].toStdString();
@@ -1478,15 +1485,21 @@ void OscNode::receiveMessage(const std::string& msg)
     {
         phase = tokens[1].getDoubleValue();
     }
-    else if (key == "sin" || key == "saw" || key == "square" || key == "tri")
+    else if (key == "sin" || key == "saw" || key == "square" || key == "sqr" || key == "tri" || key == "triangle")
     {
         waveformType = key.toStdString();
         setLabel("osc~ " + waveformType);
     }
-    else
+    else if (key != "vol" && key != "volume" && key != "pan" && (s.containsOnly("0123456789.") || s.startsWithChar('-')))
     {
         double val = s.getDoubleValue();
-        frequency = val;
+        if (val > 0.0)
+        {
+            if (val <= 127.0) // MIDI note number
+                frequency = 440.0 * std::pow(2.0, (val - 69.0) / 12.0);
+            else
+                frequency = val;
+        }
     }
 }
 

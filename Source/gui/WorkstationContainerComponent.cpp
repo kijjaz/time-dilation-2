@@ -1094,55 +1094,45 @@ void WorkstationContainerComponent::loadExampleTidalCyclesRig()
     nodeGraph.addNode(tapRight);
     nodeGraph.addNode(outMaster);
 
-    // Clock Connections (time.curve~ -> seq.tidal, osc, ladder, delay, taps)
-    nodeGraph.addConnection(1, 0, 2, 0);  // timeWarp timeOut (0) -> tidalLead timeIn (0)
-    nodeGraph.addConnection(1, 0, 3, 0);  // timeWarp timeOut (0) -> tidalDrums timeIn (0)
-    nodeGraph.addConnection(1, 0, 4, 0);  // timeWarp -> leadSynth
-    nodeGraph.addConnection(1, 0, 5, 0);  // timeWarp -> bassSynth
-    nodeGraph.addConnection(1, 0, 9, 0);  // timeWarp -> ladderFilter
-    nodeGraph.addConnection(1, 0, 11, 1); // timeWarp -> delayLine timeIn
-    nodeGraph.addConnection(1, 0, 12, 1); // timeWarp -> tapLeft timeIn
-    nodeGraph.addConnection(1, 0, 13, 1); // timeWarp -> tapRight timeIn
+    // Clock Connections (time.curve~ Outlet 1 -> Time-driven nodes)
+    nodeGraph.addConnection(1, 1, 2, 1);  // timeWarp timeOut (1) -> tidalLead timeIn (1)
+    nodeGraph.addConnection(1, 1, 3, 1);  // timeWarp timeOut (1) -> tidalDrums timeIn (1)
+    nodeGraph.addConnection(1, 1, 4, 1);  // timeWarp timeOut (1) -> leadSynth timeIn (1)
+    nodeGraph.addConnection(1, 1, 5, 1);  // timeWarp timeOut (1) -> bassSynth timeIn (1)
+    nodeGraph.addConnection(1, 1, 9, 1);  // timeWarp timeOut (1) -> ladderFilter timeIn (1)
+    nodeGraph.addConnection(1, 1, 10, 1); // timeWarp timeOut (1) -> drive timeIn (1)
+    nodeGraph.addConnection(1, 1, 11, 2); // timeWarp timeOut (1) -> delayLine timeIn (2)
+    nodeGraph.addConnection(1, 1, 12, 2); // timeWarp timeOut (1) -> tapLeft timeIn (2)
+    nodeGraph.addConnection(1, 1, 13, 2); // timeWarp timeOut (1) -> tapRight timeIn (2)
 
     // Tidal Pitch & Triggers
-    nodeGraph.addConnection(2, 1, 4, 1);  // tidalLead freqOut~ (1) -> leadSynth freq~ (1)
-    nodeGraph.addConnection(2, 3, 5, 0);  // tidalLead ch2 note msg (3) -> bassSynth msg (0)
+    nodeGraph.addConnection(2, 1, 4, 2);  // tidalLead v1_freq (1) -> leadSynth freq~ (2)
+    nodeGraph.addConnection(2, 4, 5, 2);  // tidalLead v2_freq (4) -> bassSynth freq~ (2)
 
-    nodeGraph.addConnection(3, 2, 6, 0);  // tidalDrums gateOut (2) -> kick (0)
-    nodeGraph.addConnection(3, 2, 7, 0);  // tidalDrums gateOut (2) -> snare (0)
-    nodeGraph.addConnection(3, 4, 8, 0);  // tidalDrums audio trig (4) -> hihat (0)
+    // Drum Triggers (Voice 1 -> Kick, Voice 2 -> Snare, Voice 3 -> Hihat)
+    nodeGraph.addConnection(3, 2, 6, 0);  // tidalDrums v1_gate msg (2) -> kick msgIn (0)
+    nodeGraph.addConnection(3, 5, 7, 0);  // tidalDrums v2_gate msg (5) -> snare msgIn (0)
+    nodeGraph.addConnection(3, 8, 8, 0);  // tidalDrums v3_gate msg (8) -> hihat msgIn (0)
 
     // Audio FX & Master Routing
-    nodeGraph.addConnection(4, 0, 9, 1);   // leadSynth audio (0) -> ladder in (1)
-    nodeGraph.addConnection(5, 0, 9, 1);   // bassSynth audio (0) -> ladder in (1)
-    nodeGraph.addConnection(9, 0, 10, 0);  // ladder out (0) -> drive in (0)
-    nodeGraph.addConnection(10, 0, 11, 0); // drive out (0) -> delayLine in (0)
-    nodeGraph.addConnection(10, 0, 14, 0); // drive out (0) -> outMaster L (0)
-    nodeGraph.addConnection(10, 0, 14, 1); // drive out (0) -> outMaster R (1)
+    nodeGraph.addConnection(4, 2, 9, 2);   // leadSynth out~ (2) -> ladder in~ (2)
+    nodeGraph.addConnection(5, 2, 9, 2);   // bassSynth out~ (2) -> ladder in~ (2)
+    nodeGraph.addConnection(9, 2, 10, 2);  // ladder out~ (2) -> drive in~ (2)
+    nodeGraph.addConnection(10, 2, 11, 1); // drive out~ (2) -> delayLine in~ (1)
+    nodeGraph.addConnection(10, 2, 14, 1); // drive out~ (2) -> outMaster in1~ L (1)
+    nodeGraph.addConnection(10, 2, 14, 2); // drive out~ (2) -> outMaster in2~ R (2)
 
-    nodeGraph.addConnection(6, 0, 14, 0);  // kick -> outMaster L
-    nodeGraph.addConnection(6, 0, 14, 1);  // kick -> outMaster R
-    nodeGraph.addConnection(7, 0, 14, 0);  // snare -> outMaster L
-    nodeGraph.addConnection(7, 0, 14, 1);  // snare -> outMaster R
-    nodeGraph.addConnection(8, 0, 14, 0);  // hihat -> outMaster L
-    nodeGraph.addConnection(8, 0, 14, 1);  // hihat -> outMaster R
+    nodeGraph.addConnection(6, 1, 14, 1);  // kick out~ (1) -> outMaster in1~ L (1)
+    nodeGraph.addConnection(6, 1, 14, 2);  // kick out~ (1) -> outMaster in2~ R (2)
+    nodeGraph.addConnection(7, 1, 14, 1);  // snare out~ (1) -> outMaster in1~ L (1)
+    nodeGraph.addConnection(7, 1, 14, 2);  // snare out~ (1) -> outMaster in2~ R (2)
+    nodeGraph.addConnection(8, 1, 14, 1);  // hihat out~ (1) -> outMaster in1~ L (1)
+    nodeGraph.addConnection(8, 1, 14, 2);  // hihat out~ (1) -> outMaster in2~ R (2)
 
-    nodeGraph.addConnection(12, 0, 14, 0); // tapLeft -> outMaster L
-    nodeGraph.addConnection(13, 0, 14, 1); // tapRight -> outMaster R
-    nodeGraph.addConnection(9, 2, 10, 2);  // ladder -> drive
-    nodeGraph.addConnection(10, 2, 11, 1); // drive -> delwrite
-    nodeGraph.addConnection(10, 2, 14, 1); // drive -> out L
-    nodeGraph.addConnection(10, 2, 14, 2); // drive -> out R
-    nodeGraph.addConnection(5, 2, 14, 1);  // bass -> out L
-    nodeGraph.addConnection(5, 2, 14, 2);  // bass -> out R
-    nodeGraph.addConnection(6, 1, 14, 1);  // kick -> out L
-    nodeGraph.addConnection(6, 1, 14, 2);  // kick -> out R
-    nodeGraph.addConnection(7, 1, 14, 1);  // snare -> out L
-    nodeGraph.addConnection(7, 1, 14, 2);  // snare -> out R
-    nodeGraph.addConnection(8, 1, 14, 1);  // hihat -> out L
-    nodeGraph.addConnection(8, 1, 14, 2);  // hihat -> out R
-    nodeGraph.addConnection(12, 2, 14, 1); // tapLeft -> out L
-    nodeGraph.addConnection(13, 2, 14, 2); // tapRight -> out R
+    nodeGraph.addConnection(12, 2, 14, 1); // tapLeft out~ (2) -> outMaster in1~ L (1)
+    nodeGraph.addConnection(13, 2, 14, 2); // tapRight out~ (2) -> outMaster in2~ R (2)
+
+    nodeGraph.prepare(96000.0, 512);
 
     nextNodeId = 15;
     titleLabel.setText("Time Dilation DAW 2 — TidalCycles Relativistic Nested Polyphony Rig", juce::dontSendNotification);

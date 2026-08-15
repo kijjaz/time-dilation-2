@@ -93,49 +93,70 @@ void TidalSeqNode::prepare(double sr, int spb)
     RelativisticNode::prepare(sr, spb);
     cyclePhase = 0.0;
     cycleCount = 0;
+    voiceFrequencies.assign(static_cast<size_t>(activeVoices), 440.0);
+    voiceTrigCounters.assign(static_cast<size_t>(activeVoices), 0);
     evaluateCurrentCycle();
 }
 
 void TidalSeqNode::process(int numSamples)
 {
-    // Clear audio outlets
+    if (voiceFrequencies.size() != static_cast<size_t>(activeVoices))
+    {
+        voiceFrequencies.assign(static_cast<size_t>(activeVoices), 440.0);
+        voiceTrigCounters.assign(static_cast<size_t>(activeVoices), 0);
+    }
+
+    // Initialize each voice's freq buffer to held pitch
     int trigOutletIdx = activeVoices * 3;
     for (int v = 0; v < activeVoices; ++v)
     {
         int freqOutletIdx = v * 3 + 1;
         if (freqOutletIdx < static_cast<int>(outlets.size()))
         {
-            getOutletBuffer(freqOutletIdx).clear();
+            auto& freqBuf = getOutletBuffer(freqOutletIdx);
+            if (freqBuf.getNumSamples() < numSamples || freqBuf.getNumChannels() < 1)
+            {
+                freqBuf.setSize(1, numSamples, false, false, true);
+            }
+            float curFreq = static_cast<float>(voiceFrequencies[static_cast<size_t>(v)]);
+            for (int s = 0; s < numSamples; ++s)
+            {
+                freqBuf.setSample(0, s, curFreq);
+            }
         }
     }
     if (trigOutletIdx < static_cast<int>(outlets.size()))
     {
-        getOutletBuffer(trigOutletIdx).clear();
+        auto& trigBuf = getOutletBuffer(trigOutletIdx);
+        if (trigBuf.getNumSamples() < numSamples || trigBuf.getNumChannels() < 1)
+        {
+            trigBuf.setSize(1, numSamples, false, false, true);
+        }
+        trigBuf.clear();
     }
 
-    // Only advance when connected to an active time/clock stream (e.g. time.transport~ / timeline~)!
+    // Determine time drive
     bool isDriven = false;
     TimePolyFrame timeIn;
     for (size_t idx = 0; idx < getInlets().size(); ++idx)
     {
-        if (getInlets()[idx].dataType == PortDataType::Time && isInletConnected(static_cast<int>(idx)))
+        if (isInletConnected(static_cast<int>(idx)))
         {
             isDriven = true;
             timeIn = getInletTimeFrame(static_cast<int>(idx));
             break;
         }
     }
-    // Fallback if connected to inlet 0
-    if (!isDriven && isInletConnected(0))
+
+    if (!isDriven)
     {
-        isDriven = true;
-        timeIn = getInletTimeFrame(0);
+        return;
     }
 
     const bool hasSampleGamma = (timeIn.sampleGamma.size() >= static_cast<size_t>(numSamples));
-    double masterG = isDriven ? std::max(0.0, timeIn.masterGamma) : 0.0;
+    double masterG = std::max(0.0, timeIn.masterGamma);
 
-    if (!isDriven || (masterG <= 0.000001 && !hasSampleGamma))
+    if (masterG <= 0.000001 && !hasSampleGamma)
     {
         return;
     }
@@ -176,12 +197,14 @@ void TidalSeqNode::process(int numSamples)
                 emitMessageOnOutlet(gateOutIdx, "bang");
 
                 double freqHz = 440.0 * std::pow(2.0, (ev.pitch - 69.0) / 12.0);
+                voiceFrequencies[static_cast<size_t>(ch)] = freqHz;
+
                 if (freqOutIdx < static_cast<int>(outlets.size()))
                 {
                     auto& freqBuf = getOutletBuffer(freqOutIdx);
-                    if (i < freqBuf.getNumSamples())
+                    for (int s = i; s < numSamples; ++s)
                     {
-                        freqBuf.setSample(0, i, static_cast<float>(freqHz));
+                        freqBuf.setSample(0, s, static_cast<float>(freqHz));
                     }
                 }
             }

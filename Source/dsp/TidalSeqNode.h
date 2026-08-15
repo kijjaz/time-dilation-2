@@ -48,6 +48,8 @@ private:
 
     std::vector<TidalEvent> scheduledEvents;
     size_t nextEventIdx = 0;
+    std::vector<double> voiceFrequencies;
+    std::vector<int> voiceTrigCounters;
 };
 
 } // namespace TimeDilationDAW
