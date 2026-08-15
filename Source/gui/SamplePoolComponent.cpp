@@ -12,11 +12,13 @@ SampleItemComponent::SampleItemComponent(const std::string& tableName,
                                          std::function<void(const std::string&)> onAuditionRequested,
                                          std::function<void(const std::string&)> onSpawnTabPlay,
                                          std::function<void(const std::string&)> onSpawnTabRead4,
+                                         std::function<void(const std::string&)> onSpawnTabWrite,
                                          std::function<void(const std::string&)> onRemoveRequested)
     : name(tableName)
     , auditionCallback(std::move(onAuditionRequested))
     , spawnTabPlayCallback(std::move(onSpawnTabPlay))
     , spawnTabRead4Callback(std::move(onSpawnTabRead4))
+    , spawnTabWriteCallback(std::move(onSpawnTabWrite))
     , removeCallback(std::move(onRemoveRequested))
 {
     // Name Label (Editable on double-click)
@@ -74,6 +76,14 @@ SampleItemComponent::SampleItemComponent(const std::string& tableName,
         if (spawnTabRead4Callback) spawnTabRead4Callback(name);
     };
     addAndMakeVisible(spawnWavetableButton);
+
+    // Spawn tabwrite~ button
+    spawnRecordButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff381f20));
+    spawnRecordButton.setColour(juce::TextButton::textColourOffId, juce::Colour(0xffff8a80)); // Light red/coral
+    spawnRecordButton.onClick = [this]() {
+        if (spawnTabWriteCallback) spawnTabWriteCallback(name);
+    };
+    addAndMakeVisible(spawnRecordButton);
 
     // Remove Button
     removeButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff2d1e20));
@@ -168,9 +178,11 @@ void SampleItemComponent::resized()
 
     auditionButton.setBounds(btnRow.removeFromLeft(36));
     btnRow.removeFromLeft(6);
-    spawnPlayButton.setBounds(btnRow.removeFromLeft(90));
+    spawnPlayButton.setBounds(btnRow.removeFromLeft(82));
     btnRow.removeFromLeft(6);
-    spawnWavetableButton.setBounds(btnRow.removeFromLeft(96));
+    spawnWavetableButton.setBounds(btnRow.removeFromLeft(88));
+    btnRow.removeFromLeft(6);
+    spawnRecordButton.setBounds(btnRow.removeFromLeft(84));
     btnRow.removeFromLeft(6);
     removeButton.setBounds(btnRow.removeFromRight(32));
 }
@@ -438,6 +450,9 @@ void SamplePoolComponent::rebuildSampleList()
             },
             [this](const std::string& n) {
                 if (spawnNodeCallback) spawnNodeCallback("tabread4~ " + n, 250, 200);
+            },
+            [this](const std::string& n) {
+                if (spawnNodeCallback) spawnNodeCallback("tabwrite~ " + n, 250, 200);
             },
             [](const std::string& n) {
                 TableManager::getInstance().removeTable(n);

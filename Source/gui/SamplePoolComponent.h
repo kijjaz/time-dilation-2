@@ -18,6 +18,7 @@ public:
                         std::function<void(const std::string&)> onAuditionRequested,
                         std::function<void(const std::string&)> onSpawnTabPlay,
                         std::function<void(const std::string&)> onSpawnTabRead4,
+                        std::function<void(const std::string&)> onSpawnTabWrite,
                         std::function<void(const std::string&)> onRemoveRequested);
 
     void paint(juce::Graphics& g) override;
@@ -36,11 +37,13 @@ private:
     juce::TextButton auditionButton{ "▶" };
     juce::TextButton spawnPlayButton{ "+ tabplay~" };
     juce::TextButton spawnWavetableButton{ "+ tabread4~" };
+    juce::TextButton spawnRecordButton{ "+ tabwrite~" };
     juce::TextButton removeButton{ "🗑" };
 
     std::function<void(const std::string&)> auditionCallback;
     std::function<void(const std::string&)> spawnTabPlayCallback;
     std::function<void(const std::string&)> spawnTabRead4Callback;
+    std::function<void(const std::string&)> spawnTabWriteCallback;
     std::function<void(const std::string&)> removeCallback;
 };
 

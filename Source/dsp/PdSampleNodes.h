@@ -71,4 +71,89 @@ private:
     juce::File currentFile;
 };
 
+
+// ============================================================================
+// AdcNode ([adc~], [in~])
+// Hardware / Live Audio Interface Input Capture Node.
+// Protocol: "adc~ [ch1] [ch2] ..." (Default: 1 2 for Stereo Left/Right).
+// Outlets: out1~ (Audio Left), out2~ (Audio Right).
+// ============================================================================
+class AdcNode : public RelativisticNode
+{
+public:
+    explicit AdcNode(int id, const std::vector<int>& channelList = { 1, 2 });
+
+    void prepare(double sampleRate, int samplesPerBlock) override;
+    void process(int numSamples) override;
+    void receiveMessage(const std::string& message) override;
+
+    void setChannels(const std::vector<int>& channelList);
+    const std::vector<int>& getChannels() const { return targetChannels; }
+
+    // Static buffer injection for live hardware callback and headless testing
+    static void setGlobalInputBuffer(const juce::AudioBuffer<float>& inBuf);
+    static const juce::AudioBuffer<float>& getGlobalInputBuffer();
+
+private:
+    std::vector<int> targetChannels;
+    static juce::AudioBuffer<float> globalInputBuffer;
+    static juce::SpinLock globalInputLock;
+};
+
+
+// ============================================================================
+// TabWriteTildeNode ([tabwrite~])
+// Relativistic Real-Time Audio Buffer Recorder into TableManager Tables.
+// Inlets: msgIn (Message: "start", "stop", "clear", "bang", "resize <N>"), in1~ (Audio), timeIn (Time)
+// Outlets: done (Message bang upon finish)
+// ============================================================================
+class TabWriteTildeNode : public RelativisticNode
+{
+public:
+    explicit TabWriteTildeNode(int id, const std::string& tableName = "rec_buf");
+
+    void prepare(double sampleRate, int samplesPerBlock) override;
+    void process(int numSamples) override;
+    void receiveMessage(const std::string& message) override;
+
+    void setTableName(const std::string& name);
+    const std::string& getTableName() const { return targetTable; }
+
+    void startRecording(int maxSamplesToRecord = -1);
+    void stopRecording();
+    void clearBuffer();
+    bool isRecording() const { return recordingActive; }
+
+    size_t getRecordedSamples() const { return writePos; }
+
+private:
+    std::string targetTable;
+    bool recordingActive = false;
+    size_t writePos = 0;
+    size_t maxSamples = 44100 * 10; // Default 10 seconds capacity
+    std::vector<float> recordBuffer;
+};
+
+
+// ============================================================================
+// TabWriteNode ([tabwrite])
+// Message/Control-rate table value writer into TableManager tables.
+// Protocol: "<value> <index>" or "set <index> <value>"
+// ============================================================================
+class TabWriteNode : public RelativisticNode
+{
+public:
+    explicit TabWriteNode(int id, const std::string& tableName = "table1");
+
+    void prepare(double sampleRate, int samplesPerBlock) override;
+    void process(int numSamples) override;
+    void receiveMessage(const std::string& message) override;
+
+    void setTableName(const std::string& name);
+    const std::string& getTableName() const { return targetTable; }
+
+private:
+    std::string targetTable;
+};
+
 } // namespace TimeDilationDAW

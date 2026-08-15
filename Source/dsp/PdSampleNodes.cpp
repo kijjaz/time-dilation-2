@@ -368,4 +368,304 @@ void ReadSFTildeNode::process(int numSamples)
     }
 }
 
+
+// ============================================================================
+// AdcNode Implementation ([adc~], [in~])
+// ============================================================================
+
+juce::AudioBuffer<float> AdcNode::globalInputBuffer;
+juce::SpinLock AdcNode::globalInputLock;
+
+AdcNode::AdcNode(int id, const std::vector<int>& channelList)
+    : RelativisticNode(id, "adc~", "adc~")
+{
+    setChannels(channelList.empty() ? std::vector<int>{ 1, 2 } : channelList);
+}
+
+void AdcNode::setChannels(const std::vector<int>& channelList)
+{
+    targetChannels = channelList;
+    outlets.clear();
+    outletBuffers.clear();
+    outletTimeFrames.clear();
+
+    std::string lbl = "adc~";
+    for (size_t i = 0; i < targetChannels.size(); ++i)
+    {
+        lbl += " " + std::to_string(targetChannels[i]);
+        addOutlet("out" + std::to_string(i + 1) + "~", PortDataType::Audio);
+    }
+    setLabel(lbl);
+}
+
+void AdcNode::prepare(double sampleRate, int samplesPerBlock)
+{
+    RelativisticNode::prepare(sampleRate, samplesPerBlock);
+}
+
+void AdcNode::setGlobalInputBuffer(const juce::AudioBuffer<float>& inBuf)
+{
+    const juce::SpinLock::ScopedLockType sl(globalInputLock);
+    globalInputBuffer.makeCopyOf(inBuf, true);
+}
+
+const juce::AudioBuffer<float>& AdcNode::getGlobalInputBuffer()
+{
+    return globalInputBuffer;
+}
+
+void AdcNode::receiveMessage(const std::string& message)
+{
+    RelativisticNode::receiveMessage(message);
+    juce::String msg = juce::String(message).trim();
+    juce::StringArray tokens;
+    tokens.addTokens(msg, " ", "");
+
+    if (tokens.size() > 1 && (tokens[0] == "set" || tokens[0] == "ch"))
+    {
+        std::vector<int> chs;
+        for (int i = 1; i < tokens.size(); ++i)
+        {
+            int ch = tokens[i].getIntValue();
+            if (ch > 0) chs.push_back(ch);
+        }
+        if (!chs.empty()) setChannels(chs);
+    }
+}
+
+void AdcNode::process(int numSamples)
+{
+    juce::ScopedNoDenormals noDenormals;
+
+    const juce::SpinLock::ScopedLockType sl(globalInputLock);
+    float sumSquares = 0.0f;
+    int totalSampleCount = 0;
+
+    for (size_t i = 0; i < targetChannels.size(); ++i)
+    {
+        int chIdx = targetChannels[i] - 1; // 1-indexed to 0-indexed
+        auto& outBuf = getOutletBuffer(static_cast<int>(i));
+
+        if (outBuf.getNumSamples() < numSamples)
+        {
+            outBuf.setSize(1, numSamples, false, false, true);
+        }
+
+        float* outPtr = outBuf.getWritePointer(0);
+
+        if (chIdx >= 0 && chIdx < globalInputBuffer.getNumChannels() && globalInputBuffer.getNumSamples() >= numSamples)
+        {
+            const float* inPtr = globalInputBuffer.getReadPointer(chIdx);
+            for (int s = 0; s < numSamples; ++s)
+            {
+                float val = inPtr[s];
+                outPtr[s] = val;
+                sumSquares += val * val;
+                totalSampleCount++;
+            }
+        }
+        else
+        {
+            outBuf.clear();
+        }
+    }
+
+    if (totalSampleCount > 0)
+    {
+        rmsLevel.store(std::sqrt(sumSquares / static_cast<float>(totalSampleCount)), std::memory_order_relaxed);
+    }
+}
+
+
+// ============================================================================
+// TabWriteTildeNode Implementation ([tabwrite~])
+// ============================================================================
+
+TabWriteTildeNode::TabWriteTildeNode(int id, const std::string& tableName)
+    : RelativisticNode(id, "tabwrite~", "tabwrite~ " + (tableName.empty() ? "rec_buf" : tableName))
+    , targetTable(tableName.empty() ? "rec_buf" : tableName)
+{
+    // Inlet 0: msgIn (from base)
+    // Inlet 1: in1~ (Audio input to record)
+    addInlet("in1~", PortDataType::Audio);
+    // Inlet 2: timeIn (Time stream)
+    addInlet("timeIn", PortDataType::Time);
+
+    // Outlet 0: done (Message bang upon finish)
+    if (!outlets.empty()) outlets[0].name = "done";
+
+    recordBuffer.reserve(44100 * 10);
+}
+
+void TabWriteTildeNode::prepare(double sampleRate, int samplesPerBlock)
+{
+    RelativisticNode::prepare(sampleRate, samplesPerBlock);
+}
+
+void TabWriteTildeNode::setTableName(const std::string& name)
+{
+    targetTable = name.empty() ? "rec_buf" : name;
+    setLabel("tabwrite~ " + targetTable);
+}
+
+void TabWriteTildeNode::startRecording(int maxSamplesToRecord)
+{
+    if (maxSamplesToRecord > 0)
+    {
+        maxSamples = static_cast<size_t>(maxSamplesToRecord);
+    }
+    else
+    {
+        maxSamples = static_cast<size_t>((currentSampleRate > 1.0 ? currentSampleRate : 44100.0) * 10.0);
+    }
+
+    recordBuffer.clear();
+    recordBuffer.reserve(maxSamples);
+    writePos = 0;
+    recordingActive = true;
+}
+
+void TabWriteTildeNode::stopRecording()
+{
+    if (!recordingActive && writePos == 0) return;
+    recordingActive = false;
+
+    if (!recordBuffer.empty())
+    {
+        juce::AudioBuffer<float> finalBuf(1, static_cast<int>(recordBuffer.size()));
+        finalBuf.copyFrom(0, 0, recordBuffer.data(), static_cast<int>(recordBuffer.size()));
+        TableManager::getInstance().registerBuffer(targetTable, finalBuf, currentSampleRate > 1.0 ? currentSampleRate : 44100.0);
+    }
+
+    emitMessageOnOutlet(0, "bang");
+}
+
+void TabWriteTildeNode::clearBuffer()
+{
+    recordBuffer.clear();
+    writePos = 0;
+    recordingActive = false;
+}
+
+void TabWriteTildeNode::receiveMessage(const std::string& message)
+{
+    RelativisticNode::receiveMessage(message);
+    juce::String msg = juce::String(message).trim();
+    juce::StringArray tokens;
+    tokens.addTokens(msg, " ", "");
+
+    if (tokens.isEmpty()) return;
+
+    if (tokens[0] == "start" || tokens[0] == "bang" || tokens[0] == "1")
+    {
+        int maxS = (tokens.size() > 1) ? tokens[1].getIntValue() : -1;
+        startRecording(maxS);
+    }
+    else if (tokens[0] == "stop" || tokens[0] == "0")
+    {
+        stopRecording();
+    }
+    else if (tokens[0] == "clear")
+    {
+        clearBuffer();
+    }
+    else if (tokens[0] == "set" && tokens.size() > 1)
+    {
+        setTableName(tokens[1].toStdString());
+    }
+    else if (tokens[0] == "resize" && tokens.size() > 1)
+    {
+        maxSamples = static_cast<size_t>(tokens[1].getIntValue());
+    }
+    else
+    {
+        // Treat as table name change if not keyword
+        setTableName(tokens[0].toStdString());
+    }
+}
+
+void TabWriteTildeNode::process(int numSamples)
+{
+    juce::ScopedNoDenormals noDenormals;
+
+    if (!recordingActive) return;
+
+    const auto& inBuf = getAudioInlet("in1~");
+    if (inBuf.getNumSamples() < numSamples) return;
+
+    const float* inPtr = inBuf.getReadPointer(0);
+
+    for (int s = 0; s < numSamples; ++s)
+    {
+        if (writePos < maxSamples)
+        {
+            recordBuffer.push_back(inPtr[s]);
+            writePos++;
+        }
+        else
+        {
+            stopRecording();
+            break;
+        }
+    }
+}
+
+
+// ============================================================================
+// TabWriteNode Implementation ([tabwrite])
+// ============================================================================
+
+TabWriteNode::TabWriteNode(int id, const std::string& tableName)
+    : RelativisticNode(id, "tabwrite", "tabwrite " + (tableName.empty() ? "table1" : tableName))
+    , targetTable(tableName.empty() ? "table1" : tableName)
+{
+}
+
+void TabWriteNode::prepare(double sampleRate, int samplesPerBlock)
+{
+    RelativisticNode::prepare(sampleRate, samplesPerBlock);
+}
+
+void TabWriteNode::process(int numSamples)
+{
+    juce::ignoreUnused(numSamples);
+}
+
+void TabWriteNode::setTableName(const std::string& name)
+{
+    targetTable = name.empty() ? "table1" : name;
+    setLabel("tabwrite " + targetTable);
+}
+
+void TabWriteNode::receiveMessage(const std::string& message)
+{
+    RelativisticNode::receiveMessage(message);
+    juce::String msg = juce::String(message).trim();
+    juce::StringArray tokens;
+    tokens.addTokens(msg, " ", "");
+
+    if (tokens.size() >= 2)
+    {
+        if (tokens[0] == "set")
+        {
+            setTableName(tokens[1].toStdString());
+        }
+        else
+        {
+            // Protocol: "<value> <index>"
+            float val = tokens[0].getFloatValue();
+            int idx = tokens[1].getIntValue();
+
+            if (TableManager::getInstance().hasTable(targetTable))
+            {
+                auto& tbl = TableManager::getInstance().getTable(targetTable);
+                if (idx >= 0 && static_cast<size_t>(idx) < tbl.size())
+                {
+                    tbl[static_cast<size_t>(idx)] = val;
+                }
+            }
+        }
+    }
+}
+
 } // namespace TimeDilationDAW

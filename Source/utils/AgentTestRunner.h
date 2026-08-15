@@ -32,6 +32,7 @@ public:
     static bool testTidalDynamicSubdivisionDrawer();
     static bool testSamplePoolAndSamplerSuite();
     static bool testProjectDirectoryAssetManagement();
+    static bool testLiveAudioInputAndBufferRecording();
 };
 
 } // namespace TimeDilationDAW

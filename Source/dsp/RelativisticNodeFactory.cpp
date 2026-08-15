@@ -77,6 +77,25 @@ std::shared_ptr<RelativisticNode> RelativisticNodeFactory::createNode(int nodeId
         if (ss >> name) {}
         return std::make_shared<TabPlayTildeNode>(nodeId, name);
     }
+    else if (symbol == "tabwrite~" || symbol == "record~" || symbol == "rec~")
+    {
+        std::string name = "rec_buf";
+        if (ss >> name) {}
+        return std::make_shared<TabWriteTildeNode>(nodeId, name);
+    }
+    else if (symbol == "tabwrite")
+    {
+        std::string name = "table1";
+        if (ss >> name) {}
+        return std::make_shared<TabWriteNode>(nodeId, name);
+    }
+    else if (symbol == "adc~" || symbol == "in~" || symbol == "mic~")
+    {
+        std::vector<int> chs;
+        int ch;
+        while (ss >> ch) chs.push_back(ch);
+        return std::make_shared<AdcNode>(nodeId, chs.empty() ? std::vector<int>{ 1, 2 } : chs);
+    }
     else if (symbol == "svf~")
     {
         double cut = 1000.0, q = 0.707;

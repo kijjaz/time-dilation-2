@@ -3,6 +3,7 @@
 #include "../gui/WorkstationContainerComponent.h"
 #include "../dsp/RelativisticNodeFactory.h"
 #include "../dsp/RelativisticSequencerNodes.h"
+#include "../dsp/PdSampleNodes.h"
 #include "../dsp/TidalPatternEngine.h"
 #include "../dsp/TidalSeqNode.h"
 #include <juce_audio_formats/juce_audio_formats.h>
@@ -901,8 +902,9 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
     bool tidalDrawerPass = testTidalDynamicSubdivisionDrawer();
     bool samplePoolPass = testSamplePoolAndSamplerSuite();
     bool projectAssetPass = testProjectDirectoryAssetManagement();
+    bool liveAudioPass = testLiveAudioInputAndBufferRecording();
 
-    bool allPhasesPass = allPhase1Pass && gravPass && lorentzPass && tachyonPass && jsonPass && dynamicLatPass && pdControlPass && samplePlaybackPass && delayPipePass && timeSculptPass && seqTimelinePass && tidalPass && tidalDrawerPass && samplePoolPass && projectAssetPass;
+    bool allPhasesPass = allPhase1Pass && gravPass && lorentzPass && tachyonPass && jsonPass && dynamicLatPass && pdControlPass && samplePlaybackPass && delayPipePass && timeSculptPass && seqTimelinePass && tidalPass && tidalDrawerPass && samplePoolPass && projectAssetPass && liveAudioPass;
     std::cout << "\n[Full Test Suite] Overall Result: " << (allPhasesPass ? "PASSED" : "FAILED") << "\n\n";
 
     // Export artifacts/phase2_3_4_telemetry.json
@@ -923,7 +925,8 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
     fullOut << "  \"tidalCyclesPatternEngine\": " << (tidalPass ? "true" : "false") << ",\n";
     fullOut << "  \"tidalDynamicSubdivisionDrawer\": " << (tidalDrawerPass ? "true" : "false") << ",\n";
     fullOut << "  \"samplePoolAndRelativisticSamplers\": " << (samplePoolPass ? "true" : "false") << ",\n";
-    fullOut << "  \"projectDirectoryAssetManagement\": " << (projectAssetPass ? "true" : "false") << "\n";
+    fullOut << "  \"projectDirectoryAssetManagement\": " << (projectAssetPass ? "true" : "false") << ",\n";
+    fullOut << "  \"liveAudioInputAndBufferRecording\": " << (liveAudioPass ? "true" : "false") << "\n";
     fullOut << "}\n";
     fullOut.close();
 
@@ -2313,6 +2316,135 @@ bool AgentTestRunner::testProjectDirectoryAssetManagement()
     }
 
     std::cout << "PASSED (Audio folder bundling & relative resolution verified)\n";
+    return true;
+}
+
+bool AgentTestRunner::testLiveAudioInputAndBufferRecording()
+{
+    std::cout << "[Test 22] Live Audio Input (adc~) & Real-Time Buffer Recording (tabwrite~) Suite... ";
+
+    RelativisticNodeGraph graph;
+    graph.prepare(96000.0, 512);
+
+    // 1. Prepare synthetic stereo input buffer (Left: 440Hz Sine, Right: 880Hz Sine)
+    juce::AudioBuffer<float> testInputBuf(2, 48000); // 0.5s at 96kHz
+    for (int i = 0; i < 48000; ++i)
+    {
+        float t = static_cast<float>(i) / 96000.0f;
+        testInputBuf.setSample(0, i, std::sin(t * 440.0f * juce::MathConstants<float>::twoPi) * 0.8f);
+        testInputBuf.setSample(1, i, std::sin(t * 880.0f * juce::MathConstants<float>::twoPi) * 0.5f);
+    }
+    AdcNode::setGlobalInputBuffer(testInputBuf);
+
+    // 2. Instantiate adc~ 1 2 and tabwrite~ rec_live_test
+    auto adcNode = RelativisticNodeFactory::createNode(1, "adc~ 1 2");
+    auto tabwriteNode = RelativisticNodeFactory::createNode(2, "tabwrite~ rec_live_test");
+    auto outNode = RelativisticNodeFactory::createNode(3, "out~");
+
+    if (!adcNode || !tabwriteNode)
+    {
+        std::cout << "FAILED (Could not create adc~ or tabwrite~ node)\n";
+        return false;
+    }
+
+    graph.addNode(adcNode);
+    graph.addNode(tabwriteNode);
+    graph.addNode(outNode);
+
+    // Connect adc~ (out1~) -> tabwrite~ (in1~)
+    graph.addConnection(1, 0, 2, 1);
+
+    // Start recording 24,000 samples (0.25s) into rec_live_test
+    tabwriteNode->receiveMessage("start 24000");
+
+    // Process blocks
+    juce::AudioBuffer<float> blockBuf(2, 512);
+    for (int b = 0; b < 60; ++b) // 60 * 512 = 30720 samples (> 24000)
+    {
+        graph.process(blockBuf, 512);
+    }
+
+    // Verify recording completed and registered in TableManager
+    if (!TableManager::getInstance().hasTable("rec_live_test"))
+    {
+        std::cout << "FAILED (TableManager does not have rec_live_test table after tabwrite~)\n";
+        return false;
+    }
+
+    const auto& recData = TableManager::getInstance().getTable("rec_live_test");
+    if (recData.size() != 24000)
+    {
+        std::cout << "FAILED (Recorded buffer size mismatch: " << recData.size() << ", expected 24000)\n";
+        return false;
+    }
+
+    // Verify peak audio magnitude of recorded buffer (> 0.5)
+    float maxAmp = 0.0f;
+    for (float s : recData) maxAmp = std::max(maxAmp, std::abs(s));
+
+    if (maxAmp < 0.6f)
+    {
+        std::cout << "FAILED (Recorded signal magnitude too low: " << maxAmp << ")\n";
+        return false;
+    }
+
+    // 3. Test Playback of Recorded Live Buffer using tabplay~
+    graph.clearGraph();
+    auto tabplay = RelativisticNodeFactory::createNode(10, "tabplay~ rec_live_test");
+    auto out = RelativisticNodeFactory::createNode(11, "out~");
+    graph.addNode(tabplay);
+    graph.addNode(out);
+    graph.addConnection(10, 1, 11, 1); // tabplay L -> out L
+    graph.addConnection(10, 2, 11, 2); // tabplay R -> out R
+
+    tabplay->receiveMessage("start");
+
+    float playbackPeak = 0.0f;
+    for (int b = 0; b < 50; ++b)
+    {
+        graph.process(blockBuf, 512);
+        for (int i = 0; i < 512; ++i)
+        {
+            playbackPeak = std::max(playbackPeak, std::abs(blockBuf.getSample(0, i)));
+        }
+    }
+
+    if (playbackPeak < 0.35f)
+    {
+        std::cout << "FAILED (Playback of recorded live buffer failed, peak=" << playbackPeak << ")\n";
+        return false;
+    }
+
+    // 4. Test Control-rate tabwrite
+    auto tabwriteCtl = RelativisticNodeFactory::createNode(20, "tabwrite rec_live_test");
+    tabwriteCtl->receiveMessage("0.999 100");
+    if (std::abs(TableManager::getInstance().getTable("rec_live_test")[100] - 0.999f) > 0.0001f)
+    {
+        std::cout << "FAILED (Control-rate tabwrite value injection failed)\n";
+        return false;
+    }
+
+    // 5. Export WAV observation
+    juce::File obs22Wav("artifacts/observation_22_adc_tabwrite_recording.wav");
+    auto fileStream22 = obs22Wav.createOutputStream();
+    if (fileStream22 != nullptr)
+    {
+        juce::WavAudioFormat wavFormat;
+        std::unique_ptr<juce::AudioFormatWriter> writer22(wavFormat.createWriterFor(fileStream22.release(), 96000.0, 2, 16, {}, 0));
+        if (writer22 != nullptr)
+        {
+            tabplay->receiveMessage("start");
+            for (int b = 0; b < 60; ++b)
+            {
+                graph.process(blockBuf, 512);
+                writer22->writeFromAudioSampleBuffer(blockBuf, 0, 512);
+            }
+            writer22->flush();
+            std::cout << "\n[AgentTestRunner] Exported WAV Observation 22 (Live ADC & TabWrite Recording): " << obs22Wav.getFullPathName().toStdString() << "\n";
+        }
+    }
+
+    std::cout << "PASSED (Live recording, buffer synthesis & playback verified, peak: " << playbackPeak << ")\n";
     return true;
 }
 
