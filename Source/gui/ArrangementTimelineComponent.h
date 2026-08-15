@@ -67,10 +67,18 @@ struct TimelineClip
 
 struct TimelineTrackInfo
 {
+    int trackId = 1;
     int trackIndex = 0;
     juce::String name = "Track 1";
     ClipType defaultClipType = ClipType::Pattern;
     bool isArmed = false;
+    bool isMuted = false;
+    bool isSoloed = false;
+    float volume = 1.0f;
+    float pan = 0.0f;
+    int customHeight = 58;
+    juce::Colour trackColour{ 0xff00d4ff };
+    int targetNodeId = -1;
     AudioInputSource inputSource;
     RecordingQuantizeMode quantizeOverride = RecordingQuantizeMode::Bar;
     bool useTrackQuantizeOverride = false;
@@ -108,6 +116,30 @@ public:
     void setPlayheadPosition(double timeInSeconds);
     void togglePlayback();
     void rewindToStart();
+
+    // Track Management Operations
+    void addTrack(const juce::String& name = "New Track", ClipType type = ClipType::Pattern);
+    void deleteTrack(int trackIdx);
+    void duplicateTrack(int trackIdx);
+    void moveTrack(int fromIdx, int toIdx);
+    void setTrackMute(int trackIdx, bool muted);
+    void setTrackSolo(int trackIdx, bool soloed);
+    void toggleTrackMute(int trackIdx);
+    void toggleTrackSolo(int trackIdx);
+    void setTrackVolume(int trackIdx, float vol);
+    void setTrackPan(int trackIdx, float pan);
+    void setTrackHeight(int trackIdx, int heightPx);
+    void setTrackColour(int trackIdx, juce::Colour col);
+    void renameTrack(int trackIdx, const juce::String& newName);
+    void setTrackTargetNode(int trackIdx, int nodeId);
+    int getTrackTargetNode(int trackIdx) const;
+    void clearTrackClips(int trackIdx);
+
+    // Track Geometry calculations
+    int getTrackTopY(int trackIdx) const;
+    int getTrackHeight(int trackIdx) const;
+    int getTrackIndexAtY(float y) const;
+    int getTotalTracksHeight() const;
 
     // Clip Operations
     void addClip(int trackIdx, double startSec, double durationSec, const juce::String& name, ClipType type = ClipType::Pattern);
@@ -269,9 +301,19 @@ private:
     juce::TextButton rewindButton{ "REWIND" };
     juce::TextButton loopButton{ "LOOP ON" };
     juce::TextButton addClipButton{ "+ ADD CLIP" };
+    juce::TextButton addTrackButton{ "+ TRACK" };
     juce::TextButton recQuantizeButton{ "⏱ Q: 1 BAR" };
     juce::TextButton togglePianoRollBtn{ "TIDAL DRAWER" };
     juce::Label timeDisplayLabel{ "TimeDisplay", "Bar 1.1 | 00:00.00" };
+
+    // Track Dragging & Divider Resizing State
+    int draggingTrackIdx = -1;
+    int resizingDividerTrackIdx = -1;
+    float dragStartDividerY = 0.0f;
+    int dragStartTrackHeight = 58;
+
+    juce::TextEditor trackRenameEditor;
+    int renamingTrackIdx = -1;
 
     RecordingQuantizeMode globalRecQuantize = RecordingQuantizeMode::Bar;
 };

@@ -35,6 +35,7 @@ public:
     static bool testLiveAudioInputAndBufferRecording();
     static bool testAudioInputRoutingAndInternalTapping();
     static bool testRecordingQuantizationModes();
+    static bool testTimelineTrackManagementSuite();
 };
 
 } // namespace TimeDilationDAW

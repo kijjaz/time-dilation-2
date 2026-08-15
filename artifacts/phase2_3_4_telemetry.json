@@ -13,5 +13,9 @@
   "tidalCyclesPatternEngine": true,
   "tidalDynamicSubdivisionDrawer": true,
   "samplePoolAndRelativisticSamplers": true,
-  "projectDirectoryAssetManagement": true
+  "projectDirectoryAssetManagement": true,
+  "liveAudioInputAndBufferRecording": true,
+  "audioInputRoutingAndInternalTapping": true,
+  "recordingQuantizationModes": true,
+  "timelineTrackManagementSuite": true
 }

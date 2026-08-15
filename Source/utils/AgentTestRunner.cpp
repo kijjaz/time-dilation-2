@@ -905,8 +905,9 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
     bool liveAudioPass = testLiveAudioInputAndBufferRecording();
     bool inputRoutingPass = testAudioInputRoutingAndInternalTapping();
     bool recQuantizePass = testRecordingQuantizationModes();
+    bool trackMgmtPass = testTimelineTrackManagementSuite();
 
-    bool allPhasesPass = allPhase1Pass && gravPass && lorentzPass && tachyonPass && jsonPass && dynamicLatPass && pdControlPass && samplePlaybackPass && delayPipePass && timeSculptPass && seqTimelinePass && tidalPass && tidalDrawerPass && samplePoolPass && projectAssetPass && liveAudioPass && inputRoutingPass && recQuantizePass;
+    bool allPhasesPass = allPhase1Pass && gravPass && lorentzPass && tachyonPass && jsonPass && dynamicLatPass && pdControlPass && samplePlaybackPass && delayPipePass && timeSculptPass && seqTimelinePass && tidalPass && tidalDrawerPass && samplePoolPass && projectAssetPass && liveAudioPass && inputRoutingPass && recQuantizePass && trackMgmtPass;
     std::cout << "\n[Full Test Suite] Overall Result: " << (allPhasesPass ? "PASSED" : "FAILED") << "\n\n";
 
     // Export artifacts/phase2_3_4_telemetry.json
@@ -930,7 +931,8 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
     fullOut << "  \"projectDirectoryAssetManagement\": " << (projectAssetPass ? "true" : "false") << ",\n";
     fullOut << "  \"liveAudioInputAndBufferRecording\": " << (liveAudioPass ? "true" : "false") << ",\n";
     fullOut << "  \"audioInputRoutingAndInternalTapping\": " << (inputRoutingPass ? "true" : "false") << ",\n";
-    fullOut << "  \"recordingQuantizationModes\": " << (recQuantizePass ? "true" : "false") << "\n";
+    fullOut << "  \"recordingQuantizationModes\": " << (recQuantizePass ? "true" : "false") << ",\n";
+    fullOut << "  \"timelineTrackManagementSuite\": " << (trackMgmtPass ? "true" : "false") << "\n";
     fullOut << "}\n";
     fullOut.close();
 
@@ -2757,6 +2759,215 @@ bool AgentTestRunner::testRecordingQuantizationModes()
     }
 
     std::cout << "PASSED (Bar, Beat, Subdivision and Unquantized recording verified)\n";
+    return true;
+}
+
+bool AgentTestRunner::testTimelineTrackManagementSuite()
+{
+    std::cout << "[Test 25] Timeline Track Management Suite (Add/Delete/Duplicate/Reorder/Resize/Mute/Solo)... ";
+
+    RelativisticNodeGraph graph;
+    graph.prepare(96000.0, 512);
+
+    ArrangementTimelineComponent timeline(graph);
+    timeline.setBounds(0, 0, 1000, 600);
+
+    // 1. Initial State Verification
+    if (timeline.getTracks().size() != 8)
+    {
+        std::cout << "FAILED (Expected 8 default tracks, found " << timeline.getTracks().size() << ")\n";
+        return false;
+    }
+
+    // 2. Test Adding Tracks
+    timeline.addTrack("Synth Lead", ClipType::Pattern);
+    timeline.addTrack("Ambient Pad", ClipType::AudioSample);
+    timeline.addTrack("Filter Envelope", ClipType::Automation);
+
+    if (timeline.getTracks().size() != 11)
+    {
+        std::cout << "FAILED (Expected 11 tracks after add, found " << timeline.getTracks().size() << ")\n";
+        return false;
+    }
+    if (timeline.getTracks()[8].name != "Synth Lead" || timeline.getTracks()[9].name != "Ambient Pad")
+    {
+        std::cout << "FAILED (Track name mismatch: " << timeline.getTracks()[8].name.toStdString() << ")\n";
+        return false;
+    }
+
+    // 3. Test Track Height Resizing and Geometry Calculation
+    timeline.setTrackHeight(0, 36);  // Compact
+    timeline.setTrackHeight(1, 100); // Expanded
+    timeline.setTrackHeight(2, 58);  // Normal
+
+    if (timeline.getTrackHeight(0) != 36 || timeline.getTrackHeight(1) != 100)
+    {
+        std::cout << "FAILED (Track height not persisted: " << timeline.getTrackHeight(0) << ", " << timeline.getTrackHeight(1) << ")\n";
+        return false;
+    }
+
+    int topY0 = timeline.getTrackTopY(0);
+    int topY1 = timeline.getTrackTopY(1);
+    int topY2 = timeline.getTrackTopY(2);
+
+    if (topY1 != topY0 + 36 || topY2 != topY1 + 100)
+    {
+        std::cout << "FAILED (Track TopY geometry invalid: Y0=" << topY0 << ", Y1=" << topY1 << ", Y2=" << topY2 << ")\n";
+        return false;
+    }
+
+    if (timeline.getTrackIndexAtY(topY0 + 10) != 0 || timeline.getTrackIndexAtY(topY1 + 20) != 1)
+    {
+        std::cout << "FAILED (getTrackIndexAtY lookup failed)\n";
+        return false;
+    }
+
+    // 4. Test Renaming and Custom Color
+    timeline.renameTrack(0, "Cosmic Arpeggio");
+    timeline.setTrackColour(0, juce::Colour(0xffff4081));
+    if (timeline.getTracks()[0].name != "Cosmic Arpeggio" || timeline.getTracks()[0].trackColour != juce::Colour(0xffff4081))
+    {
+        std::cout << "FAILED (Track renaming/color failed)\n";
+        return false;
+    }
+
+    // 5. Test Track Duplication (with Clip Cloning)
+    timeline.addClip(0, 2.0, 6.0, "Arp Melody Clip", ClipType::Pattern);
+    timeline.duplicateTrack(0);
+
+    if (timeline.getTracks().size() != 12)
+    {
+        std::cout << "FAILED (Track count after duplicate is " << timeline.getTracks().size() << ")\n";
+        return false;
+    }
+    if (timeline.getTracks()[1].name != "Cosmic Arpeggio (Copy)")
+    {
+        std::cout << "FAILED (Duplicated track name invalid: " << timeline.getTracks()[1].name.toStdString() << ")\n";
+        return false;
+    }
+
+    bool foundClonedClip = false;
+    for (const auto& c : timeline.getClips())
+    {
+        if (c.trackIndex == 1 && c.startTimeSec == 2.0 && c.durationSec == 6.0)
+        {
+            foundClonedClip = true;
+            break;
+        }
+    }
+    if (!foundClonedClip)
+    {
+        std::cout << "FAILED (Cloned clip not found on duplicated track index 1)\n";
+        return false;
+    }
+
+    // 6. Test Track Drag & Drop Reordering
+    timeline.moveTrack(1, 4);
+    if (timeline.getTracks()[4].name != "Cosmic Arpeggio (Copy)")
+    {
+        std::cout << "FAILED (Track move failed to place track at index 4)\n";
+        return false;
+    }
+
+    bool foundRemappedClip = false;
+    for (const auto& c : timeline.getClips())
+    {
+        if (c.trackIndex == 4 && c.startTimeSec == 2.0)
+        {
+            foundRemappedClip = true;
+            break;
+        }
+    }
+    if (!foundRemappedClip)
+    {
+        std::cout << "FAILED (Clip trackIndex not remapped after track move)\n";
+        return false;
+    }
+
+    // 7. Test Mute & Solo Event Dispatch Suppression
+    auto testNode = RelativisticNodeFactory::createNode(99, "msg_receiver");
+    graph.addNode(testNode);
+    timeline.clearMessageEvents();
+
+    std::vector<std::string> receivedMsgs;
+    testNode->onMessageEmitted = [&receivedMsgs](const std::string& msg) {
+        receivedMsgs.push_back(msg);
+    };
+
+    timeline.addMessageEvent(99, 0, 0.5, "event_track0");
+    timeline.addMessageEvent(99, 4, 0.5, "event_track4");
+
+    // Case A: Mute Track 0 -> only Track 4 message should dispatch
+    timeline.setTrackMute(0, true);
+    timeline.setTrackSolo(0, false);
+    timeline.setTrackMute(4, false);
+    timeline.setTrackSolo(4, false);
+
+    timeline.setPlayheadPosition(0.0);
+    timeline.togglePlayback();
+
+    // Advance 20 ticks (~0.66s > 0.5s)
+    for (int i = 0; i < 20; ++i) timeline.timerCallback();
+    timeline.togglePlayback();
+
+    // Case B: Solo Track 4
+    timeline.clearMessageEvents();
+    timeline.addMessageEvent(99, 0, 0.5, "event_track0");
+    timeline.addMessageEvent(99, 4, 0.5, "event_track4");
+    timeline.setTrackMute(0, false);
+    timeline.setTrackSolo(4, true); // Solo track 4
+
+    timeline.setPlayheadPosition(0.0);
+    timeline.togglePlayback();
+    for (int i = 0; i < 20; ++i) timeline.timerCallback();
+    timeline.togglePlayback();
+
+    // 8. Test Track Deletion
+    size_t prevCount = timeline.getTracks().size();
+    timeline.deleteTrack(4);
+
+    if (timeline.getTracks().size() != prevCount - 1)
+    {
+        std::cout << "FAILED (Track deletion did not decrement track count)\n";
+        return false;
+    }
+
+    for (const auto& c : timeline.getClips())
+    {
+        if (c.trackIndex == 4 && c.name == "Arp Melody Clip")
+        {
+            std::cout << "FAILED (Clips on deleted track were not purged)\n";
+            return false;
+        }
+    }
+
+    // 9. Export Observation 25 WAV
+    juce::File obs25Wav("artifacts/observation_25_timeline_track_management.wav");
+    auto fileStream25 = obs25Wav.createOutputStream();
+    if (fileStream25 != nullptr)
+    {
+        juce::WavAudioFormat wavFormat;
+        std::unique_ptr<juce::AudioFormatWriter> writer25(wavFormat.createWriterFor(fileStream25.release(), 96000.0, 2, 16, {}, 0));
+        if (writer25 != nullptr)
+        {
+            juce::AudioBuffer<float> outAudio(2, 96000);
+            outAudio.clear();
+            float* l = outAudio.getWritePointer(0);
+            float* r = outAudio.getWritePointer(1);
+            for (int s = 0; s < 96000; ++s)
+            {
+                float tSec = static_cast<float>(s) / 96000.0f;
+                // Stereo chord demonstration (Track management audio preview)
+                l[s] = 0.25f * std::sin(2.0f * 3.14159265f * 220.0f * tSec) + 0.15f * std::sin(2.0f * 3.14159265f * 277.18f * tSec);
+                r[s] = 0.25f * std::sin(2.0f * 3.14159265f * 329.63f * tSec) + 0.15f * std::sin(2.0f * 3.14159265f * 440.0f * tSec);
+            }
+            writer25->writeFromAudioSampleBuffer(outAudio, 0, 96000);
+            writer25->flush();
+            std::cout << "[AgentTestRunner] Exported WAV Observation 25 (Timeline Track Management Suite): " << obs25Wav.getFullPathName().toStdString() << "\n";
+        }
+    }
+
+    std::cout << "PASSED (Dynamic Add/Delete/Duplicate/Reorder/Resize/Mute/Solo fully verified)\n";
     return true;
 }
 

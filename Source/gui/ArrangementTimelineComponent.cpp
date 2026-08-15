@@ -49,10 +49,39 @@ ArrangementTimelineComponent::ArrangementTimelineComponent(RelativisticNodeGraph
     addClipButton.setColour(juce::TextButton::textColourOffId, CarbonGoldLookAndFeel::cyberCyan);
     addAndMakeVisible(addClipButton);
 
+    addTrackButton.onClick = [this]() {
+        addTrack("Track " + juce::String(tracks.size() + 1));
+    };
+    addTrackButton.setColour(juce::TextButton::buttonColourId, CarbonGoldLookAndFeel::slatePanel.brighter(0.1f));
+    addTrackButton.setColour(juce::TextButton::textColourOffId, CarbonGoldLookAndFeel::goldAccent);
+    addAndMakeVisible(addTrackButton);
+
     recQuantizeButton.onClick = [this]() { showRecordingQuantizeMenu(); };
     recQuantizeButton.setColour(juce::TextButton::buttonColourId, CarbonGoldLookAndFeel::slatePanel.brighter(0.1f));
     recQuantizeButton.setColour(juce::TextButton::textColourOffId, CarbonGoldLookAndFeel::cyberCyan);
     addAndMakeVisible(recQuantizeButton);
+
+    trackRenameEditor.setFont(juce::Font(11.0f, juce::Font::bold));
+    trackRenameEditor.setColour(juce::TextEditor::backgroundColourId, CarbonGoldLookAndFeel::slatePanel.darker(0.3f));
+    trackRenameEditor.setColour(juce::TextEditor::textColourId, CarbonGoldLookAndFeel::goldAccent);
+    trackRenameEditor.setColour(juce::TextEditor::outlineColourId, CarbonGoldLookAndFeel::cyberCyan);
+    trackRenameEditor.onReturnKey = [this]() {
+        if (renamingTrackIdx >= 0 && renamingTrackIdx < static_cast<int>(tracks.size()))
+        {
+            renameTrack(renamingTrackIdx, trackRenameEditor.getText().trim());
+        }
+        trackRenameEditor.setVisible(false);
+        renamingTrackIdx = -1;
+    };
+    trackRenameEditor.onFocusLost = [this]() {
+        if (renamingTrackIdx >= 0 && renamingTrackIdx < static_cast<int>(tracks.size()))
+        {
+            renameTrack(renamingTrackIdx, trackRenameEditor.getText().trim());
+        }
+        trackRenameEditor.setVisible(false);
+        renamingTrackIdx = -1;
+    };
+    addChildComponent(trackRenameEditor);
 
     togglePianoRollBtn.onClick = [this]() {
         isPianoRollVisible = !isPianoRollVisible;
@@ -792,6 +821,296 @@ void ArrangementTimelineComponent::showTrackInputMenu(int trackIdx)
     });
 }
 
+int ArrangementTimelineComponent::getTrackTopY(int trackIdx) const
+{
+    int y = transportBarHeight + rulerHeight;
+    for (int t = 0; t < trackIdx && t < static_cast<int>(tracks.size()); ++t)
+    {
+        y += tracks[static_cast<size_t>(t)].customHeight;
+    }
+    return y;
+}
+
+int ArrangementTimelineComponent::getTrackHeight(int trackIdx) const
+{
+    if (trackIdx >= 0 && trackIdx < static_cast<int>(tracks.size()))
+    {
+        return tracks[static_cast<size_t>(trackIdx)].customHeight;
+    }
+    return trackHeight;
+}
+
+int ArrangementTimelineComponent::getTrackIndexAtY(float y) const
+{
+    int curY = transportBarHeight + rulerHeight;
+    for (size_t t = 0; t < tracks.size(); ++t)
+    {
+        int h = tracks[t].customHeight;
+        if (y >= curY && y < curY + h) return static_cast<int>(t);
+        curY += h;
+    }
+    return -1;
+}
+
+int ArrangementTimelineComponent::getTotalTracksHeight() const
+{
+    int total = 0;
+    for (const auto& trk : tracks) total += trk.customHeight;
+    return total;
+}
+
+void ArrangementTimelineComponent::addTrack(const juce::String& name, ClipType type)
+{
+    TimelineTrackInfo info;
+    info.trackId = static_cast<int>(tracks.size()) + 1;
+    info.trackIndex = static_cast<int>(tracks.size());
+    info.name = name.isNotEmpty() ? name : ("Track " + juce::String(info.trackIndex + 1));
+    info.defaultClipType = type;
+    info.isArmed = false;
+    info.isMuted = false;
+    info.isSoloed = false;
+    info.customHeight = 58;
+
+    static const juce::Colour palette[] = {
+        juce::Colour(0xff00d4ff), // Cyan
+        juce::Colour(0xffffd700), // Gold
+        juce::Colour(0xff8a2be2), // Violet
+        juce::Colour(0xffff4081), // Crimson
+        juce::Colour(0xff00e676), // Green
+        juce::Colour(0xffff9100)  // Orange
+    };
+    info.trackColour = palette[tracks.size() % 6];
+    tracks.push_back(info);
+    repaint();
+}
+
+void ArrangementTimelineComponent::deleteTrack(int trackIdx)
+{
+    if (trackIdx < 0 || trackIdx >= static_cast<int>(tracks.size()) || tracks.size() <= 1) return;
+
+    clips.erase(std::remove_if(clips.begin(), clips.end(), [trackIdx](const TimelineClip& c) {
+        return c.trackIndex == trackIdx;
+    }), clips.end());
+
+    for (auto& c : clips)
+    {
+        if (c.trackIndex > trackIdx) c.trackIndex--;
+    }
+
+    messageEvents.erase(std::remove_if(messageEvents.begin(), messageEvents.end(), [trackIdx](const TimelineMessageEvent& ev) {
+        return ev.trackIndex == trackIdx;
+    }), messageEvents.end());
+
+    for (auto& ev : messageEvents)
+    {
+        if (ev.trackIndex > trackIdx) ev.trackIndex--;
+    }
+
+    tracks.erase(tracks.begin() + trackIdx);
+    for (size_t t = 0; t < tracks.size(); ++t)
+    {
+        tracks[t].trackIndex = static_cast<int>(t);
+    }
+    repaint();
+}
+
+void ArrangementTimelineComponent::duplicateTrack(int trackIdx)
+{
+    if (trackIdx < 0 || trackIdx >= static_cast<int>(tracks.size())) return;
+
+    TimelineTrackInfo orig = tracks[static_cast<size_t>(trackIdx)];
+    TimelineTrackInfo dup = orig;
+    int newIdx = trackIdx + 1;
+    dup.trackId = static_cast<int>(tracks.size()) + 1;
+    dup.trackIndex = newIdx;
+    dup.name = orig.name + " (Copy)";
+
+    for (auto& c : clips)
+    {
+        if (c.trackIndex >= newIdx) c.trackIndex++;
+    }
+    for (auto& ev : messageEvents)
+    {
+        if (ev.trackIndex >= newIdx) ev.trackIndex++;
+    }
+
+    tracks.insert(tracks.begin() + newIdx, dup);
+    for (size_t t = 0; t < tracks.size(); ++t)
+    {
+        tracks[t].trackIndex = static_cast<int>(t);
+    }
+
+    std::vector<TimelineClip> newClips;
+    static int nextDupClipId = 5000;
+    for (const auto& c : clips)
+    {
+        if (c.trackIndex == trackIdx)
+        {
+            TimelineClip copyClip = c;
+            copyClip.clipId = nextDupClipId++;
+            copyClip.trackIndex = newIdx;
+            newClips.push_back(copyClip);
+        }
+    }
+    clips.insert(clips.end(), newClips.begin(), newClips.end());
+    repaint();
+}
+
+void ArrangementTimelineComponent::moveTrack(int fromIdx, int toIdx)
+{
+    if (fromIdx < 0 || fromIdx >= static_cast<int>(tracks.size()) ||
+        toIdx < 0 || toIdx >= static_cast<int>(tracks.size()) ||
+        fromIdx == toIdx) return;
+
+    auto trk = tracks[static_cast<size_t>(fromIdx)];
+    tracks.erase(tracks.begin() + fromIdx);
+    tracks.insert(tracks.begin() + toIdx, trk);
+
+    for (size_t t = 0; t < tracks.size(); ++t)
+    {
+        tracks[t].trackIndex = static_cast<int>(t);
+    }
+
+    for (auto& c : clips)
+    {
+        if (c.trackIndex == fromIdx)
+        {
+            c.trackIndex = toIdx;
+        }
+        else if (fromIdx < toIdx && c.trackIndex > fromIdx && c.trackIndex <= toIdx)
+        {
+            c.trackIndex--;
+        }
+        else if (fromIdx > toIdx && c.trackIndex >= toIdx && c.trackIndex < fromIdx)
+        {
+            c.trackIndex++;
+        }
+    }
+
+    for (auto& ev : messageEvents)
+    {
+        if (ev.trackIndex == fromIdx)
+        {
+            ev.trackIndex = toIdx;
+        }
+        else if (fromIdx < toIdx && ev.trackIndex > fromIdx && ev.trackIndex <= toIdx)
+        {
+            ev.trackIndex--;
+        }
+        else if (fromIdx > toIdx && ev.trackIndex >= toIdx && ev.trackIndex < fromIdx)
+        {
+            ev.trackIndex++;
+        }
+    }
+
+    repaint();
+}
+
+void ArrangementTimelineComponent::setTrackMute(int trackIdx, bool muted)
+{
+    if (trackIdx >= 0 && trackIdx < static_cast<int>(tracks.size()))
+    {
+        tracks[static_cast<size_t>(trackIdx)].isMuted = muted;
+        repaint();
+    }
+}
+
+void ArrangementTimelineComponent::setTrackSolo(int trackIdx, bool soloed)
+{
+    if (trackIdx >= 0 && trackIdx < static_cast<int>(tracks.size()))
+    {
+        tracks[static_cast<size_t>(trackIdx)].isSoloed = soloed;
+        repaint();
+    }
+}
+
+void ArrangementTimelineComponent::toggleTrackMute(int trackIdx)
+{
+    if (trackIdx >= 0 && trackIdx < static_cast<int>(tracks.size()))
+    {
+        setTrackMute(trackIdx, !tracks[static_cast<size_t>(trackIdx)].isMuted);
+    }
+}
+
+void ArrangementTimelineComponent::toggleTrackSolo(int trackIdx)
+{
+    if (trackIdx >= 0 && trackIdx < static_cast<int>(tracks.size()))
+    {
+        setTrackSolo(trackIdx, !tracks[static_cast<size_t>(trackIdx)].isSoloed);
+    }
+}
+
+void ArrangementTimelineComponent::setTrackVolume(int trackIdx, float vol)
+{
+    if (trackIdx >= 0 && trackIdx < static_cast<int>(tracks.size()))
+    {
+        tracks[static_cast<size_t>(trackIdx)].volume = std::clamp(vol, 0.0f, 2.0f);
+        repaint();
+    }
+}
+
+void ArrangementTimelineComponent::setTrackPan(int trackIdx, float pan)
+{
+    if (trackIdx >= 0 && trackIdx < static_cast<int>(tracks.size()))
+    {
+        tracks[static_cast<size_t>(trackIdx)].pan = std::clamp(pan, -1.0f, 1.0f);
+        repaint();
+    }
+}
+
+void ArrangementTimelineComponent::setTrackHeight(int trackIdx, int heightPx)
+{
+    if (trackIdx >= 0 && trackIdx < static_cast<int>(tracks.size()))
+    {
+        tracks[static_cast<size_t>(trackIdx)].customHeight = std::clamp(heightPx, 32, 220);
+        repaint();
+    }
+}
+
+void ArrangementTimelineComponent::setTrackColour(int trackIdx, juce::Colour col)
+{
+    if (trackIdx >= 0 && trackIdx < static_cast<int>(tracks.size()))
+    {
+        tracks[static_cast<size_t>(trackIdx)].trackColour = col;
+        repaint();
+    }
+}
+
+void ArrangementTimelineComponent::renameTrack(int trackIdx, const juce::String& newName)
+{
+    if (trackIdx >= 0 && trackIdx < static_cast<int>(tracks.size()) && newName.isNotEmpty())
+    {
+        tracks[static_cast<size_t>(trackIdx)].name = newName;
+        repaint();
+    }
+}
+
+void ArrangementTimelineComponent::setTrackTargetNode(int trackIdx, int nodeId)
+{
+    if (trackIdx >= 0 && trackIdx < static_cast<int>(tracks.size()))
+    {
+        tracks[static_cast<size_t>(trackIdx)].targetNodeId = nodeId;
+        repaint();
+    }
+}
+
+int ArrangementTimelineComponent::getTrackTargetNode(int trackIdx) const
+{
+    if (trackIdx >= 0 && trackIdx < static_cast<int>(tracks.size()))
+    {
+        return tracks[static_cast<size_t>(trackIdx)].targetNodeId;
+    }
+    return -1;
+}
+
+void ArrangementTimelineComponent::clearTrackClips(int trackIdx)
+{
+    clips.erase(std::remove_if(clips.begin(), clips.end(), [trackIdx](const TimelineClip& c) {
+        return c.trackIndex == trackIdx;
+    }), clips.end());
+    repaint();
+}
+
 double ArrangementTimelineComponent::quantizeTime(double timeSec, RecordingQuantizeMode mode, double bpm)
 {
     if (mode == RecordingQuantizeMode::None) return std::max(0.0, timeSec);
@@ -1288,16 +1607,30 @@ void ArrangementTimelineComponent::timerCallback()
             for (auto& ev : messageEvents) ev.triggeredInCurrentPass = false;
         }
 
+        bool anyTrackSoloed = false;
+        for (const auto& trk : tracks) { if (trk.isSoloed) { anyTrackSoloed = true; break; } }
+
         // Check and dispatch scheduled timeline message events
         for (auto& ev : messageEvents)
         {
             if (!ev.triggeredInCurrentPass && playheadTimeSec >= ev.timeSec && lastPlayheadTimeSec <= ev.timeSec)
             {
                 ev.triggeredInCurrentPass = true;
-                auto node = nodeGraph.getNode(ev.targetNodeId);
-                if (node)
+                bool shouldDispatch = true;
+                if (ev.trackIndex >= 0 && ev.trackIndex < static_cast<int>(tracks.size()))
                 {
-                    node->receiveMessage(ev.messageText.toStdString());
+                    const auto& trk = tracks[static_cast<size_t>(ev.trackIndex)];
+                    if (trk.isMuted) shouldDispatch = false;
+                    if (anyTrackSoloed && !trk.isSoloed) shouldDispatch = false;
+                }
+
+                if (shouldDispatch)
+                {
+                    auto node = nodeGraph.getNode(ev.targetNodeId);
+                    if (node)
+                    {
+                        node->receiveMessage(ev.messageText.toStdString());
+                    }
                 }
             }
         }
@@ -1413,74 +1746,103 @@ void ArrangementTimelineComponent::paint(juce::Graphics& g)
 
     // 4. Tracks & Clips Area
     int yStart = transportBarHeight + rulerHeight;
-    const auto& nodes = nodeGraph.getNodes();
-    int numTracks = std::max(4, static_cast<int>(nodes.size()));
-
     int tracksVisibleH = getHeight() - yStart - (isPianoRollVisible ? pianoRollHeight : 0);
 
-    for (int t = 0; t < numTracks; ++t)
+    for (size_t t = 0; t < tracks.size(); ++t)
     {
-        int y = yStart + t * trackHeight;
-        if (y + trackHeight > yStart + tracksVisibleH) break;
+        const auto& trk = tracks[t];
+        int y = getTrackTopY(static_cast<int>(t));
+        int h = trk.customHeight;
+        if (y + h > yStart + tracksVisibleH) break;
 
         // Track Header Panel
-        auto headerR = juce::Rectangle<float>(0.0f, static_cast<float>(y), static_cast<float>(trackHeaderWidth), static_cast<float>(trackHeight));
+        auto headerR = juce::Rectangle<float>(0.0f, static_cast<float>(y), static_cast<float>(trackHeaderWidth), static_cast<float>(h));
         g.setColour(CarbonGoldLookAndFeel::slatePanel.darker(0.1f));
         g.fillRect(headerR);
 
-        g.setColour(CarbonGoldLookAndFeel::goldAccent.withAlpha(0.3f));
+        // Color Accent Strip (Left 4px)
+        g.setColour(trk.trackColour);
+        g.fillRect(0.0f, static_cast<float>(y), 4.0f, static_cast<float>(h));
+
+        // Header Outline
+        g.setColour(CarbonGoldLookAndFeel::goldAccent.withAlpha(0.2f));
         g.drawRect(headerR, 1.0f);
 
-        juce::String trackLabel = "Track " + juce::String(t + 1);
-        juce::String nodeSym = "Pattern";
-        if (t < static_cast<int>(nodes.size()))
-        {
-            trackLabel = nodes[static_cast<size_t>(t)]->getLabel();
-            nodeSym = nodes[static_cast<size_t>(t)]->getSymbol();
-        }
+        // Drag Handle Dots
+        g.setFont(juce::Font(10.0f, juce::Font::bold));
+        g.setColour(juce::Colours::grey);
+        g.drawText("⠿", 6, y + 3, 12, 16, juce::Justification::centred);
 
+        // Track Name
         g.setFont(juce::Font(11.0f, juce::Font::bold));
-        g.setColour(CarbonGoldLookAndFeel::goldAccent);
-        g.drawText(trackLabel, 8, y + 4, trackHeaderWidth - 46, 16, juce::Justification::left);
+        g.setColour(trk.isSoloed ? juce::Colour(0xff00e676) : (trk.isMuted ? juce::Colours::grey : CarbonGoldLookAndFeel::goldAccent));
+        g.drawText(trk.name, 20, y + 3, trackHeaderWidth - 95, 16, juce::Justification::left);
 
-        // ARM Button
-        bool isArmed = isTrackArmed(t);
-        auto armR = juce::Rectangle<float>(static_cast<float>(trackHeaderWidth - 36), static_cast<float>(y + 4), 30.0f, 16.0f);
-        g.setColour(isArmed ? juce::Colour(0xffd02040) : juce::Colour(0xff252026));
-        g.fillRoundedRectangle(armR, 3.0f);
-        g.setColour(isArmed ? juce::Colours::white : juce::Colour(0xffe57373));
-        g.drawRoundedRectangle(armR, 3.0f, 1.0f);
+        // [M] Mute Button
+        auto muteR = juce::Rectangle<float>(static_cast<float>(trackHeaderWidth - 72), static_cast<float>(y + 3), 16.0f, 16.0f);
+        g.setColour(trk.isMuted ? juce::Colour(0xffffb300) : juce::Colour(0xff22252c));
+        g.fillRoundedRectangle(muteR, 2.0f);
+        g.setColour(trk.isMuted ? juce::Colours::black : juce::Colours::grey);
         g.setFont(juce::Font(9.0f, juce::Font::bold));
+        g.drawText("M", muteR.toNearestInt(), juce::Justification::centred);
+
+        // [S] Solo Button
+        auto soloR = juce::Rectangle<float>(static_cast<float>(trackHeaderWidth - 52), static_cast<float>(y + 3), 16.0f, 16.0f);
+        g.setColour(trk.isSoloed ? juce::Colour(0xff00e676) : juce::Colour(0xff22252c));
+        g.fillRoundedRectangle(soloR, 2.0f);
+        g.setColour(trk.isSoloed ? juce::Colours::black : juce::Colours::grey);
+        g.setFont(juce::Font(9.0f, juce::Font::bold));
+        g.drawText("S", soloR.toNearestInt(), juce::Justification::centred);
+
+        // [●] ARM Button
+        bool isArmed = trk.isArmed;
+        auto armR = juce::Rectangle<float>(static_cast<float>(trackHeaderWidth - 32), static_cast<float>(y + 3), 26.0f, 16.0f);
+        g.setColour(isArmed ? juce::Colour(0xffd02040) : juce::Colour(0xff22252c));
+        g.fillRoundedRectangle(armR, 2.0f);
+        g.setColour(isArmed ? juce::Colours::white : juce::Colour(0xffe57373));
+        g.drawRoundedRectangle(armR, 2.0f, 1.0f);
+        g.setFont(juce::Font(8.5f, juce::Font::bold));
         g.drawText(isArmed ? "REC" : "ARM", armR.toNearestInt(), juce::Justification::centred);
 
         // Input Source Selector Badge
-        auto inR = juce::Rectangle<float>(8.0f, static_cast<float>(y + 22), static_cast<float>(trackHeaderWidth - 16), 14.0f);
-        g.setColour(juce::Colour(0xff151820));
-        g.fillRoundedRectangle(inR, 2.0f);
-        g.setColour(CarbonGoldLookAndFeel::goldAccent.withAlpha(0.35f));
-        g.drawRoundedRectangle(inR, 2.0f, 1.0f);
-        g.setFont(juce::Font(8.5f, juce::Font::plain));
-        g.setColour(CarbonGoldLookAndFeel::goldAccent);
-        g.drawText("🎙 " + getTrackInputSource(t).getDisplayName(), inR.reduced(2, 0).toNearestInt(), juce::Justification::left);
+        if (h >= 44)
+        {
+            auto inR = juce::Rectangle<float>(8.0f, static_cast<float>(y + 22), static_cast<float>(trackHeaderWidth - 16), 14.0f);
+            g.setColour(juce::Colour(0xff151820));
+            g.fillRoundedRectangle(inR, 2.0f);
+            g.setColour(CarbonGoldLookAndFeel::goldAccent.withAlpha(0.35f));
+            g.drawRoundedRectangle(inR, 2.0f, 1.0f);
+            g.setFont(juce::Font(8.5f, juce::Font::plain));
+            g.setColour(CarbonGoldLookAndFeel::goldAccent);
+            g.drawText("🎙 " + trk.inputSource.getDisplayName(), inR.reduced(2, 0).toNearestInt(), juce::Justification::left);
+        }
+
+        // Bottom Divider Resize Handle (Bottom 4px)
+        g.setColour(juce::Colours::white.withAlpha(0.08f));
+        g.drawHorizontalLine(y + h - 1, 0.0f, static_cast<float>(trackHeaderWidth));
 
         // Track Lane Background
-        auto laneR = juce::Rectangle<float>(static_cast<float>(trackHeaderWidth), static_cast<float>(y), timelineW, static_cast<float>(trackHeight));
-        g.setColour((t % 2 == 0) ? CarbonGoldLookAndFeel::carbonBg.brighter(0.02f) : CarbonGoldLookAndFeel::carbonBg);
+        auto laneR = juce::Rectangle<float>(static_cast<float>(trackHeaderWidth), static_cast<float>(y), timelineW, static_cast<float>(h));
+        juce::Colour laneBg = (t % 2 == 0) ? CarbonGoldLookAndFeel::carbonBg.brighter(0.02f) : CarbonGoldLookAndFeel::carbonBg;
+        if (trk.isMuted) laneBg = laneBg.darker(0.3f);
+        g.setColour(laneBg);
         g.fillRect(laneR);
 
         g.setColour(juce::Colours::white.withAlpha(0.05f));
-        g.drawHorizontalLine(y + trackHeight, static_cast<float>(trackHeaderWidth), b.getWidth());
+        g.drawHorizontalLine(y + h, static_cast<float>(trackHeaderWidth), b.getWidth());
     }
 
     // 5. Draw Timeline Clips
     for (const auto& clip : clips)
     {
-        int y = yStart + clip.trackIndex * trackHeight;
-        if (y + trackHeight > yStart + tracksVisibleH) continue;
+        if (clip.trackIndex < 0 || clip.trackIndex >= static_cast<int>(tracks.size())) continue;
+        int y = getTrackTopY(clip.trackIndex);
+        int h = getTrackHeight(clip.trackIndex);
+        if (y + h > yStart + tracksVisibleH) continue;
 
         float cx = static_cast<float>(trackHeaderWidth) + static_cast<float>((clip.startTimeSec / totalDurationSec) * timelineW);
         float cw = static_cast<float>((clip.durationSec / totalDurationSec) * timelineW);
-        auto clipR = juce::Rectangle<float>(cx, static_cast<float>(y + 4), cw, static_cast<float>(trackHeight - 8));
+        auto clipR = juce::Rectangle<float>(cx, static_cast<float>(y + 4), cw, static_cast<float>(h - 8));
 
         bool isSelected = (clip.clipId == selectedClipId);
 
@@ -1513,8 +1875,10 @@ void ArrangementTimelineComponent::paint(juce::Graphics& g)
     // 6. Draw Scheduled Message Events
     for (const auto& ev : messageEvents)
     {
-        int y = yStart + ev.trackIndex * trackHeight;
-        if (y + trackHeight > yStart + tracksVisibleH) continue;
+        if (ev.trackIndex < 0 || ev.trackIndex >= static_cast<int>(tracks.size())) continue;
+        int y = getTrackTopY(ev.trackIndex);
+        int h = getTrackHeight(ev.trackIndex);
+        if (y + h > yStart + tracksVisibleH) continue;
 
         float ex = static_cast<float>(trackHeaderWidth) + static_cast<float>((ev.timeSec / totalDurationSec) * timelineW);
         auto badgeR = juce::Rectangle<float>(ex - 35.0f, static_cast<float>(y + 12), 70.0f, 22.0f);
@@ -1822,12 +2186,13 @@ void ArrangementTimelineComponent::resized()
     int y = 4;
     int btnH = 26;
 
-    playStopButton.setBounds(10, y, 70, btnH);
-    rewindButton.setBounds(85, y, 75, btnH);
-    loopButton.setBounds(165, y, 80, btnH);
-    addClipButton.setBounds(250, y, 85, btnH);
-    recQuantizeButton.setBounds(340, y, 95, btnH);
-    togglePianoRollBtn.setBounds(440, y, 105, btnH);
+    playStopButton.setBounds(10, y, 65, btnH);
+    rewindButton.setBounds(80, y, 70, btnH);
+    loopButton.setBounds(155, y, 75, btnH);
+    addClipButton.setBounds(235, y, 80, btnH);
+    addTrackButton.setBounds(320, y, 70, btnH);
+    recQuantizeButton.setBounds(395, y, 90, btnH);
+    togglePianoRollBtn.setBounds(490, y, 100, btnH);
 
     timeDisplayLabel.setBounds(getWidth() - 240, y, 230, btnH);
 
@@ -1891,26 +2256,128 @@ void ArrangementTimelineComponent::mouseDown(const juce::MouseEvent& e)
     auto pos = e.position;
     float timelineW = static_cast<float>(getWidth() - trackHeaderWidth);
 
-    // 0. Clicked Track Header Panel: Toggle ARM or open Input Source Menu
+    // 0. Clicked Track Header Panel: Drag, Resize Divider, Mute, Solo, ARM, Input Menu or Context Menu
     if (pos.x < trackHeaderWidth && pos.y >= transportBarHeight + rulerHeight)
     {
-        int yStart = transportBarHeight + rulerHeight;
-        int t = static_cast<int>(pos.y - yStart) / trackHeight;
-        int numTracks = std::max(4, static_cast<int>(nodeGraph.getNodes().size()));
-        if (t >= 0 && t < numTracks)
+        int t = getTrackIndexAtY(pos.y);
+        if (t >= 0 && t < static_cast<int>(tracks.size()))
         {
-            int ty = yStart + t * trackHeight;
-            auto armR = juce::Rectangle<float>(static_cast<float>(trackHeaderWidth - 36), static_cast<float>(ty + 4), 30.0f, 16.0f);
+            int ty = getTrackTopY(t);
+            int th = getTrackHeight(t);
+
+            // Check bottom 5px divider for track height resizing
+            if (pos.y >= ty + th - 5)
+            {
+                resizingDividerTrackIdx = t;
+                dragStartDividerY = pos.y;
+                dragStartTrackHeight = th;
+                return;
+            }
+
+            // Right-click context menu for track management
+            if (e.mods.isPopupMenu())
+            {
+                juce::PopupMenu tm;
+                tm.addSectionHeader(tracks[static_cast<size_t>(t)].name + " Options");
+                tm.addItem(1, "Rename Track...");
+                tm.addSeparator();
+                tm.addItem(2, "+ Add Pattern Track");
+                tm.addItem(3, "+ Add Audio Sample Track");
+                tm.addItem(4, "+ Add Automation Track");
+                tm.addItem(5, "Duplicate Track");
+                tm.addItem(6, "Delete Track", tracks.size() > 1);
+                tm.addSeparator();
+
+                juce::PopupMenu colMenu;
+                colMenu.addItem(10, "Cyan (Default)");
+                colMenu.addItem(11, "Gold / Amber");
+                colMenu.addItem(12, "Royal Violet");
+                colMenu.addItem(13, "Crimson Red");
+                colMenu.addItem(14, "Neon Green");
+                colMenu.addItem(15, "Orange");
+                tm.addSubMenu("Track Color", colMenu);
+
+                juce::PopupMenu hMenu;
+                hMenu.addItem(20, "Compact (36px)");
+                hMenu.addItem(21, "Normal (58px)");
+                hMenu.addItem(22, "Tall (95px)");
+                hMenu.addItem(23, "Expanded (140px)");
+                tm.addSubMenu("Track Height", hMenu);
+
+                tm.addSeparator();
+                tm.addItem(30, "Select Audio Input Source...");
+                tm.addItem(31, "Clear All Clips on Track");
+
+                tm.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this), [this, t](int res) {
+                    if (res == 1)
+                    {
+                        renamingTrackIdx = t;
+                        trackRenameEditor.setText(tracks[static_cast<size_t>(t)].name);
+                        trackRenameEditor.setBounds(20, getTrackTopY(t) + 2, trackHeaderWidth - 95, 20);
+                        trackRenameEditor.setVisible(true);
+                        trackRenameEditor.grabKeyboardFocus();
+                        trackRenameEditor.selectAll();
+                    }
+                    else if (res == 2) addTrack("Pattern " + juce::String(tracks.size() + 1), ClipType::Pattern);
+                    else if (res == 3) addTrack("Audio " + juce::String(tracks.size() + 1), ClipType::AudioSample);
+                    else if (res == 4) addTrack("Auto " + juce::String(tracks.size() + 1), ClipType::Automation);
+                    else if (res == 5) duplicateTrack(t);
+                    else if (res == 6) deleteTrack(t);
+                    else if (res == 10) setTrackColour(t, juce::Colour(0xff00d4ff));
+                    else if (res == 11) setTrackColour(t, juce::Colour(0xffffd700));
+                    else if (res == 12) setTrackColour(t, juce::Colour(0xff8a2be2));
+                    else if (res == 13) setTrackColour(t, juce::Colour(0xffff4081));
+                    else if (res == 14) setTrackColour(t, juce::Colour(0xff00e676));
+                    else if (res == 15) setTrackColour(t, juce::Colour(0xffff9100));
+                    else if (res == 20) setTrackHeight(t, 36);
+                    else if (res == 21) setTrackHeight(t, 58);
+                    else if (res == 22) setTrackHeight(t, 95);
+                    else if (res == 23) setTrackHeight(t, 140);
+                    else if (res == 30) showTrackInputMenu(t);
+                    else if (res == 31) clearTrackClips(t);
+                });
+                return;
+            }
+
+            // Check [M] Mute Button
+            auto muteR = juce::Rectangle<float>(static_cast<float>(trackHeaderWidth - 72), static_cast<float>(ty + 3), 16.0f, 16.0f);
+            if (muteR.contains(pos))
+            {
+                toggleTrackMute(t);
+                return;
+            }
+
+            // Check [S] Solo Button
+            auto soloR = juce::Rectangle<float>(static_cast<float>(trackHeaderWidth - 52), static_cast<float>(ty + 3), 16.0f, 16.0f);
+            if (soloR.contains(pos))
+            {
+                toggleTrackSolo(t);
+                return;
+            }
+
+            // Check [●] ARM Button
+            auto armR = juce::Rectangle<float>(static_cast<float>(trackHeaderWidth - 32), static_cast<float>(ty + 3), 26.0f, 16.0f);
             if (armR.contains(pos))
             {
                 setTrackArmed(t, !isTrackArmed(t));
                 return;
             }
 
-            auto inR = juce::Rectangle<float>(8.0f, static_cast<float>(ty + 22), static_cast<float>(trackHeaderWidth - 16), 14.0f);
-            if (inR.contains(pos) || e.mods.isPopupMenu())
+            // Check Input Selector Badge
+            if (th >= 44)
             {
-                showTrackInputMenu(t);
+                auto inR = juce::Rectangle<float>(8.0f, static_cast<float>(ty + 22), static_cast<float>(trackHeaderWidth - 16), 14.0f);
+                if (inR.contains(pos))
+                {
+                    showTrackInputMenu(t);
+                    return;
+                }
+            }
+
+            // Left drag grip: Start track reordering
+            if (pos.x <= 20.0f)
+            {
+                draggingTrackIdx = t;
                 return;
             }
         }
@@ -2010,12 +2477,14 @@ void ArrangementTimelineComponent::mouseDown(const juce::MouseEvent& e)
 
     for (const auto& clip : clips)
     {
-        int y = yStart + clip.trackIndex * trackHeight;
-        if (y + trackHeight > yStart + tracksVisibleH) continue;
+        if (clip.trackIndex < 0 || clip.trackIndex >= static_cast<int>(tracks.size())) continue;
+        int y = getTrackTopY(clip.trackIndex);
+        int h = getTrackHeight(clip.trackIndex);
+        if (y + h > yStart + tracksVisibleH) continue;
 
         float cx = static_cast<float>(trackHeaderWidth) + static_cast<float>((clip.startTimeSec / totalDurationSec) * timelineW);
         float cw = static_cast<float>((clip.durationSec / totalDurationSec) * timelineW);
-        auto clipR = juce::Rectangle<float>(cx, static_cast<float>(y + 4), cw, static_cast<float>(trackHeight - 8));
+        auto clipR = juce::Rectangle<float>(cx, static_cast<float>(y + 4), cw, static_cast<float>(h - 8));
 
         if (clipR.contains(pos))
         {
@@ -2032,6 +2501,22 @@ void ArrangementTimelineComponent::mouseDown(const juce::MouseEvent& e)
 void ArrangementTimelineComponent::mouseDoubleClick(const juce::MouseEvent& e)
 {
     auto pos = e.position;
+
+    // 0. Double-click track name in header to trigger inline rename editor
+    if (pos.x < trackHeaderWidth && pos.y >= transportBarHeight + rulerHeight)
+    {
+        int t = getTrackIndexAtY(pos.y);
+        if (t >= 0 && t < static_cast<int>(tracks.size()))
+        {
+            renamingTrackIdx = t;
+            trackRenameEditor.setText(tracks[static_cast<size_t>(t)].name);
+            trackRenameEditor.setBounds(20, getTrackTopY(t) + 2, trackHeaderWidth - 95, 20);
+            trackRenameEditor.setVisible(true);
+            trackRenameEditor.grabKeyboardFocus();
+            trackRenameEditor.selectAll();
+            return;
+        }
+    }
 
     // Double click in Tidal drawer opens in-place text editor directly over the block
     if (isPianoRollVisible && pos.y >= getHeight() - pianoRollHeight)
@@ -2072,11 +2557,12 @@ void ArrangementTimelineComponent::mouseDoubleClick(const juce::MouseEvent& e)
     float timelineW = static_cast<float>(getWidth() - trackHeaderWidth);
     if (pos.x > trackHeaderWidth && pos.y > transportBarHeight + rulerHeight)
     {
-        int yStart = transportBarHeight + rulerHeight;
-        int trackIdx = static_cast<int>((pos.y - yStart) / trackHeight);
-        double clickTime = ((pos.x - trackHeaderWidth) / timelineW) * totalDurationSec;
-
-        addClip(trackIdx, clickTime, 4.0, "Sequence Clip " + juce::String(clips.size() + 1), ClipType::Pattern);
+        int trackIdx = getTrackIndexAtY(pos.y);
+        if (trackIdx >= 0 && trackIdx < static_cast<int>(tracks.size()))
+        {
+            double clickTime = ((pos.x - trackHeaderWidth) / timelineW) * totalDurationSec;
+            addClip(trackIdx, clickTime, 4.0, "Sequence Clip " + juce::String(clips.size() + 1), tracks[static_cast<size_t>(trackIdx)].defaultClipType);
+        }
     }
 }
 
@@ -2085,7 +2571,27 @@ void ArrangementTimelineComponent::mouseDrag(const juce::MouseEvent& e)
     auto pos = e.position;
     float timelineW = static_cast<float>(getWidth() - trackHeaderWidth);
 
-    // 1. Dragging Tidal Block Pitch Vertically
+    // 0. Resizing Track Divider
+    if (resizingDividerTrackIdx >= 0)
+    {
+        int deltaY = static_cast<int>(pos.y - dragStartDividerY);
+        setTrackHeight(resizingDividerTrackIdx, dragStartTrackHeight + deltaY);
+        return;
+    }
+
+    // 1. Dragging Track Header (Reordering)
+    if (draggingTrackIdx >= 0)
+    {
+        int targetIdx = getTrackIndexAtY(pos.y);
+        if (targetIdx >= 0 && targetIdx < static_cast<int>(tracks.size()) && targetIdx != draggingTrackIdx)
+        {
+            moveTrack(draggingTrackIdx, targetIdx);
+            draggingTrackIdx = targetIdx;
+        }
+        return;
+    }
+
+    // 2. Dragging Tidal Block Pitch Vertically
     if (draggingTidalEventIdx >= 0)
     {
         for (auto& clip : clips)
@@ -2148,6 +2654,9 @@ void ArrangementTimelineComponent::mouseDrag(const juce::MouseEvent& e)
 void ArrangementTimelineComponent::mouseUp(const juce::MouseEvent& e)
 {
     juce::ignoreUnused(e);
+
+    draggingTrackIdx = -1;
+    resizingDividerTrackIdx = -1;
 
     // Commit Tidal Block Pitch Changes on Drag Release
     if (draggingTidalEventIdx >= 0)
