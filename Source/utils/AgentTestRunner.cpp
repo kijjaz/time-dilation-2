@@ -898,8 +898,9 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
     bool seqTimelinePass = testRelativisticSequencersAndTimelineSuite();
     bool tidalPass = testTidalCyclesPatternEngine();
     bool tidalDrawerPass = testTidalDynamicSubdivisionDrawer();
+    bool samplePoolPass = testSamplePoolAndSamplerSuite();
 
-    bool allPhasesPass = allPhase1Pass && gravPass && lorentzPass && tachyonPass && jsonPass && dynamicLatPass && pdControlPass && samplePlaybackPass && delayPipePass && timeSculptPass && seqTimelinePass && tidalPass && tidalDrawerPass;
+    bool allPhasesPass = allPhase1Pass && gravPass && lorentzPass && tachyonPass && jsonPass && dynamicLatPass && pdControlPass && samplePlaybackPass && delayPipePass && timeSculptPass && seqTimelinePass && tidalPass && tidalDrawerPass && samplePoolPass;
     std::cout << "\n[Full Test Suite] Overall Result: " << (allPhasesPass ? "PASSED" : "FAILED") << "\n\n";
 
     // Export artifacts/phase2_3_4_telemetry.json
@@ -918,7 +919,8 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
     fullOut << "  \"relativisticTimeSculpting\": " << (timeSculptPass ? "true" : "false") << ",\n";
     fullOut << "  \"relativisticSequencersAndTimeline\": " << (seqTimelinePass ? "true" : "false") << ",\n";
     fullOut << "  \"tidalCyclesPatternEngine\": " << (tidalPass ? "true" : "false") << ",\n";
-    fullOut << "  \"tidalDynamicSubdivisionDrawer\": " << (tidalDrawerPass ? "true" : "false") << "\n";
+    fullOut << "  \"tidalDynamicSubdivisionDrawer\": " << (tidalDrawerPass ? "true" : "false") << ",\n";
+    fullOut << "  \"samplePoolAndRelativisticSamplers\": " << (samplePoolPass ? "true" : "false") << "\n";
     fullOut << "}\n";
     fullOut.close();
 
@@ -2076,6 +2078,127 @@ bool AgentTestRunner::testTidalDynamicSubdivisionDrawer()
     }
 
     std::cout << "PASSED\n";
+    return true;
+}
+
+bool AgentTestRunner::testSamplePoolAndSamplerSuite()
+{
+    std::cout << "[Test 20] Sample Pool, TableManager & Relativistic Sampler Suite... ";
+    constexpr double sampleRate = 96000.0;
+    constexpr int blockSize = 512;
+
+    // 1. Synthesize drum and wavetable samples and register in TableManager
+    constexpr int kickSamples = 44100; // 1 second
+    juce::AudioBuffer<float> kickBuffer(1, kickSamples);
+    float* kPtr = kickBuffer.getWritePointer(0);
+    double kickPhase = 0.0;
+    for (int i = 0; i < kickSamples; ++i)
+    {
+        double t = static_cast<double>(i) / 44100.0;
+        double f = 150.0 * std::exp(-t * 18.0) + 45.0;
+        double env = std::exp(-t * 7.0);
+        kickPhase += (2.0 * 3.14159265358979323846 * f) / 44100.0;
+        kPtr[i] = static_cast<float>(std::sin(kickPhase) * env);
+    }
+    TableManager::getInstance().registerBuffer("kick", kickBuffer, 44100.0);
+
+    constexpr int snareSamples = 22050; // 0.5 second
+    juce::AudioBuffer<float> snareBuffer(2, snareSamples);
+    float* sPtrL = snareBuffer.getWritePointer(0);
+    float* sPtrR = snareBuffer.getWritePointer(1);
+    juce::Random rnd(1234);
+    for (int i = 0; i < snareSamples; ++i)
+    {
+        double t = static_cast<double>(i) / 44100.0;
+        double noise = rnd.nextFloat() * 2.0f - 1.0f;
+        double tone = std::sin(2.0 * 3.14159265358979323846 * 220.0 * t);
+        double env = std::exp(-t * 12.0);
+        float val = static_cast<float>((tone * 0.4 + noise * 0.6) * env);
+        sPtrL[i] = val;
+        sPtrR[i] = val;
+    }
+    TableManager::getInstance().registerBuffer("snare", snareBuffer, 44100.0);
+
+    // Verify TableManager metadata
+    if (!TableManager::getInstance().hasTable("kick") || !TableManager::getInstance().hasTable("snare"))
+    {
+        std::cout << "FAILED (TableManager missing registered drum tables)\n";
+        return false;
+    }
+    const auto* kickInfo = TableManager::getInstance().getTableInfo("kick");
+    if (!kickInfo || kickInfo->thumbnailPeaks.empty() || kickInfo->numSamples != kickSamples)
+    {
+        std::cout << "FAILED (TableInfo metadata or thumbnail envelope missing)\n";
+        return false;
+    }
+
+    // 2. Build Relativistic Graph: seq.tidal -> route -> tabplay~ kick & snare -> out~
+    RelativisticNodeGraph graph;
+    graph.prepare(sampleRate, blockSize);
+
+    auto lfoNode = RelativisticNodeFactory::createNode(1, "time.lfo 0.5 0.5");
+    auto tidalNode = RelativisticNodeFactory::createNode(2, "seq.tidal [60 [62 60] 62 [60 62]] 1.0");
+    auto routeNode = RelativisticNodeFactory::createNode(3, "route 60 62");
+    auto playKick = RelativisticNodeFactory::createNode(4, "tabplay~ kick");
+    auto playSnare = RelativisticNodeFactory::createNode(5, "tabplay~ snare");
+    auto wtOscNode = RelativisticNodeFactory::createNode(6, "tabread4~ sine");
+    auto outNode = RelativisticNodeFactory::createNode(7, "out~");
+
+    graph.addNode(lfoNode);
+    graph.addNode(tidalNode);
+    graph.addNode(routeNode);
+    graph.addNode(playKick);
+    graph.addNode(playSnare);
+    graph.addNode(wtOscNode);
+    graph.addNode(outNode);
+
+    graph.addConnection(1, 0, 2, 1); // time.lfo timeOut (Violet) -> seq.tidal timeIn (Violet)
+    graph.addConnection(2, 0, 3, 0); // seq.tidal noteOut (Gold) -> route in (Gold)
+    graph.addConnection(3, 0, 4, 0); // route 60 -> tabplay~ kick msgIn
+    graph.addConnection(3, 1, 5, 0); // route 62 -> tabplay~ snare msgIn
+    graph.addConnection(1, 0, 4, 1); // time.lfo -> tabplay~ kick timeIn (Doppler warp)
+    graph.addConnection(1, 0, 5, 1); // time.lfo -> tabplay~ snare timeIn
+
+    graph.addConnection(4, 1, 7, 1); // kick outL~ -> out~ in1~ (Left)
+    graph.addConnection(4, 2, 7, 2); // kick outR~ -> out~ in2~ (Right)
+    graph.addConnection(5, 1, 7, 1); // snare outL~ -> out~ in1~
+    graph.addConnection(5, 2, 7, 2); // snare outR~ -> out~ in2~
+
+    // Render 3 seconds of audio
+    juce::AudioBuffer<float> masterOut(2, blockSize);
+    double peakMagnitude = 0.0;
+    int totalBlocks = static_cast<int>((3.0 * sampleRate) / blockSize);
+
+    juce::File obs20Wav("artifacts/observation_20_sample_pool_tabplay_wavetable.wav");
+    obs20Wav.deleteFile();
+    juce::WavAudioFormat wavFmt;
+    std::unique_ptr<juce::AudioFormatWriter> writer(wavFmt.createWriterFor(
+        new juce::FileOutputStream(obs20Wav),
+        sampleRate,
+        2,
+        24,
+        {},
+        0));
+
+    for (int b = 0; b < totalBlocks; ++b)
+    {
+        graph.process(masterOut, blockSize);
+        peakMagnitude = std::max(peakMagnitude, static_cast<double>(masterOut.getMagnitude(0, blockSize)));
+        if (writer)
+        {
+            writer->writeFromAudioSampleBuffer(masterOut, 0, blockSize);
+        }
+    }
+    if (writer) writer->flush();
+
+    if (peakMagnitude < 0.01)
+    {
+        std::cout << "FAILED (Peak output magnitude too low: " << peakMagnitude << ")\n";
+        return false;
+    }
+
+    std::cout << "PASSED (Peak: " << peakMagnitude << ")\n";
+    std::cout << "[AgentTestRunner] Exported WAV Observation 20 (Sample Pool & Sampler): " << obs20Wav.getFullPathName().toStdString() << "\n";
     return true;
 }
 

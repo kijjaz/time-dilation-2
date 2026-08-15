@@ -61,6 +61,10 @@ target_sources(TimeDilationDAW
         Source/gui/ArrangementTimelineComponent.cpp
         Source/gui/ConsolePanelComponent.h
         Source/gui/ConsolePanelComponent.cpp
+        Source/gui/SamplePoolComponent.h
+        Source/gui/SamplePoolComponent.cpp
+        Source/gui/SamplePoolWindow.h
+        Source/gui/SamplePoolWindow.cpp
         Source/gui/WorkstationContainerComponent.h
         Source/gui/WorkstationContainerComponent.cpp
         Source/utils/ConsoleLogger.h

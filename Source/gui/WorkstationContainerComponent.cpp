@@ -22,6 +22,12 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
     playButton.onClick = [this]() { isPlaying = true; };
     stopButton.onClick = [this]() { isPlaying = false; };
 
+    // Sample Pool Window Button
+    samplePoolButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff222938));
+    samplePoolButton.setColour(juce::TextButton::textColourOffId, CarbonGoldLookAndFeel::goldAccent);
+    samplePoolButton.onClick = [this]() { toggleSamplePoolWindow(); };
+    addAndMakeVisible(samplePoolButton);
+
     // View Mode Toggle Buttons
     addAndMakeVisible(trackViewButton);
     addAndMakeVisible(canvasViewButton);
@@ -158,6 +164,8 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
         soundMenu.addItem(303, "pluck~ (Karplus-Strong Physical Model)");
         soundMenu.addItem(304, "readsf~ (Streaming Audio File Playback)");
         soundMenu.addItem(305, "tabread~ (Table Array Player)");
+        soundMenu.addItem(306, "tabread4~ (Hermite 4-pt Wavetable Oscillator)");
+        soundMenu.addItem(307, "tabplay~ (Relativistic One-Shot Sampler)");
         m.addSubMenu("Sound Generators & Players", soundMenu);
 
         juce::PopupMenu fxMenu;
@@ -208,6 +216,8 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
             else if (result == 303) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "pluck~ 220"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
             else if (result == 304) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "readsf~ 2"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
             else if (result == 305) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "tabread~ array1"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 306) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "tabread4~ array1"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
+            else if (result == 307) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "tabplay~ array1"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
             else if (result == 401 || result == 3) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "ladder~ 2200 0.65"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
             else if (result == 402) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "svf~ 1500 0.707"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
             else if (result == 403 || result == 4) { auto n = RelativisticNodeFactory::createNode(nextNodeId++, "delwrite~ del1 1000"); n->xPos = 200; n->yPos = 150; canvasComponent.getCurrentGraph().addNode(n); canvasComponent.repaint(); }
@@ -238,11 +248,14 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
         m.addItem(1, "Recenter Canvas (Cmd+0)");
         m.addItem(2, "Toggle Oscilloscope", true, oscilloscopeComponent.isVisible());
         m.addSeparator();
+        m.addItem(4, "Audio Sample Pool & Wavetables (Cmd+P)", true, samplePoolWindow && samplePoolWindow->isVisible());
+        m.addSeparator();
         m.addItem(3, "Toggle Terminal Console (Cmd+K)", true, isConsoleVisible);
         m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&viewMenuButton), [this](int result) {
             if (result == 1) { canvasComponent.recenterView(); }
             else if (result == 2) { oscilloscopeComponent.setVisible(!oscilloscopeComponent.isVisible()); }
             else if (result == 3) { toggleConsole(); }
+            else if (result == 4) { toggleSamplePoolWindow(); }
         });
     };
 
@@ -1217,7 +1230,8 @@ void WorkstationContainerComponent::resized()
     helpMenuButton.setBounds(menuX, menuY, 48, btnH); menuX += 60;
 
     playButton.setBounds(menuX, menuY, 70, btnH); menuX += 75;
-    stopButton.setBounds(menuX, menuY, 70, btnH); menuX += 80;
+    stopButton.setBounds(menuX, menuY, 70, btnH); menuX += 75;
+    samplePoolButton.setBounds(menuX, menuY, 110, btnH); menuX += 118;
 
     trackViewButton.setBounds(menuX, menuY, 85, btnH); menuX += 89;
     canvasViewButton.setBounds(menuX, menuY, 105, btnH); menuX += 109;
@@ -1446,8 +1460,36 @@ bool WorkstationContainerComponent::keyPressed(const juce::KeyPress& key)
             toggleConsole();
             return true;
         }
+        else if (key.getKeyCode() == 'P' || key.getKeyCode() == 'p')
+        {
+            toggleSamplePoolWindow();
+            return true;
+        }
     }
     return false;
+}
+
+void WorkstationContainerComponent::toggleSamplePoolWindow()
+{
+    if (!samplePoolWindow)
+    {
+        samplePoolWindow = std::make_unique<SamplePoolWindow>([this](const std::string& sym, int x, int y) {
+            auto n = RelativisticNodeFactory::createNode(nextNodeId++, sym);
+            if (n)
+            {
+                n->xPos = static_cast<float>(x);
+                n->yPos = static_cast<float>(y);
+                canvasComponent.getCurrentGraph().addNode(n);
+                canvasComponent.repaint();
+            }
+        });
+    }
+
+    samplePoolWindow->setVisible(!samplePoolWindow->isVisible());
+    if (samplePoolWindow->isVisible())
+    {
+        samplePoolWindow->toFront(true);
+    }
 }
 
 void WorkstationContainerComponent::newPatch()

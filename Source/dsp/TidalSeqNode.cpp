@@ -8,14 +8,15 @@ TidalSeqNode::TidalSeqNode(int id, const std::string& patternString, double cycl
     : RelativisticNode(id, "seq.tidal", "seq.tidal " + patternString)
     , cycleDurationSec(cycleDur)
 {
-    // Inlets:
-    // 0: msgIn (set pattern / speed / dur), 1: timeIn (TimeFrame)
-    addInlet("msgIn", PortDataType::Message);
+    // Inlet 0: msgIn (Message, from base)
+    // Inlet 1: timeIn (TimeFrame)
     addInlet("timeIn", PortDataType::Time);
 
-    // Outlets:
-    // 0: noteOut (Msg), 1: freqOut~ (Audio), 2: gateOut (Msg bang), 3: ch2NoteOut (Msg), 4: audioTrig~ (Audio)
-    addOutlet("noteOut", PortDataType::Message);
+    // Outlet 0: noteOut (Message, from base)
+    // Outlet 1: freqOut~ (Audio)
+    // Outlet 2: gateOut (Message bang)
+    // Outlet 3: ch2NoteOut (Message)
+    // Outlet 4: audioTrig~ (Audio)
     addOutlet("freqOut", PortDataType::Audio);
     addOutlet("gateOut", PortDataType::Message);
     addOutlet("ch2NoteOut", PortDataType::Message);

@@ -9,6 +9,7 @@
 #include "TrackViewComponent.h"
 #include "ArrangementTimelineComponent.h"
 #include "ConsolePanelComponent.h"
+#include "SamplePoolWindow.h"
 #include "CarbonGoldLookAndFeel.h"
 
 namespace TimeDilationDAW
@@ -141,6 +142,9 @@ private:
     // Top Header UI
     juce::TextButton playButton{ "DSP ON" };
     juce::TextButton stopButton{ "DSP OFF" };
+    juce::TextButton samplePoolButton{ "📁 Sample Pool" };
+    std::unique_ptr<SamplePoolWindow> samplePoolWindow;
+    void toggleSamplePoolWindow();
 
     // JUCE Tempo & Time Signature Controls
     juce::Slider bpmSlider;

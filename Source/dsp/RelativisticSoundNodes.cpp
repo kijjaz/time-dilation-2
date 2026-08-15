@@ -19,6 +19,14 @@ TableManager::TableManager()
     }
     tables["sine"] = sineTable;
     tables["__sine__"] = sineTable;
+
+    TableInfo sineInfo;
+    sineInfo.name = "sine";
+    sineInfo.numChannels = 1;
+    sineInfo.sampleRate = 44100.0;
+    sineInfo.numSamples = GlobalSineTable::TABLE_SIZE;
+    sineInfo.durationSec = static_cast<double>(GlobalSineTable::TABLE_SIZE) / 44100.0;
+    tableMetadata["sine"] = sineInfo;
 }
 
 TableManager& TableManager::getInstance()
@@ -29,11 +37,23 @@ TableManager& TableManager::getInstance()
 
 void TableManager::createTable(const std::string& name, size_t sizeInSamples)
 {
+    std::lock_guard<std::mutex> lock(mutex);
     tables[name] = std::vector<float>(sizeInSamples, 0.0f);
+
+    TableInfo info;
+    info.name = name;
+    info.numChannels = 1;
+    info.sampleRate = 44100.0;
+    info.numSamples = sizeInSamples;
+    info.durationSec = static_cast<double>(sizeInSamples) / 44100.0;
+    tableMetadata[name] = info;
+
+    notifyListeners();
 }
 
 std::vector<float>& TableManager::getTable(const std::string& name)
 {
+    std::lock_guard<std::mutex> lock(mutex);
     static std::vector<float> empty;
     auto it = tables.find(name);
     if (it != tables.end()) return it->second;
@@ -42,7 +62,160 @@ std::vector<float>& TableManager::getTable(const std::string& name)
 
 bool TableManager::hasTable(const std::string& name) const
 {
+    std::lock_guard<std::mutex> lock(mutex);
     return tables.find(name) != tables.end();
+}
+
+bool TableManager::loadSample(const std::string& name, const juce::File& file)
+{
+    if (!file.existsAsFile()) return false;
+
+    juce::AudioFormatManager fmtMgr;
+    fmtMgr.registerBasicFormats();
+
+    std::unique_ptr<juce::AudioFormatReader> reader(fmtMgr.createReaderFor(file));
+    if (!reader) return false;
+
+    const int numSamples = static_cast<int>(reader->lengthInSamples);
+    const int numChannels = static_cast<int>(reader->numChannels);
+    if (numSamples <= 0 || numChannels <= 0) return false;
+
+    juce::AudioBuffer<float> buffer(numChannels, numSamples);
+    reader->read(&buffer, 0, numSamples, 0, true, true);
+
+    registerBuffer(name, buffer, reader->sampleRate, file.getFullPathName().toStdString());
+    return true;
+}
+
+void TableManager::registerBuffer(const std::string& name, const juce::AudioBuffer<float>& buffer, double sampleRate, const std::string& sourcePath)
+{
+    std::lock_guard<std::mutex> lock(mutex);
+
+    const int numSamples = buffer.getNumSamples();
+    const int numChannels = buffer.getNumChannels();
+
+    std::vector<float> monoData(static_cast<size_t>(numSamples), 0.0f);
+    TableInfo info;
+    info.name = name;
+    info.filePath = sourcePath;
+    info.numChannels = numChannels;
+    info.sampleRate = sampleRate > 0.0 ? sampleRate : 44100.0;
+    info.numSamples = static_cast<size_t>(numSamples);
+    info.durationSec = static_cast<double>(numSamples) / info.sampleRate;
+    info.channelData.resize(static_cast<size_t>(numChannels));
+
+    for (int ch = 0; ch < numChannels; ++ch)
+    {
+        info.channelData[static_cast<size_t>(ch)].resize(static_cast<size_t>(numSamples));
+        const float* readPtr = buffer.getReadPointer(ch);
+        for (int i = 0; i < numSamples; ++i)
+        {
+            info.channelData[static_cast<size_t>(ch)][static_cast<size_t>(i)] = readPtr[i];
+            monoData[static_cast<size_t>(i)] += readPtr[i] / static_cast<float>(numChannels);
+        }
+    }
+
+    // Pre-calculate 120-point peak envelope for instant UI thumbnail rendering
+    constexpr size_t numThumbPoints = 120;
+    info.thumbnailPeaks.resize(numThumbPoints, 0.0f);
+    if (numSamples > 0)
+    {
+        size_t blockSize = std::max<size_t>(1, static_cast<size_t>(numSamples) / numThumbPoints);
+        for (size_t p = 0; p < numThumbPoints; ++p)
+        {
+            size_t start = p * blockSize;
+            size_t end = std::min<size_t>(start + blockSize, static_cast<size_t>(numSamples));
+            float peak = 0.0f;
+            for (size_t s = start; s < end; ++s)
+            {
+                peak = std::max(peak, std::abs(monoData[s]));
+            }
+            info.thumbnailPeaks[p] = peak;
+        }
+    }
+
+    tables[name] = std::move(monoData);
+    tableMetadata[name] = std::move(info);
+
+    notifyListeners();
+}
+
+const TableInfo* TableManager::getTableInfo(const std::string& name) const
+{
+    std::lock_guard<std::mutex> lock(mutex);
+    auto it = tableMetadata.find(name);
+    if (it != tableMetadata.end()) return &it->second;
+    return nullptr;
+}
+
+std::vector<std::string> TableManager::getAllTableNames() const
+{
+    std::lock_guard<std::mutex> lock(mutex);
+    std::vector<std::string> names;
+    names.reserve(tables.size());
+    for (const auto& kv : tables)
+    {
+        if (kv.first != "__sine__")
+        {
+            names.push_back(kv.first);
+        }
+    }
+    std::sort(names.begin(), names.end());
+    return names;
+}
+
+void TableManager::removeTable(const std::string& name)
+{
+    std::lock_guard<std::mutex> lock(mutex);
+    tables.erase(name);
+    tableMetadata.erase(name);
+    notifyListeners();
+}
+
+void TableManager::renameTable(const std::string& oldName, const std::string& newName)
+{
+    if (oldName == newName || newName.empty()) return;
+    std::lock_guard<std::mutex> lock(mutex);
+
+    auto it = tables.find(oldName);
+    if (it != tables.end())
+    {
+        tables[newName] = std::move(it->second);
+        tables.erase(it);
+    }
+    auto itMeta = tableMetadata.find(oldName);
+    if (itMeta != tableMetadata.end())
+    {
+        TableInfo info = itMeta->second;
+        info.name = newName;
+        tableMetadata[newName] = std::move(info);
+        tableMetadata.erase(itMeta);
+    }
+    notifyListeners();
+}
+
+void TableManager::addListener(Listener* listener)
+{
+    if (!listener) return;
+    std::lock_guard<std::mutex> lock(mutex);
+    if (std::find(listeners.begin(), listeners.end(), listener) == listeners.end())
+    {
+        listeners.push_back(listener);
+    }
+}
+
+void TableManager::removeListener(Listener* listener)
+{
+    std::lock_guard<std::mutex> lock(mutex);
+    listeners.erase(std::remove(listeners.begin(), listeners.end(), listener), listeners.end());
+}
+
+void TableManager::notifyListeners()
+{
+    for (auto* l : listeners)
+    {
+        if (l) l->onTablePoolChanged();
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -306,6 +479,269 @@ void TabReadTildeNode::process(int numSamples)
 
         outL[s] = val;
         outR[s] = val;
+    }
+}
+
+
+// ============================================================================
+// TabRead4TildeNode Implementation (tabread4~)
+// 4-point Hermite cubic-interpolated wavetable synthesizer oscillator & continuous table reader
+// ============================================================================
+
+TabRead4TildeNode::TabRead4TildeNode(int id, const std::string& name)
+    : RelativisticNode(id, "tabread4~", "tabread4~ " + name), tableName(name)
+{
+    addInlet("index~", PortDataType::Audio); // Inlet 0: sample index / phase audio signal
+    addInlet("timeIn", PortDataType::Time);  // Inlet 1: Relativistic time frame (gamma)
+    addOutlet("out~", PortDataType::Audio);  // Outlet 1: 4-point Hermite interpolated audio
+}
+
+void TabRead4TildeNode::prepare(double sampleRate, int samplesPerBlock)
+{
+    RelativisticNode::prepare(sampleRate, samplesPerBlock);
+    currentPhase = 0.0;
+}
+
+void TabRead4TildeNode::process(int numSamples)
+{
+    auto& outBuf = getOutletBuffer(1);
+    outBuf.clear();
+
+    const auto& indexBuf = getInletBuffer(1);
+    if (!TableManager::getInstance().hasTable(tableName)) return;
+
+    const auto& tbl = TableManager::getInstance().getTable(tableName);
+    if (tbl.empty()) return;
+
+    float* outL = outBuf.getWritePointer(0);
+    float* outR = outBuf.getWritePointer(1);
+    const float* idxRead = indexBuf.getReadPointer(0);
+
+    const int tblSize = static_cast<int>(tbl.size());
+
+    for (int s = 0; s < numSamples; ++s)
+    {
+        double pos = static_cast<double>(idxRead[s]);
+        pos = std::fmod(pos, static_cast<double>(tblSize));
+        if (pos < 0.0) pos += tblSize;
+
+        // 4-Point C1 Cubic Hermite Interpolation
+        int i0 = static_cast<int>(std::floor(pos));
+        double f = pos - i0;
+
+        int im1 = (i0 - 1 + tblSize) % tblSize;
+        int i1 = (i0 + 1) % tblSize;
+        int i2 = (i0 + 2) % tblSize;
+
+        double ym1 = tbl[static_cast<size_t>(im1)];
+        double y0  = tbl[static_cast<size_t>(i0)];
+        double y1  = tbl[static_cast<size_t>(i1)];
+        double y2  = tbl[static_cast<size_t>(i2)];
+
+        double c0 = y0;
+        double c1 = 0.5 * (y1 - ym1);
+        double c2 = ym1 - 2.5 * y0 + 2.0 * y1 - 0.5 * y2;
+        double c3 = 0.5 * (y2 - ym1) + 1.5 * (y0 - y1);
+
+        float val = static_cast<float>(((c3 * f + c2) * f + c1) * f + c0);
+
+        outL[s] = val;
+        outR[s] = val;
+    }
+}
+
+void TabRead4TildeNode::receiveMessage(const std::string& message)
+{
+    RelativisticNode::receiveMessage(message);
+    juce::String s(message);
+    auto tokens = juce::StringArray::fromTokens(s, " ", "");
+    if (tokens.size() >= 2 && (tokens[0] == "set" || tokens[0] == "table"))
+    {
+        setTableName(tokens[1].toStdString());
+    }
+    else if (!tokens.isEmpty() && !tokens[0].isEmpty() && !std::isdigit(tokens[0][0]) && !tokens[0].startsWithChar('-'))
+    {
+        setTableName(tokens[0].toStdString());
+    }
+}
+
+
+// ============================================================================
+// TabPlayTildeNode Implementation (tabplay~)
+// Relativistic One-Shot Drum & Sample Player
+// ============================================================================
+
+TabPlayTildeNode::TabPlayTildeNode(int id, const std::string& name)
+    : RelativisticNode(id, "tabplay~", "tabplay~ " + name), tableName(name)
+{
+    // Inlet 0: msgIn (Message, from base)
+    // Inlet 1: timeIn (TimeFrame)
+    addInlet("timeIn", PortDataType::Time);
+
+    // Outlet 0: msgOut (Message EOS bang, from base)
+    // Outlet 1: outL~ (Audio Left)
+    // Outlet 2: outR~ (Audio Right)
+    addOutlet("outL~", PortDataType::Audio);
+    addOutlet("outR~", PortDataType::Audio);
+}
+
+void TabPlayTildeNode::prepare(double sampleRate, int samplesPerBlock)
+{
+    RelativisticNode::prepare(sampleRate, samplesPerBlock);
+    playheadPosition = 0.0;
+    playingState = false;
+}
+
+void TabPlayTildeNode::startPlayback()
+{
+    playheadPosition = 0.0;
+    playingState = true;
+}
+
+void TabPlayTildeNode::stopPlayback()
+{
+    playingState = false;
+    playheadPosition = 0.0;
+}
+
+void TabPlayTildeNode::receiveMessage(const std::string& message)
+{
+    RelativisticNode::receiveMessage(message);
+    juce::String s(message.c_str());
+    s = s.trim();
+
+    if (s.equalsIgnoreCase("bang") || s.equalsIgnoreCase("start") || s.equalsIgnoreCase("play") || s == "1")
+    {
+        startPlayback();
+    }
+    else if (s.equalsIgnoreCase("stop") || s == "0" || s.equalsIgnoreCase("pause"))
+    {
+        stopPlayback();
+    }
+    else if (s.startsWithIgnoreCase("pitch "))
+    {
+        double note = s.substring(6).getDoubleValue();
+        pitchSemitones = note - 60.0;
+        startPlayback();
+    }
+    else if (s.startsWithIgnoreCase("speed "))
+    {
+        playbackSpeedFactor = std::max(0.01, s.substring(6).getDoubleValue());
+    }
+    else if (s.startsWithIgnoreCase("set "))
+    {
+        setTableName(s.substring(4).trim().toStdString());
+    }
+    else if (s.startsWithIgnoreCase("seek "))
+    {
+        double posSec = s.substring(5).getDoubleValue();
+        const auto* info = TableManager::getInstance().getTableInfo(tableName);
+        double sr = info ? info->sampleRate : currentSampleRate;
+        playheadPosition = std::max(0.0, posSec * sr);
+    }
+    else if (!s.isEmpty())
+    {
+        // Check if message is a MIDI pitch number (e.g. from sequencer "60", "64", "67")
+        double note = s.getDoubleValue();
+        if (note > 0.0 && (s.containsOnly("0123456789.") || s.startsWithChar('-')))
+        {
+            pitchSemitones = note - 60.0;
+            startPlayback();
+        }
+    }
+}
+
+void TabPlayTildeNode::process(int numSamples)
+{
+    auto& outLBuf = getOutletBuffer(1);
+    auto& outRBuf = getOutletBuffer(2);
+    outLBuf.clear();
+    outRBuf.clear();
+
+    if (!playingState.load()) return;
+
+    const auto* info = TableManager::getInstance().getTableInfo(tableName);
+    if (!info || info->numSamples == 0)
+    {
+        // Fallback to mono table
+        if (!TableManager::getInstance().hasTable(tableName))
+        {
+            playingState = false;
+            return;
+        }
+    }
+
+    const auto& tbl = TableManager::getInstance().getTable(tableName);
+    if (tbl.empty())
+    {
+        playingState = false;
+        return;
+    }
+
+    const size_t totalSamples = info ? info->numSamples : tbl.size();
+    const double tableSampleRate = info ? info->sampleRate : currentSampleRate;
+
+    // Relativistic Time Modulation
+    bool isDriven = isInletConnected(1);
+    TimePolyFrame timeIn = isDriven ? getInletTimeFrame(1) : TimePolyFrame();
+    const bool hasSampleGamma = (timeIn.sampleGamma.size() >= static_cast<size_t>(numSamples));
+    double masterG = isDriven ? std::max(0.0, timeIn.masterGamma) : 1.0;
+
+    double pitchRate = std::pow(2.0, pitchSemitones / 12.0);
+    double baseInc = (tableSampleRate / currentSampleRate) * playbackSpeedFactor * pitchRate;
+
+    float* outL = outLBuf.getWritePointer(0);
+    float* outR = outRBuf.getWritePointer(1);
+
+    const bool hasStereo = info && info->numChannels >= 2 && info->channelData.size() >= 2;
+
+    for (int s = 0; s < numSamples; ++s)
+    {
+        if (!playingState.load()) break;
+
+        double currentGamma = hasSampleGamma ? std::max(0.0, static_cast<double>(timeIn.sampleGamma[static_cast<size_t>(s)])) : masterG;
+        double inc = baseInc * currentGamma;
+
+        size_t idx0 = static_cast<size_t>(std::floor(playheadPosition));
+        size_t idx1 = std::min(idx0 + 1, totalSamples - 1);
+        double frac = playheadPosition - static_cast<double>(idx0);
+
+        if (idx0 < totalSamples)
+        {
+            if (hasStereo)
+            {
+                float s0L = info->channelData[0][idx0];
+                float s1L = info->channelData[0][idx1];
+                float s0R = info->channelData[1][idx0];
+                float s1R = info->channelData[1][idx1];
+
+                outL[s] = static_cast<float>(s0L + frac * (s1L - s0L));
+                outR[s] = static_cast<float>(s0R + frac * (s1R - s0R));
+            }
+            else
+            {
+                float s0 = tbl[idx0];
+                float s1 = tbl[idx1];
+                float val = static_cast<float>(s0 + frac * (s1 - s0));
+                outL[s] = val;
+                outR[s] = val;
+            }
+
+            playheadPosition += inc;
+
+            if (playheadPosition >= static_cast<double>(totalSamples))
+            {
+                playingState = false;
+                emitMessageOnOutlet(0, "bang"); // Fire EOS (End-Of-Sample) bang
+                break;
+            }
+        }
+        else
+        {
+            playingState = false;
+            emitMessageOnOutlet(0, "bang");
+            break;
+        }
     }
 }
 

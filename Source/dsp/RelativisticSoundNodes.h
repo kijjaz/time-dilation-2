@@ -10,18 +10,50 @@
 namespace TimeDilationDAW
 {
 
-// Global shared table memory pool for named tables
+struct TableInfo
+{
+    std::string name;
+    std::string filePath;
+    int numChannels = 1;
+    double sampleRate = 44100.0;
+    size_t numSamples = 0;
+    double durationSec = 0.0;
+    std::vector<float> thumbnailPeaks; // Pre-calculated peak amplitudes for UI thumbnail rendering
+    std::vector<std::vector<float>> channelData; // Multi-channel sample data
+};
+
+// Global shared table memory pool for named tables & audio sample assets
 class TableManager
 {
 public:
+    struct Listener
+    {
+        virtual ~Listener() = default;
+        virtual void onTablePoolChanged() = 0;
+    };
+
     static TableManager& getInstance();
     void createTable(const std::string& name, size_t sizeInSamples);
     std::vector<float>& getTable(const std::string& name);
     bool hasTable(const std::string& name) const;
 
+    bool loadSample(const std::string& name, const juce::File& file);
+    void registerBuffer(const std::string& name, const juce::AudioBuffer<float>& buffer, double sampleRate, const std::string& sourcePath = "");
+    const TableInfo* getTableInfo(const std::string& name) const;
+    std::vector<std::string> getAllTableNames() const;
+    void removeTable(const std::string& name);
+    void renameTable(const std::string& oldName, const std::string& newName);
+
+    void addListener(Listener* listener);
+    void removeListener(Listener* listener);
+
 private:
     TableManager();
+    mutable std::mutex mutex;
     std::unordered_map<std::string, std::vector<float>> tables;
+    std::unordered_map<std::string, TableInfo> tableMetadata;
+    std::vector<Listener*> listeners;
+    void notifyListeners();
 };
 
 // High-Performance Global Sine Wavetable with 4-point Hermite interpolation (32-bit float accuracy)
@@ -82,6 +114,46 @@ public:
 
 private:
     std::string tableName;
+};
+
+// tabread4~ node: 4-point Hermite cubic-interpolated wavetable synthesizer oscillator & continuous table reader
+class TabRead4TildeNode : public RelativisticNode
+{
+public:
+    TabRead4TildeNode(int id, const std::string& tableName = "array1");
+    void prepare(double sampleRate, int samplesPerBlock) override;
+    void process(int numSamples) override;
+    void receiveMessage(const std::string& message) override;
+
+    void setTableName(const std::string& name) { tableName = name; setLabel("tabread4~ " + name); }
+    const std::string& getTableName() const { return tableName; }
+
+private:
+    std::string tableName;
+    double currentPhase = 0.0;
+};
+
+// tabplay~ node: Relativistic one-shot drum/sample player
+class TabPlayTildeNode : public RelativisticNode
+{
+public:
+    TabPlayTildeNode(int id, const std::string& tableName = "array1");
+    void prepare(double sampleRate, int samplesPerBlock) override;
+    void process(int numSamples) override;
+    void receiveMessage(const std::string& message) override;
+
+    void startPlayback();
+    void stopPlayback();
+    void setTableName(const std::string& name) { tableName = name; setLabel("tabplay~ " + name); }
+    const std::string& getTableName() const { return tableName; }
+    bool isPlaying() const { return playingState.load(); }
+
+private:
+    std::string tableName;
+    std::atomic<bool> playingState{ false };
+    double playheadPosition = 0.0;
+    double playbackSpeedFactor = 1.0;
+    double pitchSemitones = 0.0;
 };
 
 // svf~ node
