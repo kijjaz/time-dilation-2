@@ -194,6 +194,95 @@ void TableManager::renameTable(const std::string& oldName, const std::string& ne
     notifyListeners();
 }
 
+void TableManager::clearAllTables()
+{
+    std::lock_guard<std::mutex> lock(mutex);
+    tables.clear();
+    tableMetadata.clear();
+    notifyListeners();
+}
+
+void TableManager::saveAllTablesToDirectory(const juce::File& audioDir)
+{
+    if (!audioDir.isDirectory())
+    {
+        audioDir.createDirectory();
+    }
+
+    std::lock_guard<std::mutex> lock(mutex);
+    juce::WavAudioFormat wavFmt;
+
+    for (const auto& pair : tableMetadata)
+    {
+        const auto& name = pair.first;
+        const auto& info = pair.second;
+        if (info.numSamples == 0) continue;
+
+        auto targetWav = audioDir.getChildFile(name + ".wav");
+        if (targetWav.existsAsFile())
+        {
+            // If already up-to-date, avoid rewriting
+            continue;
+        }
+
+        std::unique_ptr<juce::AudioFormatWriter> writer(wavFmt.createWriterFor(
+            new juce::FileOutputStream(targetWav),
+            info.sampleRate > 0.0 ? info.sampleRate : 44100.0,
+            static_cast<unsigned int>(std::max(1, info.numChannels)),
+            24,
+            {},
+            0));
+
+        if (writer)
+        {
+            if (info.numChannels == 2 && info.channelData.size() >= 2 && !info.channelData[1].empty())
+            {
+                juce::AudioBuffer<float> buf(2, static_cast<int>(info.numSamples));
+                if (!info.channelData[0].empty())
+                {
+                    buf.copyFrom(0, 0, info.channelData[0].data(), static_cast<int>(info.numSamples));
+                }
+                else
+                {
+                    auto itL = tables.find(name);
+                    if (itL != tables.end() && itL->second.size() >= info.numSamples)
+                    {
+                        buf.copyFrom(0, 0, itL->second.data(), static_cast<int>(info.numSamples));
+                    }
+                }
+                buf.copyFrom(1, 0, info.channelData[1].data(), static_cast<int>(info.numSamples));
+                writer->writeFromAudioSampleBuffer(buf, 0, static_cast<int>(info.numSamples));
+            }
+            else
+            {
+                auto itL = tables.find(name);
+                if (itL != tables.end() && itL->second.size() >= info.numSamples)
+                {
+                    juce::AudioBuffer<float> buf(1, static_cast<int>(info.numSamples));
+                    buf.copyFrom(0, 0, itL->second.data(), static_cast<int>(info.numSamples));
+                    writer->writeFromAudioSampleBuffer(buf, 0, static_cast<int>(info.numSamples));
+                }
+            }
+            writer->flush();
+        }
+    }
+}
+
+void TableManager::loadTablesFromDirectory(const juce::File& audioDir)
+{
+    if (!audioDir.isDirectory()) return;
+
+    auto files = audioDir.findChildFiles(juce::File::findFiles, false, "*.wav;*.aif;*.aiff;*.flac;*.mp3");
+    for (const auto& file : files)
+    {
+        std::string tableName = file.getFileNameWithoutExtension().toLowerCase().toStdString();
+        if (!hasTable(tableName))
+        {
+            loadSample(tableName, file);
+        }
+    }
+}
+
 void TableManager::addListener(Listener* listener)
 {
     if (!listener) return;

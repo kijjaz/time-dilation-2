@@ -189,6 +189,7 @@ public:
     void newPatch();
     void savePatch();
     void savePatchAs();
+    void chooseProjectFolder();
     void loadPatchFromFile(const juce::File& fileToLoad);
 
     juce::File currentPatchFile;

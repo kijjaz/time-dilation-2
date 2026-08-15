@@ -68,6 +68,8 @@ target_sources(TimeDilationDAW
         Source/gui/WorkstationContainerComponent.h
         Source/gui/WorkstationContainerComponent.cpp
         Source/utils/ConsoleLogger.h
+        Source/utils/ProjectManager.h
+        Source/utils/ProjectManager.cpp
         Source/utils/AgentTestRunner.h
         Source/utils/AgentTestRunner.cpp
         Source/utils/TerminalCommandProcessor.h

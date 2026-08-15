@@ -1,5 +1,6 @@
 #include "PdSampleNodes.h"
 #include "../utils/ConsoleLogger.h"
+#include "../utils/ProjectManager.h"
 #include <juce_audio_formats/juce_audio_formats.h>
 
 namespace TimeDilationDAW
@@ -59,12 +60,7 @@ void SoundfilerNode::receiveMessage(const std::string& message)
             tableName = tokens[idx++].toStdString();
         }
 
-        juce::File audioFile(filePath);
-        if (!audioFile.existsAsFile())
-        {
-            // Try relative to current directory or user home
-            audioFile = juce::File::getCurrentWorkingDirectory().getChildFile(filePath);
-        }
+        juce::File audioFile = ProjectManager::getInstance().resolveAudioFile(filePath);
 
         bool success = readFile(audioFile, tableName, resize);
         if (!success)
@@ -81,7 +77,7 @@ void SoundfilerNode::receiveMessage(const std::string& message)
         if (tokens.size() > 1) filePath = tokens[1];
         if (tokens.size() > 2) tableName = tokens[2].toStdString();
 
-        juce::File targetFile(filePath);
+        juce::File targetFile = ProjectManager::getInstance().resolveAudioFile(filePath);
         bool success = writeFile(targetFile, tableName);
         if (!success)
         {
@@ -249,11 +245,7 @@ void ReadSFTildeNode::receiveMessage(const std::string& message)
 
     if (tokens[0] == "open" && tokens.size() > 1)
     {
-        juce::File f(tokens[1]);
-        if (!f.existsAsFile())
-        {
-            f = juce::File::getCurrentWorkingDirectory().getChildFile(tokens[1]);
-        }
+        juce::File f = ProjectManager::getInstance().resolveAudioFile(tokens[1]);
         openFile(f);
     }
     else if (tokens[0] == "start" || tokens[0] == "1" || tokens[0] == "bang")

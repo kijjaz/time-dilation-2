@@ -31,6 +31,7 @@ public:
     static bool testTidalCyclesPatternEngine();
     static bool testTidalDynamicSubdivisionDrawer();
     static bool testSamplePoolAndSamplerSuite();
+    static bool testProjectDirectoryAssetManagement();
 };
 
 } // namespace TimeDilationDAW

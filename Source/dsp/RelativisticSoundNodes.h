@@ -43,6 +43,11 @@ public:
     std::vector<std::string> getAllTableNames() const;
     void removeTable(const std::string& name);
     void renameTable(const std::string& oldName, const std::string& newName);
+    void clearAllTables();
+
+    // Batch Directory File Bundling
+    void saveAllTablesToDirectory(const juce::File& audioDir);
+    void loadTablesFromDirectory(const juce::File& audioDir);
 
     void addListener(Listener* listener);
     void removeListener(Listener* listener);

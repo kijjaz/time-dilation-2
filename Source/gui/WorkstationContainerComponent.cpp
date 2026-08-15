@@ -1,5 +1,6 @@
 #include "WorkstationContainerComponent.h"
 #include "../dsp/RelativisticNodeFactory.h"
+#include "../utils/ProjectManager.h"
 
 namespace TimeDilationDAW
 {
@@ -115,6 +116,7 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
         m.addSeparator();
         m.addItem(3, "Save Patch (.pdil) (Cmd+S)");
         m.addItem(4, "Save As... (Cmd+Shift+S)");
+        m.addItem(7, "Choose Project Folder / Bundle...");
         m.addSeparator();
         m.addItem(5, "Audio Settings (Interface, Sample Rate, Buffer Size)...");
         m.addSeparator();
@@ -124,6 +126,7 @@ WorkstationContainerComponent::WorkstationContainerComponent(bool enableAudioHar
             else if (result == 2) loadPatchFromFile(juce::File{});
             else if (result == 3) savePatch();
             else if (result == 4) savePatchAs();
+            else if (result == 7) chooseProjectFolder();
             else if (result == 5) showAudioSettingsWindow();
             else if (result == 6) juce::JUCEApplication::getInstance()->systemRequestedQuit();
         });
@@ -1498,6 +1501,8 @@ void WorkstationContainerComponent::newPatch()
     arrangementTimelineComponent.clearMessageEvents();
     currentPatchFile = juce::File{};
 
+    ProjectManager::getInstance().initializeDefaultSession();
+
     // Add default Master Out~ node ready for immediate patching
     auto outNode = RelativisticNodeFactory::createNode(1, "out~ master");
     outNode->xPos = 450.0f;
@@ -1519,16 +1524,20 @@ void WorkstationContainerComponent::newPatch()
     trackViewComponent.refreshTracks();
     arrangementTimelineComponent.refreshTimeline();
 
-    ConsoleLogger::getInstance().log("Created new relativistic patch (Untitled.pdil)", "patch", LogLevel::System);
+    ConsoleLogger::getInstance().log("Created new relativistic session in default temp directory", "patch", LogLevel::System);
 }
 
 void WorkstationContainerComponent::savePatch()
 {
     if (currentPatchFile.existsAsFile() || currentPatchFile != juce::File{})
     {
+        // 1. Set project file in ProjectManager and sync session assets into ./audio/
+        ProjectManager::getInstance().setProjectFile(currentPatchFile);
+        ProjectManager::getInstance().syncSessionAssetsToProject();
+
         juce::DynamicObject::Ptr rootObj = new juce::DynamicObject();
 
-        // 1. Serialize Node Graph (Nodes, Cables, Coordinates, Volume & Scope modes, Feedback Safety)
+        // 2. Serialize Node Graph (Nodes, Cables, Coordinates, Volume & Scope modes, Feedback Safety)
         juce::String graphJsonStr = nodeGraph.serializeToJSON();
         auto parsedGraph = juce::JSON::parse(graphJsonStr);
         if (parsedGraph.isObject())
@@ -1536,7 +1545,7 @@ void WorkstationContainerComponent::savePatch()
             rootObj->setProperty("graph", parsedGraph);
         }
 
-        // 2. Serialize Arrangement Timeline Message Events
+        // 3. Serialize Arrangement Timeline Message Events
         juce::Array<juce::var> eventsArr;
         for (const auto& ev : arrangementTimelineComponent.getMessageEvents())
         {
@@ -1550,7 +1559,7 @@ void WorkstationContainerComponent::savePatch()
         }
         rootObj->setProperty("timelineEvents", eventsArr);
 
-        // 3. Serialize Master Transport & Loop Settings
+        // 4. Serialize Master Transport & Loop Settings
         juce::DynamicObject::Ptr transportObj = new juce::DynamicObject();
         transportObj->setProperty("bpm", bpmSlider.getValue());
         transportObj->setProperty("timeSigId", timeSigCombo.getSelectedId());
@@ -1560,11 +1569,28 @@ void WorkstationContainerComponent::savePatch()
         transportObj->setProperty("viewMode", static_cast<int>(currentViewMode));
         rootObj->setProperty("transport", juce::var(transportObj.get()));
 
+        // 5. Serialize Sample Pool & Tables with relative paths
+        juce::Array<juce::var> poolArr;
+        for (const auto& name : TableManager::getInstance().getAllTableNames())
+        {
+            if (const auto* info = TableManager::getInstance().getTableInfo(name))
+            {
+                juce::DynamicObject::Ptr sObj = new juce::DynamicObject();
+                sObj->setProperty("name", juce::String(name));
+                sObj->setProperty("file", "audio/" + juce::String(name) + ".wav");
+                sObj->setProperty("sampleRate", info->sampleRate);
+                sObj->setProperty("numChannels", info->numChannels);
+                sObj->setProperty("numSamples", static_cast<juce::int64>(info->numSamples));
+                poolArr.add(juce::var(sObj.get()));
+            }
+        }
+        rootObj->setProperty("samplePool", poolArr);
+
         juce::String fullJson = juce::JSON::toString(juce::var(rootObj.get()), true);
         if (currentPatchFile.replaceWithText(fullJson))
         {
             titleLabel.setText("Time Dilation DAW 2 — " + currentPatchFile.getFileName(), juce::dontSendNotification);
-            ConsoleLogger::getInstance().log("Patch saved successfully: " + currentPatchFile.getFullPathName().toStdString(), "patch", LogLevel::System);
+            ConsoleLogger::getInstance().log("Project & ./audio assets saved successfully: " + currentPatchFile.getFullPathName().toStdString(), "patch", LogLevel::System);
         }
         else
         {
@@ -1600,6 +1626,29 @@ void WorkstationContainerComponent::savePatchAs()
         });
 }
 
+void WorkstationContainerComponent::chooseProjectFolder()
+{
+    juce::File defaultDir = currentPatchFile.existsAsFile() ? currentPatchFile.getParentDirectory()
+                                                            : juce::File::getSpecialLocation(juce::File::userHomeDirectory);
+
+    activeFileChooser = std::make_unique<juce::FileChooser>(
+        "Choose Project Folder / Bundle...",
+        defaultDir,
+        "");
+
+    activeFileChooser->launchAsync(
+        juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories,
+        [this](const juce::FileChooser& fc) {
+            auto chosenDir = fc.getResult();
+            if (chosenDir.isDirectory())
+            {
+                ProjectManager::getInstance().setProjectDirectory(chosenDir);
+                currentPatchFile = chosenDir.getChildFile(chosenDir.getFileName() + ".pdil");
+                savePatch();
+            }
+        });
+}
+
 void WorkstationContainerComponent::loadPatchFromFile(const juce::File& fileToLoad)
 {
     if (fileToLoad.existsAsFile())
@@ -1611,6 +1660,10 @@ void WorkstationContainerComponent::loadPatchFromFile(const juce::File& fileToLo
             auto rootObj = parsed.getDynamicObject();
             if (rootObj)
             {
+                // Update ProjectManager directory and load sample pool from ./audio/
+                ProjectManager::getInstance().setProjectFile(fileToLoad);
+                TableManager::getInstance().loadTablesFromDirectory(ProjectManager::getInstance().getAudioDirectory());
+
                 // 1. Restore Node Graph
                 if (rootObj->hasProperty("graph"))
                 {
@@ -1665,6 +1718,31 @@ void WorkstationContainerComponent::loadPatchFromFile(const juce::File& fileToLo
                     }
                 }
 
+                // 4. Restore Sample Pool tables if specified in JSON
+                if (rootObj->hasProperty("samplePool"))
+                {
+                    auto poolVar = rootObj->getProperty("samplePool");
+                    if (poolVar.isArray())
+                    {
+                        for (const auto& sVar : *poolVar.getArray())
+                        {
+                            if (auto sObj = sVar.getDynamicObject())
+                            {
+                                std::string sName = sObj->getProperty("name").toString().toStdString();
+                                juce::String sFileRel = sObj->getProperty("file").toString();
+                                if (!TableManager::getInstance().hasTable(sName))
+                                {
+                                    juce::File resolved = ProjectManager::getInstance().resolveAudioFile(sFileRel);
+                                    if (resolved.existsAsFile())
+                                    {
+                                        TableManager::getInstance().loadSample(sName, resolved);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 currentPatchFile = fileToLoad;
                 titleLabel.setText("Time Dilation DAW 2 — " + currentPatchFile.getFileName(), juce::dontSendNotification);
                 canvasComponent.repaint();
@@ -1672,7 +1750,7 @@ void WorkstationContainerComponent::loadPatchFromFile(const juce::File& fileToLo
                 arrangementTimelineComponent.refreshTimeline();
                 resized();
 
-                ConsoleLogger::getInstance().log("Loaded patch: " + currentPatchFile.getFullPathName().toStdString() + " (" + std::to_string(nodeGraph.getNodes().size()) + " nodes)", "patch", LogLevel::System);
+                ConsoleLogger::getInstance().log("Loaded patch & ./audio assets: " + currentPatchFile.getFullPathName().toStdString() + " (" + std::to_string(nodeGraph.getNodes().size()) + " nodes)", "patch", LogLevel::System);
             }
         }
         else

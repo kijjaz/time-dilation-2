@@ -1,4 +1,5 @@
 #include "AgentTestRunner.h"
+#include "ProjectManager.h"
 #include "../gui/WorkstationContainerComponent.h"
 #include "../dsp/RelativisticNodeFactory.h"
 #include "../dsp/RelativisticSequencerNodes.h"
@@ -899,8 +900,9 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
     bool tidalPass = testTidalCyclesPatternEngine();
     bool tidalDrawerPass = testTidalDynamicSubdivisionDrawer();
     bool samplePoolPass = testSamplePoolAndSamplerSuite();
+    bool projectAssetPass = testProjectDirectoryAssetManagement();
 
-    bool allPhasesPass = allPhase1Pass && gravPass && lorentzPass && tachyonPass && jsonPass && dynamicLatPass && pdControlPass && samplePlaybackPass && delayPipePass && timeSculptPass && seqTimelinePass && tidalPass && tidalDrawerPass && samplePoolPass;
+    bool allPhasesPass = allPhase1Pass && gravPass && lorentzPass && tachyonPass && jsonPass && dynamicLatPass && pdControlPass && samplePlaybackPass && delayPipePass && timeSculptPass && seqTimelinePass && tidalPass && tidalDrawerPass && samplePoolPass && projectAssetPass;
     std::cout << "\n[Full Test Suite] Overall Result: " << (allPhasesPass ? "PASSED" : "FAILED") << "\n\n";
 
     // Export artifacts/phase2_3_4_telemetry.json
@@ -920,7 +922,8 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
     fullOut << "  \"relativisticSequencersAndTimeline\": " << (seqTimelinePass ? "true" : "false") << ",\n";
     fullOut << "  \"tidalCyclesPatternEngine\": " << (tidalPass ? "true" : "false") << ",\n";
     fullOut << "  \"tidalDynamicSubdivisionDrawer\": " << (tidalDrawerPass ? "true" : "false") << ",\n";
-    fullOut << "  \"samplePoolAndRelativisticSamplers\": " << (samplePoolPass ? "true" : "false") << "\n";
+    fullOut << "  \"samplePoolAndRelativisticSamplers\": " << (samplePoolPass ? "true" : "false") << ",\n";
+    fullOut << "  \"projectDirectoryAssetManagement\": " << (projectAssetPass ? "true" : "false") << "\n";
     fullOut << "}\n";
     fullOut.close();
 
@@ -2199,6 +2202,117 @@ bool AgentTestRunner::testSamplePoolAndSamplerSuite()
 
     std::cout << "PASSED (Peak: " << peakMagnitude << ")\n";
     std::cout << "[AgentTestRunner] Exported WAV Observation 20 (Sample Pool & Sampler): " << obs20Wav.getFullPathName().toStdString() << "\n";
+    return true;
+}
+
+bool AgentTestRunner::testProjectDirectoryAssetManagement()
+{
+    std::cout << "[Test 21] Project Asset Manager, Directory Bundling & Audio Folder Resolution Suite... ";
+
+    // 1. Initialize default temporary session
+    ProjectManager::getInstance().initializeDefaultSession();
+    auto tempAudioDir = ProjectManager::getInstance().getAudioDirectory();
+    if (!tempAudioDir.isDirectory())
+    {
+        std::cout << "FAILED (Default temp session audio directory not created)\n";
+        return false;
+    }
+
+    // 2. Synthesize test drum samples and register in TableManager
+    constexpr int sampleCount = 22050; // 0.5 sec
+    juce::AudioBuffer<float> kickAssetBuf(1, sampleCount);
+    float* kPtr = kickAssetBuf.getWritePointer(0);
+    for (int i = 0; i < sampleCount; ++i)
+    {
+        double t = static_cast<double>(i) / 44100.0;
+        kPtr[i] = static_cast<float>(std::sin(2.0 * 3.14159265358979323846 * 60.0 * t) * std::exp(-t * 10.0));
+    }
+    TableManager::getInstance().registerBuffer("kick_asset", kickAssetBuf, 44100.0);
+
+    juce::AudioBuffer<float> snareAssetBuf(2, sampleCount);
+    float* sPtrL = snareAssetBuf.getWritePointer(0);
+    float* sPtrR = snareAssetBuf.getWritePointer(1);
+    for (int i = 0; i < sampleCount; ++i)
+    {
+        double t = static_cast<double>(i) / 44100.0;
+        float val = static_cast<float>(std::sin(2.0 * 3.14159265358979323846 * 200.0 * t) * std::exp(-t * 14.0));
+        sPtrL[i] = val;
+        sPtrR[i] = val;
+    }
+    TableManager::getInstance().registerBuffer("snare_asset", snareAssetBuf, 44100.0);
+
+    // 3. Switch to a saved project directory in artifacts/test_project/
+    juce::File testProjDir("artifacts/test_project");
+    if (testProjDir.isDirectory())
+    {
+        testProjDir.deleteRecursively();
+    }
+    testProjDir.createDirectory();
+
+    juce::File testProjFile = testProjDir.getChildFile("TestSong.pdil");
+    ProjectManager::getInstance().setProjectFile(testProjFile);
+
+    // 4. Sync session assets to the project (writes active tables to ./audio/<name>.wav)
+    ProjectManager::getInstance().syncSessionAssetsToProject();
+
+    auto projAudioDir = ProjectManager::getInstance().getAudioDirectory();
+    auto kickWav = projAudioDir.getChildFile("kick_asset.wav");
+    auto snareWav = projAudioDir.getChildFile("snare_asset.wav");
+
+    if (!kickWav.existsAsFile() || !snareWav.existsAsFile())
+    {
+        std::cout << "FAILED (Audio assets not written into project ./audio/ folder)\n";
+        return false;
+    }
+    if (kickWav.getSize() < 1000 || snareWav.getSize() < 1000)
+    {
+        std::cout << "FAILED (Written WAV file sizes too small)\n";
+        return false;
+    }
+
+    // 5. Test Path Resolution
+    juce::File resolvedKick = ProjectManager::getInstance().resolveAudioFile("kick_asset.wav");
+    juce::File resolvedSnare = ProjectManager::getInstance().resolveAudioFile("audio/snare_asset.wav");
+
+    if (resolvedKick != kickWav || resolvedSnare != snareWav)
+    {
+        std::cout << "FAILED (Path resolution mismatch for relative audio assets)\n";
+        return false;
+    }
+
+    // 6. Test Soundfiler & Readsf with relative paths inside project
+    auto soundfiler = RelativisticNodeFactory::createNode(10, "soundfiler");
+    soundfiler->receiveMessage("read -resize kick_asset.wav reloaded_kick");
+    if (!TableManager::getInstance().hasTable("reloaded_kick"))
+    {
+        std::cout << "FAILED (Soundfiler failed to resolve and read relative ./audio/ asset)\n";
+        return false;
+    }
+
+    // 7. Clear all tables and simulate Project Re-Open Auto-Loading
+    TableManager::getInstance().clearAllTables();
+    if (TableManager::getInstance().hasTable("kick_asset"))
+    {
+        std::cout << "FAILED (TableManager clearAllTables failed)\n";
+        return false;
+    }
+
+    // Auto-load all tables from project ./audio/ directory
+    TableManager::getInstance().loadTablesFromDirectory(projAudioDir);
+    if (!TableManager::getInstance().hasTable("kick_asset") || !TableManager::getInstance().hasTable("snare_asset"))
+    {
+        std::cout << "FAILED (Project re-open auto-load from ./audio/ failed)\n";
+        return false;
+    }
+
+    const auto* reloadedInfo = TableManager::getInstance().getTableInfo("snare_asset");
+    if (!reloadedInfo || reloadedInfo->numChannels != 2 || reloadedInfo->thumbnailPeaks.empty())
+    {
+        std::cout << "FAILED (Reloaded table metadata/waveform envelope invalid)\n";
+        return false;
+    }
+
+    std::cout << "PASSED (Audio folder bundling & relative resolution verified)\n";
     return true;
 }
 

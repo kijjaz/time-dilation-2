@@ -12,5 +12,6 @@
   "relativisticSequencersAndTimeline": true,
   "tidalCyclesPatternEngine": true,
   "tidalDynamicSubdivisionDrawer": true,
-  "samplePoolAndRelativisticSamplers": true
+  "samplePoolAndRelativisticSamplers": true,
+  "projectDirectoryAssetManagement": true
 }
