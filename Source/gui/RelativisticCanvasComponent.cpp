@@ -4,6 +4,8 @@
 #include "../dsp/RelativisticNodeFactory.h"
 #include "../dsp/TidalSeqNode.h"
 #include "../dsp/RelativisticSequencerNodes.h"
+#include "../dsp/PdSampleNodes.h"
+#include "../dsp/AudioInputRouter.h"
 
 namespace TimeDilationDAW
 {
@@ -1764,6 +1766,39 @@ void RelativisticCanvasComponent::mouseDown(const juce::MouseEvent& e)
                     m.addSeparator();
                     m.addItem(1, "Edit Pattern Mini-Notation...");
                 }
+                else if (auto tabWrite = std::dynamic_pointer_cast<TabWriteTildeNode>(node))
+                {
+                    juce::PopupMenu srcMenu;
+                    srcMenu.addSectionHeader("External Hardware Inputs");
+                    srcMenu.addItem(301, "Input 1 (Mono - Mic/Line 1)");
+                    srcMenu.addItem(302, "Input 2 (Mono - Mic/Line 2)");
+                    srcMenu.addItem(303, "Input 1 + 2 (Stereo)");
+                    srcMenu.addSeparator();
+                    srcMenu.addSectionHeader("Internal Sources");
+                    srcMenu.addItem(310, "Master Mix (Internal)");
+
+                    juce::PopupMenu tapMenu;
+                    const auto& allNodes = rootGraph.getNodes();
+                    int tapBase = 400;
+                    for (size_t i = 0; i < allNodes.size(); ++i)
+                    {
+                        const auto& n = allNodes[i];
+                        if (n->getId() == node->getId()) continue;
+                        bool hasAudio = false;
+                        for (const auto& o : n->getOutlets()) { if (o.dataType == PortDataType::Audio) { hasAudio = true; break; } }
+                        if (hasAudio)
+                        {
+                            tapMenu.addItem(tapBase + static_cast<int>(i), "Node " + std::to_string(n->getId()) + ": " + n->getLabel());
+                        }
+                    }
+                    srcMenu.addSubMenu("Tap Audio from Node", tapMenu);
+                    m.addSubMenu("Select Input Source...", srcMenu);
+                    m.addSeparator();
+                    m.addItem(350, "● Start Recording Buffer (start)");
+                    m.addItem(351, "■ Stop Recording (stop)");
+                    m.addItem(352, "Clear Table Buffer (clear)");
+                    m.addSeparator();
+                }
                 m.addItem(2, "Inspect Node Properties");
                 m.addItem(3, "Delete Node");
 
@@ -1836,6 +1871,29 @@ void RelativisticCanvasComponent::mouseDown(const juce::MouseEvent& e)
                         {
                             spawnObjectEditorForNode(node->getId());
                         }
+                    }
+                    else if (auto tabWrite = std::dynamic_pointer_cast<TabWriteTildeNode>(node))
+                    {
+                        if (res == 301) { AudioInputSource src; src.type = AudioInputType::ExternalMono; src.primaryChannel = 1; tabWrite->setInputSource(src); }
+                        else if (res == 302) { AudioInputSource src; src.type = AudioInputType::ExternalMono; src.primaryChannel = 2; tabWrite->setInputSource(src); }
+                        else if (res == 303) { AudioInputSource src; src.type = AudioInputType::ExternalStereo; src.primaryChannel = 1; src.secondaryChannel = 2; tabWrite->setInputSource(src); }
+                        else if (res == 310) { AudioInputSource src; src.type = AudioInputType::InternalMaster; tabWrite->setInputSource(src); }
+                        else if (res >= 400 && res < 400 + static_cast<int>(rootGraph.getNodes().size()))
+                        {
+                            int nIdx = res - 400;
+                            const auto& allNodes = rootGraph.getNodes();
+                            if (nIdx >= 0 && nIdx < static_cast<int>(allNodes.size()))
+                            {
+                                AudioInputSource src;
+                                src.type = AudioInputType::InternalNodeTap;
+                                src.tapNodeId = allNodes[static_cast<size_t>(nIdx)]->getId();
+                                src.tapOutletIndex = 0;
+                                tabWrite->setInputSource(src);
+                            }
+                        }
+                        else if (res == 350) tabWrite->receiveMessage("start");
+                        else if (res == 351) tabWrite->receiveMessage("stop");
+                        else if (res == 352) tabWrite->receiveMessage("clear");
                     }
                     if (res == 2)
                     {

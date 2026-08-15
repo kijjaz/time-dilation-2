@@ -903,8 +903,9 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
     bool samplePoolPass = testSamplePoolAndSamplerSuite();
     bool projectAssetPass = testProjectDirectoryAssetManagement();
     bool liveAudioPass = testLiveAudioInputAndBufferRecording();
+    bool inputRoutingPass = testAudioInputRoutingAndInternalTapping();
 
-    bool allPhasesPass = allPhase1Pass && gravPass && lorentzPass && tachyonPass && jsonPass && dynamicLatPass && pdControlPass && samplePlaybackPass && delayPipePass && timeSculptPass && seqTimelinePass && tidalPass && tidalDrawerPass && samplePoolPass && projectAssetPass && liveAudioPass;
+    bool allPhasesPass = allPhase1Pass && gravPass && lorentzPass && tachyonPass && jsonPass && dynamicLatPass && pdControlPass && samplePlaybackPass && delayPipePass && timeSculptPass && seqTimelinePass && tidalPass && tidalDrawerPass && samplePoolPass && projectAssetPass && liveAudioPass && inputRoutingPass;
     std::cout << "\n[Full Test Suite] Overall Result: " << (allPhasesPass ? "PASSED" : "FAILED") << "\n\n";
 
     // Export artifacts/phase2_3_4_telemetry.json
@@ -926,7 +927,8 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
     fullOut << "  \"tidalDynamicSubdivisionDrawer\": " << (tidalDrawerPass ? "true" : "false") << ",\n";
     fullOut << "  \"samplePoolAndRelativisticSamplers\": " << (samplePoolPass ? "true" : "false") << ",\n";
     fullOut << "  \"projectDirectoryAssetManagement\": " << (projectAssetPass ? "true" : "false") << ",\n";
-    fullOut << "  \"liveAudioInputAndBufferRecording\": " << (liveAudioPass ? "true" : "false") << "\n";
+    fullOut << "  \"liveAudioInputAndBufferRecording\": " << (liveAudioPass ? "true" : "false") << ",\n";
+    fullOut << "  \"audioInputRoutingAndInternalTapping\": " << (inputRoutingPass ? "true" : "false") << "\n";
     fullOut << "}\n";
     fullOut.close();
 
@@ -2445,6 +2447,135 @@ bool AgentTestRunner::testLiveAudioInputAndBufferRecording()
     }
 
     std::cout << "PASSED (Live recording, buffer synthesis & playback verified, peak: " << playbackPeak << ")\n";
+    return true;
+}
+
+bool AgentTestRunner::testAudioInputRoutingAndInternalTapping()
+{
+    std::cout << "[Test 23] Audio Input Routing (External Mono/Stereo & Internal Node Tapping) Suite... \n";
+
+    // 1. Setup Mock Hardware Input Buffer (Ch1: 100Hz 0.8f, Ch2: 440Hz 0.5f)
+    juce::AudioBuffer<float> mockHardwareIn(2, 48000);
+    for (int i = 0; i < 48000; ++i)
+    {
+        mockHardwareIn.setSample(0, i, 0.8f * std::sin(2.0f * juce::MathConstants<float>::pi * 100.0f * (static_cast<float>(i) / 48000.0f)));
+        mockHardwareIn.setSample(1, i, 0.5f * std::sin(2.0f * juce::MathConstants<float>::pi * 440.0f * (static_cast<float>(i) / 48000.0f)));
+    }
+    AudioInputRouter::setGlobalInputBuffer(mockHardwareIn);
+
+    RelativisticNodeGraph graph;
+    graph.prepare(96000.0, 512);
+
+    // 2. Test External Mono Channel 1 Extraction
+    AudioInputSource srcMono1;
+    srcMono1.type = AudioInputType::ExternalMono;
+    srcMono1.primaryChannel = 1;
+
+    juce::AudioBuffer<float> testBuf(2, 512);
+    AudioInputRouter::getInstance().fetchAudioBlock(srcMono1, graph, testBuf, 512);
+
+    float peakMono1 = testBuf.getMagnitude(0, 0, 512);
+    if (peakMono1 < 0.75f)
+    {
+        std::cout << "FAILED (External Mono In 1 extraction failed, peak=" << peakMono1 << ")\n";
+        return false;
+    }
+
+    // 3. Test External Mono Channel 2 Extraction
+    AudioInputSource srcMono2;
+    srcMono2.type = AudioInputType::ExternalMono;
+    srcMono2.primaryChannel = 2;
+    AudioInputRouter::getInstance().fetchAudioBlock(srcMono2, graph, testBuf, 512);
+    float peakMono2 = testBuf.getMagnitude(0, 0, 512);
+    if (peakMono2 < 0.45f || peakMono2 > 0.55f)
+    {
+        std::cout << "FAILED (External Mono In 2 extraction failed, peak=" << peakMono2 << ")\n";
+        return false;
+    }
+
+    // 4. Test External Stereo Extraction
+    AudioInputSource srcStereo;
+    srcStereo.type = AudioInputType::ExternalStereo;
+    srcStereo.primaryChannel = 1;
+    srcStereo.secondaryChannel = 2;
+    AudioInputRouter::getInstance().fetchAudioBlock(srcStereo, graph, testBuf, 512);
+    float leftPeak = testBuf.getMagnitude(0, 0, 512);
+    float rightPeak = testBuf.getMagnitude(1, 0, 512);
+    if (leftPeak < 0.75f || rightPeak < 0.45f)
+    {
+        std::cout << "FAILED (External Stereo extraction failed, left=" << leftPeak << ", right=" << rightPeak << ")\n";
+        return false;
+    }
+
+    // 5. Test Internal Node Tapping without patch cable
+    auto osc = RelativisticNodeFactory::createNode(1, "osc~ saw");
+    osc->receiveMessage("freq 220");
+    graph.addNode(osc);
+    graph.prepare(96000.0, 512);
+    graph.process(testBuf, 512);
+
+    AudioInputSource srcTap;
+    srcTap.type = AudioInputType::InternalNodeTap;
+    srcTap.tapNodeId = 1;
+    srcTap.tapOutletIndex = 1; // Audio outlet on osc~
+
+    juce::AudioBuffer<float> tappedBuf(2, 512);
+    AudioInputRouter::getInstance().fetchAudioBlock(srcTap, graph, tappedBuf, 512);
+    float tapPeak = tappedBuf.getMagnitude(0, 0, 512);
+    if (tapPeak < 0.70f)
+    {
+        std::cout << "FAILED (Internal Node Tap from osc~ failed, peak=" << tapPeak << ")\n";
+        return false;
+    }
+
+    // 6. Test Timeline Track Arming & Recording
+    ArrangementTimelineComponent timeline(graph);
+    timeline.setSize(1000, 500);
+    timeline.setTrackArmed(1, true); // Arm Track 1
+    timeline.setTrackInputSource(1, srcTap); // Set to tap Node 1
+
+    timeline.togglePlayback(); // Start recording
+    for (int frame = 0; frame < 15; ++frame)
+    {
+        graph.process(testBuf, 512);
+        timeline.timerCallback();
+    }
+    timeline.togglePlayback(); // Stop recording
+
+    bool foundAudioClip = false;
+    std::string recordedTbl;
+    for (const auto& c : timeline.getClips())
+    {
+        if (c.trackIndex == 1 && c.type == ClipType::AudioSample)
+        {
+            foundAudioClip = true;
+            recordedTbl = c.sampleTableName;
+            break;
+        }
+    }
+
+    if (!foundAudioClip || recordedTbl.empty() || TableManager::getInstance().getTable(recordedTbl).empty())
+    {
+        std::cout << "FAILED (Timeline Track recording to AudioSample clip failed)\n";
+        return false;
+    }
+
+    // 7. Export WAV Observation
+    juce::File obs23Wav("artifacts/observation_23_input_routing_internal_tap.wav");
+    auto fileStream23 = obs23Wav.createOutputStream();
+    if (fileStream23 != nullptr)
+    {
+        juce::WavAudioFormat wavFormat;
+        std::unique_ptr<juce::AudioFormatWriter> writer23(wavFormat.createWriterFor(fileStream23.release(), 96000.0, 2, 16, {}, 0));
+        if (writer23 != nullptr)
+        {
+            writer23->writeFromAudioSampleBuffer(mockHardwareIn, 0, 48000);
+            writer23->flush();
+            std::cout << "[AgentTestRunner] Exported WAV Observation 23 (Input Routing & Internal Tap): " << obs23Wav.getFullPathName().toStdString() << "\n";
+        }
+    }
+
+    std::cout << "PASSED (External Mono/Stereo, Internal Tap, and Track Recording verified)\n";
     return true;
 }
 

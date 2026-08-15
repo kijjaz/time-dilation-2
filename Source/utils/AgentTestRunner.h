@@ -33,6 +33,7 @@ public:
     static bool testSamplePoolAndSamplerSuite();
     static bool testProjectDirectoryAssetManagement();
     static bool testLiveAudioInputAndBufferRecording();
+    static bool testAudioInputRoutingAndInternalTapping();
 };
 
 } // namespace TimeDilationDAW

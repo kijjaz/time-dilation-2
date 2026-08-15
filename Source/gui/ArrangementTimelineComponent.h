@@ -2,6 +2,8 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "../dsp/RelativisticNodeGraph.h"
+#include "../dsp/RelativisticSoundNodes.h"
+#include "../dsp/AudioInputRouter.h"
 #include "../dsp/TidalPatternEngine.h"
 #include <vector>
 #include <string>
@@ -41,6 +43,9 @@ struct TimelineClip
         }
     }
 
+    // Audio Sample Clip Data
+    std::string sampleTableName;
+
     // Pattern Data (Notes & Gates fallback)
     std::vector<int> stepPitches{ 60, 62, 64, 65, 67, 69, 71, 72 };
     std::vector<bool> stepGates{ true, false, true, false, true, false, true, false };
@@ -48,6 +53,15 @@ struct TimelineClip
 
     // Automation Data (Breakpoints: normalized offset time 0.0 to 1.0, value 0.0 to 1.0)
     std::vector<std::pair<double, float>> automationPoints{ { 0.0, 0.2f }, { 0.5, 0.85f }, { 1.0, 0.4f } };
+};
+
+struct TimelineTrackInfo
+{
+    int trackIndex = 0;
+    juce::String name = "Track 1";
+    ClipType defaultClipType = ClipType::Pattern;
+    bool isArmed = false;
+    AudioInputSource inputSource;
 };
 
 struct TimelineMessageEvent
@@ -121,6 +135,15 @@ public:
     const std::vector<TimelineMessageEvent>& getMessageEvents() const { return messageEvents; }
     void clearMessageEvents() { messageEvents.clear(); selectedEventId = -1; repaint(); }
 
+    // Track Header, Arming & Input Routing Operations
+    void setTrackArmed(int trackIdx, bool armed);
+    bool isTrackArmed(int trackIdx) const;
+    void setTrackInputSource(int trackIdx, const AudioInputSource& source);
+    AudioInputSource getTrackInputSource(int trackIdx) const;
+    void showTrackInputMenu(int trackIdx);
+
+    const std::vector<TimelineTrackInfo>& getTracks() const { return tracks; }
+
     double getLoopStartSec() const { return loopStartSec; }
     double getLoopEndSec() const { return loopEndSec; }
     bool isLoopActive() const { return isLoopEnabled; }
@@ -140,10 +163,17 @@ private:
     void drawPianoRollDrawer(juce::Graphics& g, const juce::Rectangle<float>& bounds);
     void drawTidalSubdivisionBlocks(juce::Graphics& g, const TimelineClip& clip, const juce::Rectangle<float>& clipRect);
     void drawAutomationCurves(juce::Graphics& g, const TimelineClip& clip, const juce::Rectangle<float>& clipRect);
+    void drawAudioWaveformClip(juce::Graphics& g, const TimelineClip& clip, const juce::Rectangle<float>& clipRect);
 
     RelativisticNodeGraph& nodeGraph;
+    std::vector<TimelineTrackInfo> tracks;
     std::vector<TimelineClip> clips;
     std::vector<TimelineMessageEvent> messageEvents;
+
+    // Live Track Recording buffers
+    std::map<int, std::vector<float>> trackRecordingBuffers;
+    double recordingStartPlayheadTime = 0.0;
+    bool wasPlayingPreviousPass = false;
 
     int selectedClipId = -1;
     int draggingClipId = -1;

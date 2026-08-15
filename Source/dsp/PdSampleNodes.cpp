@@ -577,6 +577,20 @@ void TabWriteTildeNode::receiveMessage(const std::string& message)
     {
         maxSamples = static_cast<size_t>(tokens[1].getIntValue());
     }
+    else if (tokens[0] == "source" && tokens.size() > 1)
+    {
+        juce::String srcType = tokens[1].toLowerCase();
+        if (srcType == "in1" || srcType == "ext1") { inputSource.type = AudioInputType::ExternalMono; inputSource.primaryChannel = 1; }
+        else if (srcType == "in2" || srcType == "ext2") { inputSource.type = AudioInputType::ExternalMono; inputSource.primaryChannel = 2; }
+        else if (srcType == "stereo" || srcType == "ext1+2") { inputSource.type = AudioInputType::ExternalStereo; inputSource.primaryChannel = 1; inputSource.secondaryChannel = 2; }
+        else if (srcType == "master") { inputSource.type = AudioInputType::InternalMaster; }
+        else if (srcType == "tap" && tokens.size() > 2)
+        {
+            inputSource.type = AudioInputType::InternalNodeTap;
+            inputSource.tapNodeId = tokens[2].getIntValue();
+            inputSource.tapOutletIndex = (tokens.size() > 3) ? tokens[3].getIntValue() : 0;
+        }
+    }
     else
     {
         // Treat as table name change if not keyword
@@ -591,9 +605,22 @@ void TabWriteTildeNode::process(int numSamples)
     if (!recordingActive) return;
 
     const auto& inBuf = getAudioInlet("in1~");
-    if (inBuf.getNumSamples() < numSamples) return;
+    const float* inPtr = nullptr;
+    juce::AudioBuffer<float> tapBuf;
 
-    const float* inPtr = inBuf.getReadPointer(0);
+    if (inBuf.getNumSamples() >= numSamples && inBuf.getMagnitude(0, 0, numSamples) > 0.000001f)
+    {
+        inPtr = inBuf.getReadPointer(0);
+    }
+    else
+    {
+        tapBuf.setSize(2, numSamples, false, false, true);
+        RelativisticNodeGraph dummyGraph;
+        AudioInputRouter::getInstance().fetchAudioBlock(inputSource, dummyGraph, tapBuf, numSamples);
+        inPtr = tapBuf.getReadPointer(0);
+    }
+
+    if (inPtr == nullptr) return;
 
     for (int s = 0; s < numSamples; ++s)
     {

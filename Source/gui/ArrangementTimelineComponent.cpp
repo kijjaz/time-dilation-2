@@ -10,6 +10,19 @@ namespace TimeDilationDAW
 ArrangementTimelineComponent::ArrangementTimelineComponent(RelativisticNodeGraph& graph)
     : nodeGraph(graph)
 {
+    for (int t = 0; t < 8; ++t)
+    {
+        TimelineTrackInfo info;
+        info.trackIndex = t;
+        info.name = "Track " + juce::String(t + 1);
+        info.defaultClipType = (t % 2 == 0) ? ClipType::Pattern : ClipType::AudioSample;
+        info.isArmed = false;
+        info.inputSource.type = (t == 1) ? AudioInputType::ExternalMono : (t == 2 ? AudioInputType::InternalMaster : AudioInputType::ExternalStereo);
+        info.inputSource.primaryChannel = 1;
+        info.inputSource.secondaryChannel = 2;
+        tracks.push_back(info);
+    }
+
     playStopButton.onClick = [this]() { togglePlayback(); };
     playStopButton.setColour(juce::TextButton::buttonColourId, CarbonGoldLookAndFeel::slatePanel.brighter(0.1f));
     playStopButton.setColour(juce::TextButton::textColourOffId, CarbonGoldLookAndFeel::goldAccent);
@@ -656,8 +669,159 @@ ArrangementTimelineComponent::~ArrangementTimelineComponent()
     stopTimer();
 }
 
+void ArrangementTimelineComponent::setTrackArmed(int trackIdx, bool armed)
+{
+    while (static_cast<int>(tracks.size()) <= trackIdx)
+    {
+        TimelineTrackInfo info;
+        info.trackIndex = static_cast<int>(tracks.size());
+        info.name = "Track " + juce::String(info.trackIndex + 1);
+        tracks.push_back(info);
+    }
+    tracks[static_cast<size_t>(trackIdx)].isArmed = armed;
+    repaint();
+}
+
+bool ArrangementTimelineComponent::isTrackArmed(int trackIdx) const
+{
+    if (trackIdx >= 0 && trackIdx < static_cast<int>(tracks.size()))
+    {
+        return tracks[static_cast<size_t>(trackIdx)].isArmed;
+    }
+    return false;
+}
+
+void ArrangementTimelineComponent::setTrackInputSource(int trackIdx, const AudioInputSource& source)
+{
+    while (static_cast<int>(tracks.size()) <= trackIdx)
+    {
+        TimelineTrackInfo info;
+        info.trackIndex = static_cast<int>(tracks.size());
+        info.name = "Track " + juce::String(info.trackIndex + 1);
+        tracks.push_back(info);
+    }
+    tracks[static_cast<size_t>(trackIdx)].inputSource = source;
+    repaint();
+}
+
+AudioInputSource ArrangementTimelineComponent::getTrackInputSource(int trackIdx) const
+{
+    if (trackIdx >= 0 && trackIdx < static_cast<int>(tracks.size()))
+    {
+        return tracks[static_cast<size_t>(trackIdx)].inputSource;
+    }
+    return AudioInputSource();
+}
+
+void ArrangementTimelineComponent::showTrackInputMenu(int trackIdx)
+{
+    juce::PopupMenu m;
+    m.addSectionHeader("External Hardware Inputs");
+    m.addItem(1, "Input 1 (Mono - Mic/Line 1)");
+    m.addItem(2, "Input 2 (Mono - Mic/Line 2)");
+    m.addItem(3, "Input 1 + 2 (Stereo)");
+
+    m.addSeparator();
+    m.addSectionHeader("Internal App Sources");
+    m.addItem(10, "Master Mix (Internal)");
+
+    juce::PopupMenu tapMenu;
+    const auto& nodes = nodeGraph.getNodes();
+    int tapIdBase = 100;
+    for (size_t i = 0; i < nodes.size(); ++i)
+    {
+        const auto& n = nodes[i];
+        bool hasAudioOutlet = false;
+        for (const auto& o : n->getOutlets())
+        {
+            if (o.dataType == PortDataType::Audio) { hasAudioOutlet = true; break; }
+        }
+        if (hasAudioOutlet)
+        {
+            tapMenu.addItem(tapIdBase + static_cast<int>(i), "Node " + std::to_string(n->getId()) + ": " + n->getLabel());
+        }
+    }
+    m.addSubMenu("Tap from Node", tapMenu);
+
+    m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this), [this, trackIdx, nodes, tapIdBase](int res) {
+        if (res == 1)
+        {
+            AudioInputSource src;
+            src.type = AudioInputType::ExternalMono;
+            src.primaryChannel = 1;
+            setTrackInputSource(trackIdx, src);
+        }
+        else if (res == 2)
+        {
+            AudioInputSource src;
+            src.type = AudioInputType::ExternalMono;
+            src.primaryChannel = 2;
+            setTrackInputSource(trackIdx, src);
+        }
+        else if (res == 3)
+        {
+            AudioInputSource src;
+            src.type = AudioInputType::ExternalStereo;
+            src.primaryChannel = 1;
+            src.secondaryChannel = 2;
+            setTrackInputSource(trackIdx, src);
+        }
+        else if (res == 10)
+        {
+            AudioInputSource src;
+            src.type = AudioInputType::InternalMaster;
+            setTrackInputSource(trackIdx, src);
+        }
+        else if (res >= tapIdBase && res < tapIdBase + static_cast<int>(nodes.size()))
+        {
+            int nIdx = res - tapIdBase;
+            if (nIdx >= 0 && nIdx < static_cast<int>(nodes.size()))
+            {
+                AudioInputSource src;
+                src.type = AudioInputType::InternalNodeTap;
+                src.tapNodeId = nodes[static_cast<size_t>(nIdx)]->getId();
+                src.tapOutletIndex = 0;
+                setTrackInputSource(trackIdx, src);
+            }
+        }
+    });
+}
+
 void ArrangementTimelineComponent::togglePlayback()
 {
+    if (isTimelinePlaying)
+    {
+        // Stopping playback: commit any live recordings
+        if (wasPlayingPreviousPass && !trackRecordingBuffers.empty())
+        {
+            double recDur = std::max(0.5, playheadTimeSec - recordingStartPlayheadTime);
+            static int recClipCounter = 1;
+            for (const auto& [trackIdx, samples] : trackRecordingBuffers)
+            {
+                if (samples.size() >= 512)
+                {
+                    std::string tblName = "rec_t" + std::to_string(trackIdx + 1) + "_" + std::to_string(recClipCounter);
+                    juce::AudioBuffer<float> finalBuf(1, static_cast<int>(samples.size()));
+                    finalBuf.copyFrom(0, 0, samples.data(), static_cast<int>(samples.size()));
+                    TableManager::getInstance().registerBuffer(tblName, finalBuf, 96000.0);
+
+                    TimelineClip c;
+                    c.clipId = 1000 + recClipCounter++;
+                    c.trackIndex = trackIdx;
+                    c.startTimeSec = recordingStartPlayheadTime;
+                    c.durationSec = recDur;
+                    c.name = "Audio Rec " + juce::String(trackIdx + 1);
+                    c.type = ClipType::AudioSample;
+                    c.sampleTableName = tblName;
+                    c.color = juce::Colour(0xffd02040);
+                    clips.push_back(c);
+                }
+            }
+            trackRecordingBuffers.clear();
+            wasPlayingPreviousPass = false;
+        }
+    }
+
     isTimelinePlaying = !isTimelinePlaying;
     playStopButton.setButtonText(isTimelinePlaying ? "STOP" : "PLAY");
     playStopButton.setColour(juce::TextButton::textColourOffId, isTimelinePlaying ? juce::Colours::deeppink : CarbonGoldLookAndFeel::goldAccent);
@@ -1039,6 +1203,39 @@ void ArrangementTimelineComponent::timerCallback()
             }
         }
 
+        // Handle Live Audio Track Recording
+        bool isAnyTrackArmed = false;
+        for (int t = 0; t < static_cast<int>(tracks.size()); ++t)
+        {
+            if (tracks[static_cast<size_t>(t)].isArmed)
+            {
+                isAnyTrackArmed = true;
+                break;
+            }
+        }
+
+        if (isAnyTrackArmed)
+        {
+            if (!wasPlayingPreviousPass)
+            {
+                wasPlayingPreviousPass = true;
+                recordingStartPlayheadTime = playheadTimeSec;
+                trackRecordingBuffers.clear();
+            }
+
+            juce::AudioBuffer<float> tempInBuf(2, 512);
+            for (size_t t = 0; t < tracks.size(); ++t)
+            {
+                if (tracks[t].isArmed)
+                {
+                    AudioInputRouter::getInstance().fetchAudioBlock(tracks[t].inputSource, nodeGraph, tempInBuf, 512);
+                    auto& recBuf = trackRecordingBuffers[static_cast<int>(t)];
+                    const float* inPtr = tempInBuf.getReadPointer(0);
+                    for (int s = 0; s < 512; ++s) recBuf.push_back(inPtr[s]);
+                }
+            }
+        }
+
         // Format time display: Bar.Beat.Tick | MM:SS.CC
         double beatDuration = 60.0 / bpm;
         int totalBeats = static_cast<int>(playheadTimeSec / beatDuration);
@@ -1145,11 +1342,27 @@ void ArrangementTimelineComponent::paint(juce::Graphics& g)
 
         g.setFont(juce::Font(11.0f, juce::Font::bold));
         g.setColour(CarbonGoldLookAndFeel::goldAccent);
-        g.drawText(trackLabel, 10, y + 8, trackHeaderWidth - 20, 18, juce::Justification::left);
+        g.drawText(trackLabel, 8, y + 4, trackHeaderWidth - 46, 16, juce::Justification::left);
 
-        g.setFont(juce::Font(10.0f, juce::Font::italic));
-        g.setColour(CarbonGoldLookAndFeel::cyberCyan);
-        g.drawText(nodeSym, 10, y + 26, trackHeaderWidth - 20, 16, juce::Justification::left);
+        // ARM Button
+        bool isArmed = isTrackArmed(t);
+        auto armR = juce::Rectangle<float>(static_cast<float>(trackHeaderWidth - 36), static_cast<float>(y + 4), 30.0f, 16.0f);
+        g.setColour(isArmed ? juce::Colour(0xffd02040) : juce::Colour(0xff252026));
+        g.fillRoundedRectangle(armR, 3.0f);
+        g.setColour(isArmed ? juce::Colours::white : juce::Colour(0xffe57373));
+        g.drawRoundedRectangle(armR, 3.0f, 1.0f);
+        g.setFont(juce::Font(9.0f, juce::Font::bold));
+        g.drawText(isArmed ? "REC" : "ARM", armR.toNearestInt(), juce::Justification::centred);
+
+        // Input Source Selector Badge
+        auto inR = juce::Rectangle<float>(8.0f, static_cast<float>(y + 22), static_cast<float>(trackHeaderWidth - 16), 14.0f);
+        g.setColour(juce::Colour(0xff151820));
+        g.fillRoundedRectangle(inR, 2.0f);
+        g.setColour(CarbonGoldLookAndFeel::goldAccent.withAlpha(0.35f));
+        g.drawRoundedRectangle(inR, 2.0f, 1.0f);
+        g.setFont(juce::Font(8.5f, juce::Font::plain));
+        g.setColour(CarbonGoldLookAndFeel::goldAccent);
+        g.drawText("🎙 " + getTrackInputSource(t).getDisplayName(), inR.reduced(2, 0).toNearestInt(), juce::Justification::left);
 
         // Track Lane Background
         auto laneR = juce::Rectangle<float>(static_cast<float>(trackHeaderWidth), static_cast<float>(y), timelineW, static_cast<float>(trackHeight));
@@ -1183,7 +1396,7 @@ void ArrangementTimelineComponent::paint(juce::Graphics& g)
         g.setColour(juce::Colours::white);
         g.drawText(clip.name, static_cast<int>(cx + 6), y + 6, static_cast<int>(cw - 12), 16, juce::Justification::left);
 
-        // Miniature note / automation preview
+        // Miniature note / automation / audio preview
         if (clip.type == ClipType::Pattern)
         {
             drawTidalSubdivisionBlocks(g, clip, clipR);
@@ -1191,6 +1404,10 @@ void ArrangementTimelineComponent::paint(juce::Graphics& g)
         else if (clip.type == ClipType::Automation)
         {
             drawAutomationCurves(g, clip, clipR);
+        }
+        else if (clip.type == ClipType::AudioSample)
+        {
+            drawAudioWaveformClip(g, clip, clipR);
         }
     }
 
@@ -1304,6 +1521,38 @@ void ArrangementTimelineComponent::drawAutomationCurves(juce::Graphics& g, const
 
     g.setColour(CarbonGoldLookAndFeel::royalViolet);
     g.strokePath(p, juce::PathStrokeType(2.0f));
+}
+
+void ArrangementTimelineComponent::drawAudioWaveformClip(juce::Graphics& g, const TimelineClip& clip, const juce::Rectangle<float>& clipRect)
+{
+    g.setColour(juce::Colour(0xff2d141e));
+    g.fillRoundedRectangle(clipRect, 3.0f);
+
+    const auto* info = TableManager::getInstance().getTableInfo(clip.sampleTableName);
+    if (info && !info->thumbnailPeaks.empty())
+    {
+        g.setColour(juce::Colour(0xffff8a80));
+        const auto& peaks = info->thumbnailPeaks;
+        float midY = clipRect.getCentreY() + 6.0f;
+        float halfH = (clipRect.getHeight() - 16.0f) * 0.45f;
+        float stepX = clipRect.getWidth() / static_cast<float>(peaks.size());
+
+        for (size_t i = 0; i < peaks.size(); ++i)
+        {
+            float px = clipRect.getX() + static_cast<float>(i) * stepX;
+            float h = std::clamp(peaks[i] * halfH, 1.0f, halfH);
+            g.drawLine(px, midY - h, px, midY + h, 1.0f);
+        }
+    }
+    else
+    {
+        g.setColour(juce::Colour(0xffff8a80).withAlpha(0.6f));
+        g.drawHorizontalLine(static_cast<int>(clipRect.getCentreY() + 6.0f), clipRect.getX(), clipRect.getRight());
+    }
+
+    g.setFont(juce::Font(9.5f, juce::Font::bold));
+    g.setColour(juce::Colours::white);
+    g.drawText("🎙 " + clip.name, clipRect.reduced(4, 2).toNearestInt(), juce::Justification::topLeft);
 }
 
 void ArrangementTimelineComponent::drawPianoRollDrawer(juce::Graphics& g, const juce::Rectangle<float>& bounds)
@@ -1542,6 +1791,31 @@ void ArrangementTimelineComponent::mouseDown(const juce::MouseEvent& e)
 {
     auto pos = e.position;
     float timelineW = static_cast<float>(getWidth() - trackHeaderWidth);
+
+    // 0. Clicked Track Header Panel: Toggle ARM or open Input Source Menu
+    if (pos.x < trackHeaderWidth && pos.y >= transportBarHeight + rulerHeight)
+    {
+        int yStart = transportBarHeight + rulerHeight;
+        int t = static_cast<int>(pos.y - yStart) / trackHeight;
+        int numTracks = std::max(4, static_cast<int>(nodeGraph.getNodes().size()));
+        if (t >= 0 && t < numTracks)
+        {
+            int ty = yStart + t * trackHeight;
+            auto armR = juce::Rectangle<float>(static_cast<float>(trackHeaderWidth - 36), static_cast<float>(ty + 4), 30.0f, 16.0f);
+            if (armR.contains(pos))
+            {
+                setTrackArmed(t, !isTrackArmed(t));
+                return;
+            }
+
+            auto inR = juce::Rectangle<float>(8.0f, static_cast<float>(ty + 22), static_cast<float>(trackHeaderWidth - 16), 14.0f);
+            if (inR.contains(pos) || e.mods.isPopupMenu())
+            {
+                showTrackInputMenu(t);
+                return;
+            }
+        }
+    }
 
     // 1. Clicked Transport Ruler: Scrub Playhead or Set Loop Range
     if (pos.y >= transportBarHeight && pos.y <= transportBarHeight + rulerHeight)

@@ -2,6 +2,7 @@
 
 #include "RelativisticNodeGraph.h"
 #include "RelativisticSoundNodes.h"
+#include "AudioInputRouter.h"
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <memory>
 #include <string>
@@ -119,6 +120,9 @@ public:
     void setTableName(const std::string& name);
     const std::string& getTableName() const { return targetTable; }
 
+    void setInputSource(const AudioInputSource& src) { inputSource = src; }
+    const AudioInputSource& getInputSource() const { return inputSource; }
+
     void startRecording(int maxSamplesToRecord = -1);
     void stopRecording();
     void clearBuffer();
@@ -128,6 +132,7 @@ public:
 
 private:
     std::string targetTable;
+    AudioInputSource inputSource;
     bool recordingActive = false;
     size_t writePos = 0;
     size_t maxSamples = 44100 * 10; // Default 10 seconds capacity
