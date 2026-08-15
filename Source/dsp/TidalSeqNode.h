@@ -31,10 +31,12 @@ public:
 
     double getCyclePhase() const { return cyclePhase; }
     int getCycleCount() const { return cycleCount; }
+    int getNumVoices() const { return activeVoices; }
     const std::vector<TidalEvent>& getScheduledEvents() const { return scheduledEvents; }
 
 private:
     void evaluateCurrentCycle();
+    void rebuildOutlets(int numVoices);
 
     std::string currentPatternStr;
     std::shared_ptr<TidalPattern> compiledPattern;
@@ -42,6 +44,7 @@ private:
 
     double cyclePhase = 0.0;     // Normalized cycle phase in [0.0, 1.0)
     int cycleCount = 0;
+    int activeVoices = 1;
 
     std::vector<TidalEvent> scheduledEvents;
     size_t nextEventIdx = 0;

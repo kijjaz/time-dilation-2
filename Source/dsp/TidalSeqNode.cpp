@@ -12,17 +12,30 @@ TidalSeqNode::TidalSeqNode(int id, const std::string& patternString, double cycl
     // Inlet 1: timeIn (TimeFrame)
     addInlet("timeIn", PortDataType::Time);
 
-    // Outlet 0: noteOut (Message, from base)
-    // Outlet 1: freqOut~ (Audio)
-    // Outlet 2: gateOut (Message bang)
-    // Outlet 3: ch2NoteOut (Message)
-    // Outlet 4: audioTrig~ (Audio)
-    addOutlet("freqOut", PortDataType::Audio);
-    addOutlet("gateOut", PortDataType::Message);
-    addOutlet("ch2NoteOut", PortDataType::Message);
+    rebuildOutlets(1);
+    setPattern(patternString);
+}
+
+void TidalSeqNode::rebuildOutlets(int numVoices)
+{
+    numVoices = std::max(1, numVoices);
+    activeVoices = numVoices;
+
+    outlets.clear();
+    outletBuffers.clear();
+    outletTimeFrames.clear();
+
+    for (int v = 0; v < numVoices; ++v)
+    {
+        std::string prefix = "v" + std::to_string(v + 1) + "_";
+        addOutlet(prefix + "note", PortDataType::Message);
+        addOutlet(prefix + "freq", PortDataType::Audio);
+        addOutlet(prefix + "gate", PortDataType::Message);
+    }
     addOutlet("audioTrig", PortDataType::Audio);
 
-    setPattern(patternString);
+    // Dynamically expand node width so all voice outlets fit nicely
+    width = std::max(130.0f, static_cast<float>(outlets.size()) * 24.0f + 16.0f);
 }
 
 void TidalSeqNode::setPattern(const std::string& patternString)
@@ -46,6 +59,19 @@ void TidalSeqNode::setPattern(const std::string& patternString)
     setLabel("seq.tidal " + cleanPat);
     compiledPattern = TidalParser::parse(cleanPat);
     evaluateCurrentCycle();
+
+    // Determine number of stacked polyphonic voice channels
+    int maxChan = 1;
+    for (const auto& ev : scheduledEvents)
+    {
+        maxChan = std::max(maxChan, ev.channel + 1);
+    }
+
+    if (maxChan != activeVoices)
+    {
+        rebuildOutlets(maxChan);
+        prepare(currentSampleRate > 0 ? currentSampleRate : 44100.0, currentBlockSize > 0 ? currentBlockSize : 512);
+    }
 }
 
 void TidalSeqNode::evaluateCurrentCycle()
@@ -72,8 +98,20 @@ void TidalSeqNode::prepare(double sr, int spb)
 
 void TidalSeqNode::process(int numSamples)
 {
-    auto& freqOut = getOutletBuffer(1);     // Outlet 1: freqOut~
-    auto& audioTrig = getOutletBuffer(4);   // Outlet 4: audioTrig~
+    // Clear audio outlets
+    int trigOutletIdx = activeVoices * 3;
+    for (int v = 0; v < activeVoices; ++v)
+    {
+        int freqOutletIdx = v * 3 + 1;
+        if (freqOutletIdx < static_cast<int>(outlets.size()))
+        {
+            getOutletBuffer(freqOutletIdx).clear();
+        }
+    }
+    if (trigOutletIdx < static_cast<int>(outlets.size()))
+    {
+        getOutletBuffer(trigOutletIdx).clear();
+    }
 
     // Only advance when connected to an active time/clock stream (e.g. time.transport~ / timeline~)!
     bool isDriven = false;
@@ -99,8 +137,6 @@ void TidalSeqNode::process(int numSamples)
 
     if (!isDriven || (masterG <= 0.000001 && !hasSampleGamma))
     {
-        freqOut.clear();
-        audioTrig.clear();
         return;
     }
 
@@ -130,29 +166,36 @@ void TidalSeqNode::process(int numSamples)
             {
                 sampleTrig = 1.0f;
 
-                if (ev.channel == 0)
-                {
-                    emitMessageOnOutlet(0, std::to_string(ev.pitch));
-                    emitMessageOnOutlet(2, "bang");
+                int ch = std::clamp(ev.channel, 0, activeVoices - 1);
+                int noteOutIdx = ch * 3 + 0;
+                int freqOutIdx = ch * 3 + 1;
+                int gateOutIdx = ch * 3 + 2;
 
-                    double freqHz = 440.0 * std::pow(2.0, (ev.pitch - 69.0) / 12.0);
-                    if (i < freqOut.getNumSamples())
-                    {
-                        freqOut.setSample(0, i, static_cast<float>(freqHz));
-                    }
-                }
-                else
+                std::string msgVal = !ev.valueStr.empty() ? ev.valueStr : std::to_string(ev.pitch);
+                emitMessageOnOutlet(noteOutIdx, msgVal);
+                emitMessageOnOutlet(gateOutIdx, "bang");
+
+                double freqHz = 440.0 * std::pow(2.0, (ev.pitch - 69.0) / 12.0);
+                if (freqOutIdx < static_cast<int>(outlets.size()))
                 {
-                    emitMessageOnOutlet(3, std::to_string(ev.pitch));
+                    auto& freqBuf = getOutletBuffer(freqOutIdx);
+                    if (i < freqBuf.getNumSamples())
+                    {
+                        freqBuf.setSample(0, i, static_cast<float>(freqHz));
+                    }
                 }
             }
 
             nextEventIdx++;
         }
 
-        if (i < audioTrig.getNumSamples())
+        if (trigOutletIdx < static_cast<int>(outlets.size()))
         {
-            audioTrig.setSample(0, i, sampleTrig);
+            auto& trigBuf = getOutletBuffer(trigOutletIdx);
+            if (i < trigBuf.getNumSamples())
+            {
+                trigBuf.setSample(0, i, sampleTrig);
+            }
         }
     }
 }
