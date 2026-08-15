@@ -1739,6 +1739,116 @@ void RelativisticCanvasComponent::mouseDown(const juce::MouseEvent& e)
 
             if (onNodeSelected) onNodeSelected(node);
 
+            // Right-click context menu on nodes (e.g. for seq.tidal brackets, stacks, and properties)
+            if (e.mods.isPopupMenu())
+            {
+                juce::PopupMenu m;
+                if (auto tidalNode = std::dynamic_pointer_cast<TidalSeqNode>(node))
+                {
+                    juce::PopupMenu bracketMenu;
+                    bracketMenu.addItem(10, "[ ... ] Wrap Pattern in Brackets");
+                    bracketMenu.addItem(11, "[/2] Binary Subdivide");
+                    bracketMenu.addItem(12, "[/3] Triplet Subdivide");
+                    bracketMenu.addItem(13, "[/4] Quad Subdivide");
+                    bracketMenu.addItem(14, "Unwrap / Flatten Brackets");
+                    m.addSubMenu("Brackets & Subdivisions", bracketMenu);
+
+                    juce::PopupMenu stackMenu;
+                    stackMenu.addItem(20, "+ Layer: Bassline (36 ~ 36 48)");
+                    stackMenu.addItem(21, "+ Layer: Hi-Hat Groove ([42 42] 42 [42 42] 46)");
+                    stackMenu.addItem(22, "+ Layer: Offbeat Snare (~ 38 ~ 38)");
+                    stackMenu.addItem(23, "+ Layer: Chord Stabs ([60 64 67])");
+                    stackMenu.addItem(24, "+ Layer: Custom Empty (~ ~ ~ ~)");
+                    m.addSubMenu("Polyphonic Stacks & Layers", stackMenu);
+
+                    m.addSeparator();
+                    m.addItem(1, "Edit Pattern Mini-Notation...");
+                }
+                m.addItem(2, "Inspect Node Properties");
+                m.addItem(3, "Delete Node");
+
+                m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this), [this, node](int res) {
+                    if (!node) return;
+                    if (auto tidalNode = std::dynamic_pointer_cast<TidalSeqNode>(node))
+                    {
+                        juce::String cur = tidalNode->getPatternString();
+                        if (res == 10)
+                        {
+                            if (!cur.startsWith("[")) cur = "[" + cur + "]";
+                            else cur = "[" + cur + " " + cur + "]";
+                            tidalNode->setPattern(cur.toStdString());
+                            repaint();
+                        }
+                        else if (res == 11)
+                        {
+                            tidalNode->setPattern("[" + cur.toStdString() + ", [36 48]]");
+                            repaint();
+                        }
+                        else if (res == 12)
+                        {
+                            tidalNode->setPattern("[" + cur.toStdString() + " [60 64 67]]");
+                            repaint();
+                        }
+                        else if (res == 13)
+                        {
+                            tidalNode->setPattern("[" + cur.toStdString() + " [60 62 64 65]]");
+                            repaint();
+                        }
+                        else if (res == 14)
+                        {
+                            if (cur.startsWith("[") && cur.endsWith("]"))
+                            {
+                                tidalNode->setPattern(cur.substring(1, cur.length() - 1).trim().toStdString());
+                                repaint();
+                            }
+                        }
+                        else if (res == 20)
+                        {
+                            juce::String inner = cur.startsWith("[") && cur.endsWith("]") ? cur.substring(1, cur.length() - 1).trim() : cur;
+                            tidalNode->setPattern("[" + inner.toStdString() + ", 36 ~ 36 48]");
+                            repaint();
+                        }
+                        else if (res == 21)
+                        {
+                            juce::String inner = cur.startsWith("[") && cur.endsWith("]") ? cur.substring(1, cur.length() - 1).trim() : cur;
+                            tidalNode->setPattern("[" + inner.toStdString() + ", [42 42] 42 [42 42] 46]");
+                            repaint();
+                        }
+                        else if (res == 22)
+                        {
+                            juce::String inner = cur.startsWith("[") && cur.endsWith("]") ? cur.substring(1, cur.length() - 1).trim() : cur;
+                            tidalNode->setPattern("[" + inner.toStdString() + ", ~ 38 ~ 38]");
+                            repaint();
+                        }
+                        else if (res == 23)
+                        {
+                            juce::String inner = cur.startsWith("[") && cur.endsWith("]") ? cur.substring(1, cur.length() - 1).trim() : cur;
+                            tidalNode->setPattern("[" + inner.toStdString() + ", [60 64 67]]");
+                            repaint();
+                        }
+                        else if (res == 24)
+                        {
+                            juce::String inner = cur.startsWith("[") && cur.endsWith("]") ? cur.substring(1, cur.length() - 1).trim() : cur;
+                            tidalNode->setPattern("[" + inner.toStdString() + ", ~ ~ ~ ~]");
+                            repaint();
+                        }
+                        else if (res == 1)
+                        {
+                            spawnObjectEditorForNode(node->getId());
+                        }
+                    }
+                    if (res == 2)
+                    {
+                        if (onNodeSelected) onNodeSelected(node);
+                    }
+                    else if (res == 3)
+                    {
+                        deleteSelectedNodes();
+                    }
+                });
+                return;
+            }
+
             std::string sym = node->getSymbol();
             std::transform(sym.begin(), sym.end(), sym.begin(), ::tolower);
 

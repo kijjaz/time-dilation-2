@@ -60,6 +60,16 @@ ArrangementTimelineComponent::ArrangementTimelineComponent(RelativisticNodeGraph
     eventEditor.onEscapeKey = [this]() { eventEditor.setVisible(false); isEditingEvent = false; };
     addChildComponent(eventEditor);
 
+    // Inline In-Place Block Text Editor Setup
+    inlineBlockEditor.setFont(juce::Font(12.0f, juce::Font::bold));
+    inlineBlockEditor.setColour(juce::TextEditor::backgroundColourId, CarbonGoldLookAndFeel::carbonBg);
+    inlineBlockEditor.setColour(juce::TextEditor::textColourId, CarbonGoldLookAndFeel::goldAccent);
+    inlineBlockEditor.setColour(juce::TextEditor::outlineColourId, CarbonGoldLookAndFeel::cyberCyan);
+    inlineBlockEditor.onReturnKey = [this]() { commitInlineBlockEditing(); };
+    inlineBlockEditor.onFocusLost = [this]() { commitInlineBlockEditing(); };
+    inlineBlockEditor.onEscapeKey = [this]() { inlineBlockEditor.setVisible(false); isInlineEditingBlock = false; };
+    addChildComponent(inlineBlockEditor);
+
     // Tidal Pattern Editor & Quick Transformation Macros
     tidalPatternEditor.setFont(juce::Font(12.0f, juce::Font::bold));
     tidalPatternEditor.setColour(juce::TextEditor::backgroundColourId, CarbonGoldLookAndFeel::slatePanel.darker(0.4f));
@@ -75,13 +85,22 @@ ArrangementTimelineComponent::ArrangementTimelineComponent(RelativisticNodeGraph
         addAndMakeVisible(btn);
     };
 
-    subdivideBtn.onClick = [this]() { applySubdivisionMacro(2); };
+    wrapBracketBtn.onClick = [this]() { wrapSelectedBlockInBrackets(); };
+    setupMacroBtn(wrapBracketBtn, CarbonGoldLookAndFeel::goldAccent);
+
+    subdivideBtn.onClick = [this]() { subdivideSelectedBlock(2); };
     setupMacroBtn(subdivideBtn, CarbonGoldLookAndFeel::cyberCyan);
 
-    tripletBtn.onClick = [this]() { applySubdivisionMacro(3); };
+    tripletBtn.onClick = [this]() { subdivideSelectedBlock(3); };
     setupMacroBtn(tripletBtn, CarbonGoldLookAndFeel::cyberCyan);
 
-    stackBtn.onClick = [this]() { applyStackMacro(); };
+    quadBtn.onClick = [this]() { subdivideSelectedBlock(4); };
+    setupMacroBtn(quadBtn, CarbonGoldLookAndFeel::cyberCyan);
+
+    unwrapBtn.onClick = [this]() { unwrapSelectedBlock(); };
+    setupMacroBtn(unwrapBtn, CarbonGoldLookAndFeel::cyberCyan);
+
+    stackBtn.onClick = [this]() { showAddStackMenu(); };
     setupMacroBtn(stackBtn, CarbonGoldLookAndFeel::goldAccent);
 
     euclidBtn.onClick = [this]() { applyEuclideanMacro(3, 8); };
@@ -95,6 +114,21 @@ ArrangementTimelineComponent::ArrangementTimelineComponent(RelativisticNodeGraph
 
     degradeBtn.onClick = [this]() { applyDegradeMacro(); };
     setupMacroBtn(degradeBtn, juce::Colours::pink);
+
+    restBtn.onClick = [this]() { toggleSelectedBlockRest(); };
+    setupMacroBtn(restBtn, juce::Colours::grey);
+
+    pitchUpBtn.onClick = [this]() { shiftSelectedBlockPitch(1); };
+    setupMacroBtn(pitchUpBtn, CarbonGoldLookAndFeel::goldAccent);
+
+    pitchDownBtn.onClick = [this]() { shiftSelectedBlockPitch(-1); };
+    setupMacroBtn(pitchDownBtn, CarbonGoldLookAndFeel::goldAccent);
+
+    octUpBtn.onClick = [this]() { shiftSelectedBlockPitch(12); };
+    setupMacroBtn(octUpBtn, CarbonGoldLookAndFeel::goldAccent);
+
+    octDownBtn.onClick = [this]() { shiftSelectedBlockPitch(-12); };
+    setupMacroBtn(octDownBtn, CarbonGoldLookAndFeel::goldAccent);
 
     applyPatternBtn.onClick = [this]() { commitTidalPattern(); };
     applyPatternBtn.setColour(juce::TextButton::buttonColourId, CarbonGoldLookAndFeel::goldAccent);
@@ -137,21 +171,46 @@ void ArrangementTimelineComponent::showTidalBlockContextMenu(TimelineClip& clip,
 {
     if (eventIdx < 0 || eventIdx >= static_cast<int>(clip.cachedEvents.size())) return;
     auto& ev = clip.cachedEvents[static_cast<size_t>(eventIdx)];
+    selectedTidalEventIdx = eventIdx;
+    selectedTidalChannel = ev.channel;
 
     juce::PopupMenu m;
+    
+    // 1. Bracket & Subdivision Actions
+    juce::PopupMenu bracketMenu;
+    bracketMenu.addItem(100, "[ ... ] Wrap in Brackets");
+    bracketMenu.addItem(101, "[/2] Binary Subdivide [a b]");
+    bracketMenu.addItem(102, "[/3] Triplet Subdivide [a b c]");
+    bracketMenu.addItem(103, "[/4] Quad Subdivide [a b c d]");
+    bracketMenu.addItem(104, "Unwrap / Flatten Brackets");
+    m.addSubMenu("Brackets & Subdivisions", bracketMenu);
+
+    // 2. Polyphonic Stacking
+    juce::PopupMenu stackMenu;
+    stackMenu.addItem(200, "+ Layer: Bassline (36 ~ 36 48)");
+    stackMenu.addItem(201, "+ Layer: Hi-Hat Groove ([42 42] 42 [42 42] 46)");
+    stackMenu.addItem(202, "+ Layer: Offbeat Snare (~ 38 ~ 38)");
+    stackMenu.addItem(203, "+ Layer: Chord Stabs ([60 64 67])");
+    stackMenu.addItem(204, "+ Layer: Custom Empty (~ ~ ~ ~)");
+    stackMenu.addSeparator();
+    stackMenu.addItem(205, "Delete Current Voice Layer (Channel " + juce::String(ev.channel + 1) + ")");
+    m.addSubMenu("Polyphonic Stacks & Layers", stackMenu);
+
+    m.addSeparator();
+
+    // 3. Pitch & Note Manipulations
     m.addItem(1, "+1 Octave (Pitch: " + juce::String(ev.pitch + 12) + ")");
     m.addItem(2, "-1 Octave (Pitch: " + juce::String(std::max(12, ev.pitch - 12)) + ")");
     m.addItem(3, "+1 Semitone (Pitch: " + juce::String(ev.pitch + 1) + ")");
     m.addItem(4, "-1 Semitone (Pitch: " + juce::String(std::max(0, ev.pitch - 1)) + ")");
     m.addSeparator();
 
+    // 4. Speed & Euclidean
     juce::PopupMenu subMenu;
-    subMenu.addItem(10, "Subdivide /2 (Binary micro-steps)");
-    subMenu.addItem(11, "Subdivide /3 (Triplet micro-steps)");
-    subMenu.addItem(12, "Subdivide /4 (Quad micro-steps)");
     subMenu.addItem(13, "Speed *2");
     subMenu.addItem(14, "Speed *4");
-    m.addSubMenu("Subdivide & Speed", subMenu);
+    subMenu.addItem(15, "Speed /2");
+    m.addSubMenu("Speed Modifiers", subMenu);
 
     juce::PopupMenu euclidMenu;
     euclidMenu.addItem(20, "Euclidean (3, 8) - Tresillo");
@@ -178,15 +237,24 @@ void ArrangementTimelineComponent::showTidalBlockContextMenu(TimelineClip& clip,
         if (eventIdx < 0 || eventIdx >= static_cast<int>(clip.cachedEvents.size())) return;
         auto& targetEv = clip.cachedEvents[static_cast<size_t>(eventIdx)];
 
-        if (result == 1) targetEv.pitch = std::min(127, targetEv.pitch + 12);
+        if (result == 100) { wrapSelectedBlockInBrackets(); return; }
+        else if (result == 101) { subdivideSelectedBlock(2); return; }
+        else if (result == 102) { subdivideSelectedBlock(3); return; }
+        else if (result == 103) { subdivideSelectedBlock(4); return; }
+        else if (result == 104) { unwrapSelectedBlock(); return; }
+        else if (result == 200) { addStackLayer("36 ~ 36 48"); return; }
+        else if (result == 201) { addStackLayer("[42 42] 42 [42 42] 46"); return; }
+        else if (result == 202) { addStackLayer("~ 38 ~ 38"); return; }
+        else if (result == 203) { addStackLayer("[60 64 67]"); return; }
+        else if (result == 204) { addStackLayer("~ ~ ~ ~"); return; }
+        else if (result == 205) { deleteStackLayer(targetEv.channel); return; }
+        else if (result == 1) targetEv.pitch = std::min(127, targetEv.pitch + 12);
         else if (result == 2) targetEv.pitch = std::max(0, targetEv.pitch - 12);
         else if (result == 3) targetEv.pitch = std::min(127, targetEv.pitch + 1);
         else if (result == 4) targetEv.pitch = std::max(0, targetEv.pitch - 1);
-        else if (result == 10) { targetEv.valueStr = "[" + juce::String(targetEv.pitch).toStdString() + " " + juce::String(targetEv.pitch + 2).toStdString() + "]"; }
-        else if (result == 11) { targetEv.valueStr = "[" + juce::String(targetEv.pitch).toStdString() + " " + juce::String(targetEv.pitch + 4).toStdString() + " " + juce::String(targetEv.pitch + 7).toStdString() + "]"; }
-        else if (result == 12) { targetEv.valueStr = "[" + juce::String(targetEv.pitch).toStdString() + " " + juce::String(targetEv.pitch).toStdString() + " " + juce::String(targetEv.pitch).toStdString() + " " + juce::String(targetEv.pitch).toStdString() + "]"; }
-        else if (result == 13) { targetEv.valueStr = juce::String(targetEv.pitch).toStdString() + "*2"; }
-        else if (result == 14) { targetEv.valueStr = juce::String(targetEv.pitch).toStdString() + "*4"; }
+        else if (result == 13) { targetEv.valueStr = (targetEv.valueStr.empty() ? juce::String(targetEv.pitch).toStdString() : targetEv.valueStr) + "*2"; }
+        else if (result == 14) { targetEv.valueStr = (targetEv.valueStr.empty() ? juce::String(targetEv.pitch).toStdString() : targetEv.valueStr) + "*4"; }
+        else if (result == 15) { targetEv.valueStr = (targetEv.valueStr.empty() ? juce::String(targetEv.pitch).toStdString() : targetEv.valueStr) + "/2"; }
         else if (result == 20) { targetEv.valueStr = juce::String(targetEv.pitch).toStdString() + "(3,8)"; }
         else if (result == 21) { targetEv.valueStr = juce::String(targetEv.pitch).toStdString() + "(5,16)"; }
         else if (result == 22) { targetEv.valueStr = juce::String(targetEv.pitch).toStdString() + "(7,16)"; }
@@ -204,10 +272,20 @@ void ArrangementTimelineComponent::showTidalBlockContextMenu(TimelineClip& clip,
         // Rebuild full pattern string from events
         std::stringstream ss;
         ss << "[";
+        int lastChan = -1;
         for (size_t i = 0; i < clip.cachedEvents.size(); ++i)
         {
-            if (i > 0) ss << " ";
             const auto& e = clip.cachedEvents[i];
+            if (lastChan >= 0 && e.channel != lastChan)
+            {
+                ss << ", ";
+            }
+            else if (i > 0)
+            {
+                ss << " ";
+            }
+            lastChan = e.channel;
+
             if (e.isRest) ss << "~";
             else if (!e.valueStr.empty()) ss << e.valueStr;
             else ss << e.pitch;
@@ -215,8 +293,362 @@ void ArrangementTimelineComponent::showTidalBlockContextMenu(TimelineClip& clip,
         ss << "]";
         clip.updateTidalPattern(ss.str());
         tidalPatternEditor.setText(clip.tidalPattern);
-        repaint();
+        commitTidalPattern();
     });
+}
+
+void ArrangementTimelineComponent::wrapSelectedBlockInBrackets()
+{
+    for (auto& clip : clips)
+    {
+        if (clip.clipId == selectedClipId || (selectedClipId == -1 && clip.type == ClipType::Pattern))
+        {
+            if (selectedTidalEventIdx >= 0 && selectedTidalEventIdx < static_cast<int>(clip.cachedEvents.size()))
+            {
+                auto& ev = clip.cachedEvents[static_cast<size_t>(selectedTidalEventIdx)];
+                std::string baseVal = ev.isRest ? "~" : (!ev.valueStr.empty() ? ev.valueStr : std::to_string(ev.pitch));
+                ev.valueStr = "[" + baseVal + " " + baseVal + "]";
+                ev.isRest = false;
+
+                // Rebuild pattern
+                std::stringstream ss;
+                ss << "[";
+                int lastChan = -1;
+                for (size_t i = 0; i < clip.cachedEvents.size(); ++i)
+                {
+                    const auto& e = clip.cachedEvents[i];
+                    if (lastChan >= 0 && e.channel != lastChan) ss << ", ";
+                    else if (i > 0) ss << " ";
+                    lastChan = e.channel;
+                    if (e.isRest) ss << "~";
+                    else if (!e.valueStr.empty()) ss << e.valueStr;
+                    else ss << e.pitch;
+                }
+                ss << "]";
+                clip.updateTidalPattern(ss.str());
+                tidalPatternEditor.setText(clip.tidalPattern);
+                commitTidalPattern();
+                return;
+            }
+        }
+    }
+
+    // Fallback: wrap whole pattern in brackets
+    juce::String cur = tidalPatternEditor.getText().trim();
+    if (!cur.startsWith("[")) cur = "[" + cur + "]";
+    else cur = "[" + cur + " " + cur + "]";
+    tidalPatternEditor.setText(cur);
+    commitTidalPattern();
+}
+
+void ArrangementTimelineComponent::subdivideSelectedBlock(int count)
+{
+    count = std::clamp(count, 2, 8);
+    for (auto& clip : clips)
+    {
+        if (clip.clipId == selectedClipId || (selectedClipId == -1 && clip.type == ClipType::Pattern))
+        {
+            if (selectedTidalEventIdx >= 0 && selectedTidalEventIdx < static_cast<int>(clip.cachedEvents.size()))
+            {
+                auto& ev = clip.cachedEvents[static_cast<size_t>(selectedTidalEventIdx)];
+                int p = ev.pitch;
+                std::stringstream subSS;
+                subSS << "[";
+                for (int s = 0; s < count; ++s)
+                {
+                    if (s > 0) subSS << " ";
+                    if (ev.isRest) subSS << "~";
+                    else if (!ev.valueStr.empty() && (ev.valueStr == "bd" || ev.valueStr == "sn" || ev.valueStr == "cp" || ev.valueStr == "hh"))
+                        subSS << ev.valueStr;
+                    else
+                        subSS << (count == 3 ? (s == 0 ? p : (s == 1 ? p + 4 : p + 7)) : p + s * 2);
+                }
+                subSS << "]";
+                ev.valueStr = subSS.str();
+                ev.isRest = false;
+
+                // Rebuild pattern
+                std::stringstream ss;
+                ss << "[";
+                int lastChan = -1;
+                for (size_t i = 0; i < clip.cachedEvents.size(); ++i)
+                {
+                    const auto& e = clip.cachedEvents[i];
+                    if (lastChan >= 0 && e.channel != lastChan) ss << ", ";
+                    else if (i > 0) ss << " ";
+                    lastChan = e.channel;
+                    if (e.isRest) ss << "~";
+                    else if (!e.valueStr.empty()) ss << e.valueStr;
+                    else ss << e.pitch;
+                }
+                ss << "]";
+                clip.updateTidalPattern(ss.str());
+                tidalPatternEditor.setText(clip.tidalPattern);
+                commitTidalPattern();
+                return;
+            }
+        }
+    }
+
+    applySubdivisionMacro(count);
+}
+
+void ArrangementTimelineComponent::unwrapSelectedBlock()
+{
+    for (auto& clip : clips)
+    {
+        if (clip.clipId == selectedClipId || (selectedClipId == -1 && clip.type == ClipType::Pattern))
+        {
+            if (selectedTidalEventIdx >= 0 && selectedTidalEventIdx < static_cast<int>(clip.cachedEvents.size()))
+            {
+                auto& ev = clip.cachedEvents[static_cast<size_t>(selectedTidalEventIdx)];
+                if (ev.valueStr.front() == '[' && ev.valueStr.back() == ']')
+                {
+                    ev.valueStr = ev.valueStr.substr(1, ev.valueStr.size() - 2);
+                }
+                else
+                {
+                    ev.valueStr = std::to_string(ev.pitch);
+                }
+
+                // Rebuild pattern
+                std::stringstream ss;
+                ss << "[";
+                int lastChan = -1;
+                for (size_t i = 0; i < clip.cachedEvents.size(); ++i)
+                {
+                    const auto& e = clip.cachedEvents[i];
+                    if (lastChan >= 0 && e.channel != lastChan) ss << ", ";
+                    else if (i > 0) ss << " ";
+                    lastChan = e.channel;
+                    if (e.isRest) ss << "~";
+                    else if (!e.valueStr.empty()) ss << e.valueStr;
+                    else ss << e.pitch;
+                }
+                ss << "]";
+                clip.updateTidalPattern(ss.str());
+                tidalPatternEditor.setText(clip.tidalPattern);
+                commitTidalPattern();
+                return;
+            }
+        }
+    }
+}
+
+void ArrangementTimelineComponent::shiftSelectedBlockPitch(int semitones)
+{
+    for (auto& clip : clips)
+    {
+        if (clip.clipId == selectedClipId || (selectedClipId == -1 && clip.type == ClipType::Pattern))
+        {
+            if (selectedTidalEventIdx >= 0 && selectedTidalEventIdx < static_cast<int>(clip.cachedEvents.size()))
+            {
+                auto& ev = clip.cachedEvents[static_cast<size_t>(selectedTidalEventIdx)];
+                ev.pitch = std::clamp(ev.pitch + semitones, 0, 127);
+                if (!ev.valueStr.empty() && std::isdigit(ev.valueStr[0]))
+                {
+                    ev.valueStr = std::to_string(ev.pitch);
+                }
+                ev.isRest = false;
+
+                // Rebuild pattern
+                std::stringstream ss;
+                ss << "[";
+                int lastChan = -1;
+                for (size_t i = 0; i < clip.cachedEvents.size(); ++i)
+                {
+                    const auto& e = clip.cachedEvents[i];
+                    if (lastChan >= 0 && e.channel != lastChan) ss << ", ";
+                    else if (i > 0) ss << " ";
+                    lastChan = e.channel;
+                    if (e.isRest) ss << "~";
+                    else if (!e.valueStr.empty()) ss << e.valueStr;
+                    else ss << e.pitch;
+                }
+                ss << "]";
+                clip.updateTidalPattern(ss.str());
+                tidalPatternEditor.setText(clip.tidalPattern);
+                commitTidalPattern();
+                return;
+            }
+        }
+    }
+}
+
+void ArrangementTimelineComponent::toggleSelectedBlockRest()
+{
+    for (auto& clip : clips)
+    {
+        if (clip.clipId == selectedClipId || (selectedClipId == -1 && clip.type == ClipType::Pattern))
+        {
+            if (selectedTidalEventIdx >= 0 && selectedTidalEventIdx < static_cast<int>(clip.cachedEvents.size()))
+            {
+                auto& ev = clip.cachedEvents[static_cast<size_t>(selectedTidalEventIdx)];
+                ev.isRest = !ev.isRest;
+                if (ev.isRest) ev.valueStr = "~";
+                else ev.valueStr = std::to_string(ev.pitch > 0 ? ev.pitch : 60);
+
+                // Rebuild pattern
+                std::stringstream ss;
+                ss << "[";
+                int lastChan = -1;
+                for (size_t i = 0; i < clip.cachedEvents.size(); ++i)
+                {
+                    const auto& e = clip.cachedEvents[i];
+                    if (lastChan >= 0 && e.channel != lastChan) ss << ", ";
+                    else if (i > 0) ss << " ";
+                    lastChan = e.channel;
+                    if (e.isRest) ss << "~";
+                    else if (!e.valueStr.empty()) ss << e.valueStr;
+                    else ss << e.pitch;
+                }
+                ss << "]";
+                clip.updateTidalPattern(ss.str());
+                tidalPatternEditor.setText(clip.tidalPattern);
+                commitTidalPattern();
+                return;
+            }
+        }
+    }
+}
+
+void ArrangementTimelineComponent::showAddStackMenu()
+{
+    juce::PopupMenu m;
+    m.addItem(1, "+ Bassline Layer: [36 ~ 36 48]");
+    m.addItem(2, "+ Hi-Hat Groove Layer: [[42 42] 42 [42 42] 46]");
+    m.addItem(3, "+ Offbeat Snare Layer: [~ 38 ~ 38]");
+    m.addItem(4, "+ Chord Arp Layer: [[60 64 67]]");
+    m.addItem(5, "+ Custom Empty Layer: [~ ~ ~ ~]");
+
+    m.showMenuAsync(juce::PopupMenu::Options(), [this](int result) {
+        if (result == 1) addStackLayer("36 ~ 36 48");
+        else if (result == 2) addStackLayer("[42 42] 42 [42 42] 46");
+        else if (result == 3) addStackLayer("~ 38 ~ 38");
+        else if (result == 4) addStackLayer("[60 64 67]");
+        else if (result == 5) addStackLayer("~ ~ ~ ~");
+    });
+}
+
+void ArrangementTimelineComponent::addStackLayer(const juce::String& layerPattern)
+{
+    juce::String cur = tidalPatternEditor.getText().trim();
+    if (cur.isEmpty()) cur = "[60 [62 64] 67 [69 71 72]]";
+
+    if (cur.startsWith("[") && cur.endsWith("]"))
+    {
+        juce::String inner = cur.substring(1, cur.length() - 1).trim();
+        tidalPatternEditor.setText("[" + inner + ", " + layerPattern + "]");
+    }
+    else
+    {
+        tidalPatternEditor.setText("[" + cur + ", " + layerPattern + "]");
+    }
+    commitTidalPattern();
+}
+
+void ArrangementTimelineComponent::deleteStackLayer(int channelIndex)
+{
+    juce::String cur = tidalPatternEditor.getText().trim();
+    if (!cur.contains(",")) return;
+
+    if (cur.startsWith("[") && cur.endsWith("]"))
+    {
+        cur = cur.substring(1, cur.length() - 1).trim();
+    }
+
+    juce::StringArray layers;
+    // Split by comma ignoring inner brackets
+    int bracketDepth = 0;
+    int lastStart = 0;
+    for (int i = 0; i < cur.length(); ++i)
+    {
+        if (cur[i] == '[') bracketDepth++;
+        else if (cur[i] == ']') bracketDepth--;
+        else if (cur[i] == ',' && bracketDepth == 0)
+        {
+            layers.add(cur.substring(lastStart, i).trim());
+            lastStart = i + 1;
+        }
+    }
+    if (lastStart < cur.length())
+    {
+        layers.add(cur.substring(lastStart).trim());
+    }
+
+    if (channelIndex >= 0 && channelIndex < layers.size() && layers.size() > 1)
+    {
+        layers.remove(channelIndex);
+        juce::String newPat = "[" + layers.joinIntoString(", ") + "]";
+        tidalPatternEditor.setText(newPat);
+        commitTidalPattern();
+    }
+}
+
+void ArrangementTimelineComponent::startInlineBlockEditing(TimelineClip& clip, int eventIdx, const juce::Rectangle<float>& blockBounds)
+{
+    if (eventIdx < 0 || eventIdx >= static_cast<int>(clip.cachedEvents.size())) return;
+    auto& ev = clip.cachedEvents[static_cast<size_t>(eventIdx)];
+
+    isInlineEditingBlock = true;
+    inlineEditingEventIdx = eventIdx;
+    selectedTidalEventIdx = eventIdx;
+    selectedTidalChannel = ev.channel;
+
+    juce::String initText = ev.isRest ? "~" : (!ev.valueStr.empty() ? juce::String(ev.valueStr) : juce::String(ev.pitch));
+    inlineBlockEditor.setText(initText);
+    inlineBlockEditor.setBounds(blockBounds.toNearestInt().expanded(4, 4));
+    inlineBlockEditor.setVisible(true);
+    inlineBlockEditor.toFront(true);
+    inlineBlockEditor.grabKeyboardFocus();
+    inlineBlockEditor.selectAll();
+}
+
+void ArrangementTimelineComponent::commitInlineBlockEditing()
+{
+    if (!isInlineEditingBlock) return;
+    isInlineEditingBlock = false;
+    inlineBlockEditor.setVisible(false);
+
+    juce::String newText = inlineBlockEditor.getText().trim();
+    if (newText.isEmpty()) return;
+
+    for (auto& clip : clips)
+    {
+        if (clip.clipId == selectedClipId || (selectedClipId == -1 && clip.type == ClipType::Pattern))
+        {
+            if (inlineEditingEventIdx >= 0 && inlineEditingEventIdx < static_cast<int>(clip.cachedEvents.size()))
+            {
+                auto& ev = clip.cachedEvents[static_cast<size_t>(inlineEditingEventIdx)];
+                ev.valueStr = newText.toStdString();
+                ev.isRest = (newText == "~");
+                if (!ev.isRest && newText.containsOnly("0123456789"))
+                {
+                    ev.pitch = newText.getIntValue();
+                }
+
+                // Rebuild pattern
+                std::stringstream ss;
+                ss << "[";
+                int lastChan = -1;
+                for (size_t i = 0; i < clip.cachedEvents.size(); ++i)
+                {
+                    const auto& e = clip.cachedEvents[i];
+                    if (lastChan >= 0 && e.channel != lastChan) ss << ", ";
+                    else if (i > 0) ss << " ";
+                    lastChan = e.channel;
+                    if (e.isRest) ss << "~";
+                    else if (!e.valueStr.empty()) ss << e.valueStr;
+                    else ss << e.pitch;
+                }
+                ss << "]";
+                clip.updateTidalPattern(ss.str());
+                tidalPatternEditor.setText(clip.tidalPattern);
+                commitTidalPattern();
+                break;
+            }
+        }
+    }
 }
 
 ArrangementTimelineComponent::~ArrangementTimelineComponent()
@@ -314,18 +746,7 @@ void ArrangementTimelineComponent::applySubdivisionMacro(int division)
 
 void ArrangementTimelineComponent::applyStackMacro()
 {
-    juce::String cur = tidalPatternEditor.getText().trim();
-    if (cur.isEmpty())
-    {
-        for (const auto& c : clips)
-        {
-            if (c.clipId == selectedClipId) { cur = c.tidalPattern; break; }
-        }
-    }
-    if (cur.isEmpty()) cur = "[60 [62 64] 67 [69 71 72]]";
-
-    tidalPatternEditor.setText("[" + cur + ", 36 [~ 48]]");
-    commitTidalPattern();
+    addStackLayer("36 [~ 48]");
 }
 
 void ArrangementTimelineComponent::applyEuclideanMacro(int k, int n)
@@ -353,6 +774,7 @@ void ArrangementTimelineComponent::applyDegradeMacro()
 {
     juce::String cur = tidalPatternEditor.getText().trim();
     tidalPatternEditor.setText("[" + cur + "]?0.75");
+    commitTidalPattern();
     commitTidalPattern();
 }
 
@@ -908,7 +1330,7 @@ void ArrangementTimelineComponent::drawPianoRollDrawer(juce::Graphics& g, const 
         clipName = activeClip->name;
     }
 
-    g.drawText("TIDALCYCLES CUSTOM PATTERN & SUBDIVISION DRAWER: " + clipName, 12, static_cast<int>(bounds.getY() + 4), 420, 20, juce::Justification::left);
+    g.drawText("TIDALCYCLES PATTERN & SUBDIVISION EDITOR: " + clipName, 12, static_cast<int>(bounds.getY() + 4), 420, 20, juce::Justification::left);
 
     if (!activeClip) return;
 
@@ -957,18 +1379,28 @@ void ArrangementTimelineComponent::drawPianoRollDrawer(juce::Graphics& g, const 
     for (int ch = 0; ch < maxChan; ++ch)
     {
         float cy = gridY + ch * chanH;
-        g.setColour(CarbonGoldLookAndFeel::carbonBg.darker(0.2f));
+        g.setColour(ch == selectedTidalChannel ? CarbonGoldLookAndFeel::carbonBg.brighter(0.04f) : CarbonGoldLookAndFeel::carbonBg.darker(0.2f));
         g.fillRect(12.0f, cy, areaW, chanH - 4.0f);
-        g.setColour(CarbonGoldLookAndFeel::goldAccent.withAlpha(0.15f));
+        g.setColour(ch == selectedTidalChannel ? CarbonGoldLookAndFeel::goldAccent.withAlpha(0.4f) : CarbonGoldLookAndFeel::goldAccent.withAlpha(0.15f));
         g.drawRect(12.0f, cy, areaW, chanH - 4.0f, 1.0f);
 
-        // Lane label
+        // Lane label & delete button
         g.setFont(juce::Font(9.0f, juce::Font::bold));
-        g.setColour(juce::Colours::grey);
+        g.setColour(ch == selectedTidalChannel ? CarbonGoldLookAndFeel::goldAccent : juce::Colours::grey);
         g.drawText("VOICE " + juce::String(ch + 1), 16, static_cast<int>(cy + 2), 60, 14, juce::Justification::left);
+
+        if (maxChan > 1)
+        {
+            auto delRect = juce::Rectangle<float>(12.0f + areaW - 22.0f, cy + 2.0f, 18.0f, 14.0f);
+            g.setColour(juce::Colours::red.withAlpha(0.4f));
+            g.fillRoundedRectangle(delRect, 2.0f);
+            g.setColour(juce::Colours::white);
+            g.setFont(juce::Font(9.0f, juce::Font::bold));
+            g.drawText("x", delRect, juce::Justification::centred);
+        }
     }
 
-    // Draw Event Blocks with Strudel-Style Active Border
+    // Draw Event Blocks with Strudel-Style Active Border & Selection Highlights
     for (size_t i = 0; i < activeClip->cachedEvents.size(); ++i)
     {
         const auto& ev = activeClip->cachedEvents[i];
@@ -980,6 +1412,7 @@ void ArrangementTimelineComponent::drawPianoRollDrawer(juce::Graphics& g, const 
         auto blockR = juce::Rectangle<float>(ex, ey, ew, eh);
 
         bool isActive = isClipActive && (cyclePhase >= ev.startCycle && cyclePhase < ev.endCycle);
+        bool isSelected = (static_cast<int>(i) == selectedTidalEventIdx);
 
         juce::Colour blockCol = (ev.channel == 0) ? CarbonGoldLookAndFeel::cyberCyan :
                                 (ev.channel == 1) ? CarbonGoldLookAndFeel::goldAccent :
@@ -999,7 +1432,6 @@ void ArrangementTimelineComponent::drawPianoRollDrawer(juce::Graphics& g, const 
             g.setColour(juce::Colours::white.withAlpha(0.35f));
             g.drawRoundedRectangle(blockR.reduced(1.0f), 3.0f, 1.0f);
 
-            // Active text: Bold bright white/black high-contrast
             g.setFont(juce::Font(ew > 40.0f ? 12.0f : 10.0f, juce::Font::bold));
             g.setColour(CarbonGoldLookAndFeel::carbonBg);
         }
@@ -1008,14 +1440,22 @@ void ArrangementTimelineComponent::drawPianoRollDrawer(juce::Graphics& g, const 
             g.setColour(blockCol.withAlpha(ev.velocity * 0.85f));
             g.fillRoundedRectangle(blockR, 4.0f);
 
-            g.setColour(CarbonGoldLookAndFeel::carbonBg.brighter(0.1f));
-            g.drawRoundedRectangle(blockR, 4.0f, 1.0f);
+            if (isSelected)
+            {
+                g.setColour(juce::Colours::white);
+                g.drawRoundedRectangle(blockR, 4.0f, 2.0f);
+            }
+            else
+            {
+                g.setColour(CarbonGoldLookAndFeel::carbonBg.brighter(0.1f));
+                g.drawRoundedRectangle(blockR, 4.0f, 1.0f);
+            }
 
             g.setFont(juce::Font(ew > 40.0f ? 11.0f : 9.0f, juce::Font::bold));
             g.setColour(CarbonGoldLookAndFeel::carbonBg);
         }
 
-        // Pitch text / drum label
+        // Pitch text / drum label / bracket indicator
         juce::String label = ev.valueStr.empty() ? juce::String(ev.pitch) : juce::String(ev.valueStr);
         g.drawText(label, blockR, juce::Justification::centred);
     }
@@ -1047,33 +1487,52 @@ void ArrangementTimelineComponent::resized()
     {
         int drawerY = getHeight() - pianoRollHeight;
         int py = drawerY + 28;
-        int edW = std::clamp(getWidth() - 650, 200, 420);
+        int edW = std::clamp(getWidth() - 860, 160, 320);
         tidalPatternEditor.setBounds(12, py, edW, 28);
         tidalPatternEditor.setVisible(true);
 
         int bx = 12 + edW + 6;
-        int mBtnW = 62;
-        subdivideBtn.setBounds(bx, py, mBtnW, 28); subdivideBtn.setVisible(true); bx += mBtnW + 4;
-        tripletBtn.setBounds(bx, py, mBtnW, 28); tripletBtn.setVisible(true); bx += mBtnW + 4;
-        stackBtn.setBounds(bx, py, 90, 28); stackBtn.setVisible(true); bx += 94;
-        euclidBtn.setBounds(bx, py, 78, 28); euclidBtn.setVisible(true); bx += 82;
-        alternateBtn.setBounds(bx, py, 70, 28); alternateBtn.setVisible(true); bx += 74;
-        speed2Btn.setBounds(bx, py, 68, 28); speed2Btn.setVisible(true); bx += 72;
-        degradeBtn.setBounds(bx, py, 70, 28); degradeBtn.setVisible(true); bx += 74;
+        int sW = 48;
 
-        applyPatternBtn.setBounds(bx, py, 95, 28); applyPatternBtn.setVisible(true); bx += 99;
-        tidalHelpBtn.setBounds(bx, py, 68, 28); tidalHelpBtn.setVisible(true);
+        wrapBracketBtn.setBounds(bx, py, 56, 28); wrapBracketBtn.setVisible(true); bx += 60;
+        subdivideBtn.setBounds(bx, py, 46, 28); subdivideBtn.setVisible(true); bx += 50;
+        tripletBtn.setBounds(bx, py, 38, 28); tripletBtn.setVisible(true); bx += 42;
+        quadBtn.setBounds(bx, py, 38, 28); quadBtn.setVisible(true); bx += 42;
+        unwrapBtn.setBounds(bx, py, 58, 28); unwrapBtn.setVisible(true); bx += 62;
+
+        stackBtn.setBounds(bx, py, 94, 28); stackBtn.setVisible(true); bx += 98;
+        euclidBtn.setBounds(bx, py, 72, 28); euclidBtn.setVisible(true); bx += 76;
+        alternateBtn.setBounds(bx, py, 56, 28); alternateBtn.setVisible(true); bx += 60;
+        speed2Btn.setBounds(bx, py, 38, 28); speed2Btn.setVisible(true); bx += 42;
+        degradeBtn.setBounds(bx, py, 50, 28); degradeBtn.setVisible(true); bx += 54;
+        restBtn.setBounds(bx, py, 52, 28); restBtn.setVisible(true); bx += 56;
+
+        pitchUpBtn.setBounds(bx, py, 30, 28); pitchUpBtn.setVisible(true); bx += 32;
+        pitchDownBtn.setBounds(bx, py, 30, 28); pitchDownBtn.setVisible(true); bx += 34;
+        octUpBtn.setBounds(bx, py, 36, 28); octUpBtn.setVisible(true); bx += 38;
+        octDownBtn.setBounds(bx, py, 36, 28); octDownBtn.setVisible(true); bx += 40;
+
+        applyPatternBtn.setBounds(bx, py, 68, 28); applyPatternBtn.setVisible(true); bx += 72;
+        tidalHelpBtn.setBounds(bx, py, 58, 28); tidalHelpBtn.setVisible(true);
     }
     else
     {
         tidalPatternEditor.setVisible(false);
+        wrapBracketBtn.setVisible(false);
         subdivideBtn.setVisible(false);
         tripletBtn.setVisible(false);
+        quadBtn.setVisible(false);
+        unwrapBtn.setVisible(false);
         stackBtn.setVisible(false);
         euclidBtn.setVisible(false);
         alternateBtn.setVisible(false);
         speed2Btn.setVisible(false);
         degradeBtn.setVisible(false);
+        restBtn.setVisible(false);
+        pitchUpBtn.setVisible(false);
+        pitchDownBtn.setVisible(false);
+        octUpBtn.setVisible(false);
+        octDownBtn.setVisible(false);
         applyPatternBtn.setVisible(false);
         tidalHelpBtn.setVisible(false);
     }
@@ -1123,6 +1582,21 @@ void ArrangementTimelineComponent::mouseDown(const juce::MouseEvent& e)
                 for (const auto& ev : clip.cachedEvents) maxChan = std::max(maxChan, ev.channel + 1);
                 float chanH = gridH / static_cast<float>(maxChan);
 
+                // Check lane delete buttons
+                if (maxChan > 1)
+                {
+                    for (int ch = 0; ch < maxChan; ++ch)
+                    {
+                        float cy = gridY + ch * chanH;
+                        auto delRect = juce::Rectangle<float>(12.0f + areaW - 22.0f, cy + 2.0f, 18.0f, 14.0f);
+                        if (delRect.contains(pos))
+                        {
+                            deleteStackLayer(ch);
+                            return;
+                        }
+                    }
+                }
+
                 for (size_t i = 0; i < clip.cachedEvents.size(); ++i)
                 {
                     auto& ev = clip.cachedEvents[i];
@@ -1134,6 +1608,9 @@ void ArrangementTimelineComponent::mouseDown(const juce::MouseEvent& e)
                     auto blockR = juce::Rectangle<float>(ex, ey, ew, eh);
                     if (blockR.contains(pos))
                     {
+                        selectedTidalEventIdx = static_cast<int>(i);
+                        selectedTidalChannel = ev.channel;
+
                         if (e.mods.isPopupMenu())
                         {
                             showTidalBlockContextMenu(clip, static_cast<int>(i));
@@ -1176,6 +1653,57 @@ void ArrangementTimelineComponent::mouseDown(const juce::MouseEvent& e)
             repaint();
             return;
         }
+    }
+}
+
+void ArrangementTimelineComponent::mouseDoubleClick(const juce::MouseEvent& e)
+{
+    auto pos = e.position;
+
+    // Double click in Tidal drawer opens in-place text editor directly over the block
+    if (isPianoRollVisible && pos.y >= getHeight() - pianoRollHeight)
+    {
+        float gridY = getHeight() - pianoRollHeight + 66.0f;
+        float gridH = pianoRollHeight - 74.0f;
+        float areaW = getWidth() - 24.0f;
+
+        for (auto& clip : clips)
+        {
+            if (clip.clipId == selectedClipId || (selectedClipId == -1 && clip.type == ClipType::Pattern))
+            {
+                int maxChan = 1;
+                for (const auto& ev : clip.cachedEvents) maxChan = std::max(maxChan, ev.channel + 1);
+                float chanH = gridH / static_cast<float>(maxChan);
+
+                for (size_t i = 0; i < clip.cachedEvents.size(); ++i)
+                {
+                    auto& ev = clip.cachedEvents[i];
+                    float ex = 12.0f + static_cast<float>(ev.startCycle * areaW);
+                    float ew = std::max(6.0f, static_cast<float>((ev.endCycle - ev.startCycle) * areaW) - 3.0f);
+                    float ey = gridY + ev.channel * chanH + 2.0f;
+                    float eh = chanH - 8.0f;
+
+                    auto blockR = juce::Rectangle<float>(ex, ey, ew, eh);
+                    if (blockR.contains(pos))
+                    {
+                        startInlineBlockEditing(clip, static_cast<int>(i), blockR);
+                        return;
+                    }
+                }
+                break;
+            }
+        }
+        return;
+    }
+
+    float timelineW = static_cast<float>(getWidth() - trackHeaderWidth);
+    if (pos.x > trackHeaderWidth && pos.y > transportBarHeight + rulerHeight)
+    {
+        int yStart = transportBarHeight + rulerHeight;
+        int trackIdx = static_cast<int>((pos.y - yStart) / trackHeight);
+        double clickTime = ((pos.x - trackHeaderWidth) / timelineW) * totalDurationSec;
+
+        addClip(trackIdx, clickTime, 4.0, "Sequence Clip " + juce::String(clips.size() + 1), ClipType::Pattern);
     }
 }
 
@@ -1257,10 +1785,14 @@ void ArrangementTimelineComponent::mouseUp(const juce::MouseEvent& e)
             {
                 std::stringstream ss;
                 ss << "[";
+                int lastChan = -1;
                 for (size_t i = 0; i < clip.cachedEvents.size(); ++i)
                 {
-                    if (i > 0) ss << " ";
                     const auto& ev = clip.cachedEvents[i];
+                    if (lastChan >= 0 && ev.channel != lastChan) ss << ", ";
+                    else if (i > 0) ss << " ";
+                    lastChan = ev.channel;
+
                     if (ev.isRest) ss << "~";
                     else if (!ev.valueStr.empty()) ss << ev.valueStr;
                     else ss << ev.pitch;
@@ -1268,6 +1800,7 @@ void ArrangementTimelineComponent::mouseUp(const juce::MouseEvent& e)
                 ss << "]";
                 clip.updateTidalPattern(ss.str());
                 tidalPatternEditor.setText(clip.tidalPattern);
+                commitTidalPattern();
                 break;
             }
         }
@@ -1279,21 +1812,6 @@ void ArrangementTimelineComponent::mouseUp(const juce::MouseEvent& e)
     isSettingLoop = false;
     draggingClipId = -1;
     isResizingClipEnd = false;
-}
-
-void ArrangementTimelineComponent::mouseDoubleClick(const juce::MouseEvent& e)
-{
-    auto pos = e.position;
-    float timelineW = static_cast<float>(getWidth() - trackHeaderWidth);
-
-    if (pos.x > trackHeaderWidth && pos.y > transportBarHeight + rulerHeight)
-    {
-        int yStart = transportBarHeight + rulerHeight;
-        int trackIdx = static_cast<int>((pos.y - yStart) / trackHeight);
-        double clickTime = ((pos.x - trackHeaderWidth) / timelineW) * totalDurationSec;
-
-        addClip(trackIdx, clickTime, 4.0, "Sequence Clip " + juce::String(clips.size() + 1), ClipType::Pattern);
-    }
 }
 
 bool ArrangementTimelineComponent::keyPressed(const juce::KeyPress& key)

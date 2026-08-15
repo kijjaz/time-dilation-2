@@ -90,7 +90,7 @@ public:
     void splitClipAtPlayhead();
     void setClipTidalPattern(int clipId, const std::string& pat);
 
-    // TidalCycles-Style Transformation Macros
+    // TidalCycles-Style Transformation Macros & Graphical Operations
     void applySubdivisionMacro(int division);
     void applyEuclideanMacro(int k, int n);
     void applyStackMacro();
@@ -98,6 +98,18 @@ public:
     void applySpeedMacro(double mult);
     void applyDegradeMacro();
     void commitTidalPattern();
+
+    // Graphical Block, Bracket & Stack Operations
+    void wrapSelectedBlockInBrackets();
+    void subdivideSelectedBlock(int count);
+    void unwrapSelectedBlock();
+    void shiftSelectedBlockPitch(int semitones);
+    void toggleSelectedBlockRest();
+    void showAddStackMenu();
+    void addStackLayer(const juce::String& layerPattern);
+    void deleteStackLayer(int channelIndex);
+    void startInlineBlockEditing(TimelineClip& clip, int eventIdx, const juce::Rectangle<float>& blockBounds);
+    void commitInlineBlockEditing();
 
     // Message Event Operations
     void addMessageEvent(int targetNodeId, int trackIdx, double timeSec, const juce::String& msgText);
@@ -148,24 +160,37 @@ private:
 
     // Piano Roll & Tidal Pattern Drawer State
     bool isPianoRollVisible = true;
-    int pianoRollHeight = 175;
+    int pianoRollHeight = 185;
     int selectedStepIndex = -1;
+    int selectedTidalEventIdx = -1;
+    int selectedTidalChannel = 0;
     int draggingTidalEventIdx = -1;
     float tidalDragStartY = 0.0f;
     int tidalDragStartPitch = 60;
 
     juce::TextEditor eventEditor;
+    juce::TextEditor inlineBlockEditor;
+    bool isInlineEditingBlock = false;
+    int inlineEditingEventIdx = -1;
 
     // Tidal Pattern Editor UI Controls
     juce::TextEditor tidalPatternEditor;
+    juce::TextButton wrapBracketBtn{ "[ ... ]" };
     juce::TextButton subdivideBtn{ "[a b] /2" };
-    juce::TextButton tripletBtn{ "[a b c] /3" };
+    juce::TextButton tripletBtn{ "[/3]" };
+    juce::TextButton quadBtn{ "[/4]" };
+    juce::TextButton unwrapBtn{ "Unwrap" };
     juce::TextButton stackBtn{ "+ Stack Poly (,)" };
     juce::TextButton euclidBtn{ "Euclid (3,8)" };
     juce::TextButton alternateBtn{ "<a b> Alt" };
-    juce::TextButton speed2Btn{ "*2 Speed" };
-    juce::TextButton degradeBtn{ "? Degrade" };
-    juce::TextButton applyPatternBtn{ "APPLY PATTERN" };
+    juce::TextButton speed2Btn{ "*2" };
+    juce::TextButton degradeBtn{ "? Prob" };
+    juce::TextButton restBtn{ "~ Rest" };
+    juce::TextButton pitchUpBtn{ "+1" };
+    juce::TextButton pitchDownBtn{ "-1" };
+    juce::TextButton octUpBtn{ "+12" };
+    juce::TextButton octDownBtn{ "-12" };
+    juce::TextButton applyPatternBtn{ "APPLY" };
     juce::TextButton tidalHelpBtn{ "[?] HELP" };
 
     void showTidalHelpModal();
