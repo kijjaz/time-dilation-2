@@ -904,8 +904,9 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
     bool projectAssetPass = testProjectDirectoryAssetManagement();
     bool liveAudioPass = testLiveAudioInputAndBufferRecording();
     bool inputRoutingPass = testAudioInputRoutingAndInternalTapping();
+    bool recQuantizePass = testRecordingQuantizationModes();
 
-    bool allPhasesPass = allPhase1Pass && gravPass && lorentzPass && tachyonPass && jsonPass && dynamicLatPass && pdControlPass && samplePlaybackPass && delayPipePass && timeSculptPass && seqTimelinePass && tidalPass && tidalDrawerPass && samplePoolPass && projectAssetPass && liveAudioPass && inputRoutingPass;
+    bool allPhasesPass = allPhase1Pass && gravPass && lorentzPass && tachyonPass && jsonPass && dynamicLatPass && pdControlPass && samplePlaybackPass && delayPipePass && timeSculptPass && seqTimelinePass && tidalPass && tidalDrawerPass && samplePoolPass && projectAssetPass && liveAudioPass && inputRoutingPass && recQuantizePass;
     std::cout << "\n[Full Test Suite] Overall Result: " << (allPhasesPass ? "PASSED" : "FAILED") << "\n\n";
 
     // Export artifacts/phase2_3_4_telemetry.json
@@ -928,7 +929,8 @@ int AgentTestRunner::runHeadlessTest(const juce::StringArray& args)
     fullOut << "  \"samplePoolAndRelativisticSamplers\": " << (samplePoolPass ? "true" : "false") << ",\n";
     fullOut << "  \"projectDirectoryAssetManagement\": " << (projectAssetPass ? "true" : "false") << ",\n";
     fullOut << "  \"liveAudioInputAndBufferRecording\": " << (liveAudioPass ? "true" : "false") << ",\n";
-    fullOut << "  \"audioInputRoutingAndInternalTapping\": " << (inputRoutingPass ? "true" : "false") << "\n";
+    fullOut << "  \"audioInputRoutingAndInternalTapping\": " << (inputRoutingPass ? "true" : "false") << ",\n";
+    fullOut << "  \"recordingQuantizationModes\": " << (recQuantizePass ? "true" : "false") << "\n";
     fullOut << "}\n";
     fullOut.close();
 
@@ -2576,6 +2578,185 @@ bool AgentTestRunner::testAudioInputRoutingAndInternalTapping()
     }
 
     std::cout << "PASSED (External Mono/Stereo, Internal Tap, and Track Recording verified)\n";
+    return true;
+}
+
+bool AgentTestRunner::testRecordingQuantizationModes()
+{
+    std::cout << "[Test 24] Recording Quantization Modes (Bar, Beat, Subdivision, Unquantized)... \n";
+
+    double bpm = 120.0; // 1 beat = 0.5s, 1 bar = 2.0s
+
+    // 1. Math Verification: quantizeTime
+    double rawT1 = 0.45; // Close to 1 beat (0.5s)
+    double qBeatT = ArrangementTimelineComponent::quantizeTime(rawT1, RecordingQuantizeMode::Beat, bpm);
+    if (std::abs(qBeatT - 0.5) > 0.001)
+    {
+        std::cout << "FAILED (quantizeTime Beat failed, expected 0.5, got " << qBeatT << ")\n";
+        return false;
+    }
+
+    double rawT2 = 1.88; // Close to 1 bar (2.0s)
+    double qBarT = ArrangementTimelineComponent::quantizeTime(rawT2, RecordingQuantizeMode::Bar, bpm);
+    if (std::abs(qBarT - 2.0) > 0.001)
+    {
+        std::cout << "FAILED (quantizeTime Bar failed, expected 2.0, got " << qBarT << ")\n";
+        return false;
+    }
+
+    double rawT3 = 0.37;
+    double qNoneT = ArrangementTimelineComponent::quantizeTime(rawT3, RecordingQuantizeMode::None, bpm);
+    if (std::abs(qNoneT - 0.37) > 0.001)
+    {
+        std::cout << "FAILED (quantizeTime None failed, expected 0.37, got " << qNoneT << ")\n";
+        return false;
+    }
+
+    // 2. Math Verification: quantizeDuration
+    double rawDur1 = 3.75; // Close to 2 bars (4.0s)
+    double qBarDur = ArrangementTimelineComponent::quantizeDuration(rawDur1, RecordingQuantizeMode::Bar, bpm);
+    if (std::abs(qBarDur - 4.0) > 0.001)
+    {
+        std::cout << "FAILED (quantizeDuration Bar failed, expected 4.0, got " << qBarDur << ")\n";
+        return false;
+    }
+
+    double rawDur2 = 0.62; // Close to 1 beat (0.5s) or 2 beats (1.0s)
+    double qBeatDur = ArrangementTimelineComponent::quantizeDuration(rawDur2, RecordingQuantizeMode::Beat, bpm);
+    if (std::abs(qBeatDur - 0.5) > 0.001 && std::abs(qBeatDur - 1.0) > 0.001)
+    {
+        std::cout << "FAILED (quantizeDuration Beat failed, got " << qBeatDur << ")\n";
+        return false;
+    }
+
+    // 3. Live Timeline Recording with Bar Quantize Mode
+    RelativisticNodeGraph graph;
+    graph.prepare(96000.0, 512);
+    ArrangementTimelineComponent timeline(graph);
+    timeline.setRecordingQuantizeMode(RecordingQuantizeMode::Bar);
+    timeline.setTrackArmed(0, true);
+
+    // Mock hardware input with sine wave
+    juce::AudioBuffer<float> mockAudioIn(2, 512);
+    for (int i = 0; i < 512; ++i)
+    {
+        float sample = 0.65f * std::sin(2.0f * 3.14159265f * 440.0f * (static_cast<float>(i) / 96000.0f));
+        mockAudioIn.setSample(0, i, sample);
+        mockAudioIn.setSample(1, i, sample);
+    }
+    AudioInputRouter::setGlobalInputBuffer(mockAudioIn);
+
+    // Start recording at playhead time 0.1s
+    timeline.setPlayheadPosition(0.1);
+    timeline.togglePlayback(); // Start recording
+
+    // Simulate 3.75 seconds of audio recording at 30Hz timer ticks (~113 ticks)
+    juce::AudioBuffer<float> testBuf(2, 512);
+    for (int b = 0; b < 113; ++b)
+    {
+        timeline.timerCallback();
+    }
+    timeline.togglePlayback(); // Stop recording -> Commits quantized clip
+
+    // Verify committed clip
+    bool foundBarClip = false;
+    double clipStart = 0.0;
+    double clipDuration = 0.0;
+    std::string barTblName;
+    for (const auto& c : timeline.getClips())
+    {
+        if (c.trackIndex == 0 && c.type == ClipType::AudioSample)
+        {
+            foundBarClip = true;
+            clipStart = c.startTimeSec;
+            clipDuration = c.durationSec;
+            barTblName = c.sampleTableName;
+            break;
+        }
+    }
+
+    if (!foundBarClip)
+    {
+        std::cout << "FAILED (Committed Bar-quantized clip not found)\n";
+        return false;
+    }
+
+    // Start time at 0.1s at 120BPM with Bar quantize snaps to 0.0s
+    if (clipStart != 0.0)
+    {
+        std::cout << "FAILED (Expected clipStart 0.0, got " << clipStart << ")\n";
+        return false;
+    }
+
+    // Duration ~3.75s snaps to 4.0s (2 bars)
+    if (std::abs(clipDuration - 4.0) > 0.1)
+    {
+        std::cout << "FAILED (Expected clipDuration 4.0s, got " << clipDuration << ")\n";
+        return false;
+    }
+
+    // Verify buffer registration in TableManager
+    const auto& tbl = TableManager::getInstance().getTable(barTblName);
+    if (tbl.empty() || tbl.size() < 380000)
+    {
+        std::cout << "FAILED (Quantized table buffer invalid size: " << tbl.size() << ")\n";
+        return false;
+    }
+
+    // 4. Live Timeline Recording with None (Unquantized) Mode
+    timeline.setRecordingQuantizeMode(RecordingQuantizeMode::None);
+    timeline.setTrackArmed(1, true);
+    timeline.setTrackArmed(0, false);
+
+    timeline.setPlayheadPosition(0.42);
+    timeline.togglePlayback(); // Start recording
+
+    // Record 1.15 seconds (~35 ticks)
+    for (int b = 0; b < 35; ++b)
+    {
+        timeline.timerCallback();
+    }
+    timeline.togglePlayback(); // Stop recording
+
+    bool foundFreeClip = false;
+    for (const auto& c : timeline.getClips())
+    {
+        if (c.trackIndex == 1 && c.type == ClipType::AudioSample)
+        {
+            foundFreeClip = true;
+            if (std::abs(c.startTimeSec - 0.42) > 0.05)
+            {
+                std::cout << "FAILED (Unquantized clip start drifted: " << c.startTimeSec << ")\n";
+                return false;
+            }
+            break;
+        }
+    }
+
+    if (!foundFreeClip)
+    {
+        std::cout << "FAILED (Unquantized clip not committed)\n";
+        return false;
+    }
+
+    // 5. Export Observation 24 WAV
+    juce::File obs24Wav("artifacts/observation_24_recording_quantize_modes.wav");
+    auto fileStream24 = obs24Wav.createOutputStream();
+    if (fileStream24 != nullptr)
+    {
+        juce::WavAudioFormat wavFormat;
+        std::unique_ptr<juce::AudioFormatWriter> writer24(wavFormat.createWriterFor(fileStream24.release(), 96000.0, 1, 16, {}, 0));
+        if (writer24 != nullptr)
+        {
+            juce::AudioBuffer<float> outAudio(1, static_cast<int>(tbl.size()));
+            outAudio.copyFrom(0, 0, tbl.data(), static_cast<int>(tbl.size()));
+            writer24->writeFromAudioSampleBuffer(outAudio, 0, static_cast<int>(tbl.size()));
+            writer24->flush();
+            std::cout << "[AgentTestRunner] Exported WAV Observation 24 (Recording Quantize Modes): " << obs24Wav.getFullPathName().toStdString() << "\n";
+        }
+    }
+
+    std::cout << "PASSED (Bar, Beat, Subdivision and Unquantized recording verified)\n";
     return true;
 }
 

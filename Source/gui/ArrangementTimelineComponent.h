@@ -18,6 +18,16 @@ enum class ClipType
     AudioSample
 };
 
+enum class RecordingQuantizeMode
+{
+    None,        // Unquantized (exact punch-in/out)
+    Sixteenth,   // 1/16 Note
+    Eighth,      // 1/8 Note
+    Beat,        // 1 Beat (1/4 Note)
+    HalfBar,     // 2 Beats (1/2 Bar)
+    Bar          // 1 Bar (4 Beats in 4/4)
+};
+
 struct TimelineClip
 {
     int clipId = 0;
@@ -62,6 +72,8 @@ struct TimelineTrackInfo
     ClipType defaultClipType = ClipType::Pattern;
     bool isArmed = false;
     AudioInputSource inputSource;
+    RecordingQuantizeMode quantizeOverride = RecordingQuantizeMode::Bar;
+    bool useTrackQuantizeOverride = false;
 };
 
 struct TimelineMessageEvent
@@ -141,6 +153,14 @@ public:
     void setTrackInputSource(int trackIdx, const AudioInputSource& source);
     AudioInputSource getTrackInputSource(int trackIdx) const;
     void showTrackInputMenu(int trackIdx);
+
+    // Recording Quantization Controls
+    void setRecordingQuantizeMode(RecordingQuantizeMode mode);
+    RecordingQuantizeMode getRecordingQuantizeMode() const { return globalRecQuantize; }
+    void showRecordingQuantizeMenu();
+    static double quantizeTime(double timeSec, RecordingQuantizeMode mode, double bpm);
+    static double quantizeDuration(double durationSec, RecordingQuantizeMode mode, double bpm);
+    static juce::String getQuantizeModeName(RecordingQuantizeMode mode);
 
     const std::vector<TimelineTrackInfo>& getTracks() const { return tracks; }
 
@@ -249,8 +269,11 @@ private:
     juce::TextButton rewindButton{ "REWIND" };
     juce::TextButton loopButton{ "LOOP ON" };
     juce::TextButton addClipButton{ "+ ADD CLIP" };
+    juce::TextButton recQuantizeButton{ "⏱ Q: 1 BAR" };
     juce::TextButton togglePianoRollBtn{ "TIDAL DRAWER" };
     juce::Label timeDisplayLabel{ "TimeDisplay", "Bar 1.1 | 00:00.00" };
+
+    RecordingQuantizeMode globalRecQuantize = RecordingQuantizeMode::Bar;
 };
 
 } // namespace TimeDilationDAW

@@ -49,6 +49,11 @@ ArrangementTimelineComponent::ArrangementTimelineComponent(RelativisticNodeGraph
     addClipButton.setColour(juce::TextButton::textColourOffId, CarbonGoldLookAndFeel::cyberCyan);
     addAndMakeVisible(addClipButton);
 
+    recQuantizeButton.onClick = [this]() { showRecordingQuantizeMenu(); };
+    recQuantizeButton.setColour(juce::TextButton::buttonColourId, CarbonGoldLookAndFeel::slatePanel.brighter(0.1f));
+    recQuantizeButton.setColour(juce::TextButton::textColourOffId, CarbonGoldLookAndFeel::cyberCyan);
+    addAndMakeVisible(recQuantizeButton);
+
     togglePianoRollBtn.onClick = [this]() {
         isPianoRollVisible = !isPianoRollVisible;
         togglePianoRollBtn.setColour(juce::TextButton::textColourOffId, isPianoRollVisible ? CarbonGoldLookAndFeel::goldAccent : juce::Colours::grey);
@@ -787,6 +792,74 @@ void ArrangementTimelineComponent::showTrackInputMenu(int trackIdx)
     });
 }
 
+double ArrangementTimelineComponent::quantizeTime(double timeSec, RecordingQuantizeMode mode, double bpm)
+{
+    if (mode == RecordingQuantizeMode::None) return std::max(0.0, timeSec);
+    double beatSec = 60.0 / std::max(1.0, bpm);
+    double intervalSec = beatSec;
+    if (mode == RecordingQuantizeMode::Sixteenth) intervalSec = beatSec * 0.25;
+    else if (mode == RecordingQuantizeMode::Eighth) intervalSec = beatSec * 0.5;
+    else if (mode == RecordingQuantizeMode::Beat) intervalSec = beatSec;
+    else if (mode == RecordingQuantizeMode::HalfBar) intervalSec = beatSec * 2.0;
+    else if (mode == RecordingQuantizeMode::Bar) intervalSec = beatSec * 4.0;
+    return std::max(0.0, std::round(timeSec / intervalSec) * intervalSec);
+}
+
+double ArrangementTimelineComponent::quantizeDuration(double durationSec, RecordingQuantizeMode mode, double bpm)
+{
+    if (mode == RecordingQuantizeMode::None) return std::max(0.25, durationSec);
+    double beatSec = 60.0 / std::max(1.0, bpm);
+    double intervalSec = beatSec;
+    if (mode == RecordingQuantizeMode::Sixteenth) intervalSec = beatSec * 0.25;
+    else if (mode == RecordingQuantizeMode::Eighth) intervalSec = beatSec * 0.5;
+    else if (mode == RecordingQuantizeMode::Beat) intervalSec = beatSec;
+    else if (mode == RecordingQuantizeMode::HalfBar) intervalSec = beatSec * 2.0;
+    else if (mode == RecordingQuantizeMode::Bar) intervalSec = beatSec * 4.0;
+    return std::max(intervalSec, std::round(durationSec / intervalSec) * intervalSec);
+}
+
+juce::String ArrangementTimelineComponent::getQuantizeModeName(RecordingQuantizeMode mode)
+{
+    switch (mode)
+    {
+        case RecordingQuantizeMode::None: return "OFF";
+        case RecordingQuantizeMode::Sixteenth: return "1/16 NOTE";
+        case RecordingQuantizeMode::Eighth: return "1/8 NOTE";
+        case RecordingQuantizeMode::Beat: return "1 BEAT";
+        case RecordingQuantizeMode::HalfBar: return "1/2 BAR";
+        case RecordingQuantizeMode::Bar: return "1 BAR";
+    }
+    return "1 BAR";
+}
+
+void ArrangementTimelineComponent::setRecordingQuantizeMode(RecordingQuantizeMode mode)
+{
+    globalRecQuantize = mode;
+    recQuantizeButton.setButtonText("⏱ Q: " + getQuantizeModeName(mode));
+    repaint();
+}
+
+void ArrangementTimelineComponent::showRecordingQuantizeMenu()
+{
+    juce::PopupMenu m;
+    m.addSectionHeader("Recording Quantization Grid");
+    m.addItem(1, "Off (Unquantized / Free Time)", true, globalRecQuantize == RecordingQuantizeMode::None);
+    m.addItem(2, "1/16 Note Grid", true, globalRecQuantize == RecordingQuantizeMode::Sixteenth);
+    m.addItem(3, "1/8 Note Grid", true, globalRecQuantize == RecordingQuantizeMode::Eighth);
+    m.addItem(4, "1 Beat (1/4 Note Grid)", true, globalRecQuantize == RecordingQuantizeMode::Beat);
+    m.addItem(5, "1/2 Bar Grid (2 Beats)", true, globalRecQuantize == RecordingQuantizeMode::HalfBar);
+    m.addItem(6, "1 Bar Grid (4 Beats / Loop Quantize)", true, globalRecQuantize == RecordingQuantizeMode::Bar);
+
+    m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&recQuantizeButton), [this](int res) {
+        if (res == 1) setRecordingQuantizeMode(RecordingQuantizeMode::None);
+        else if (res == 2) setRecordingQuantizeMode(RecordingQuantizeMode::Sixteenth);
+        else if (res == 3) setRecordingQuantizeMode(RecordingQuantizeMode::Eighth);
+        else if (res == 4) setRecordingQuantizeMode(RecordingQuantizeMode::Beat);
+        else if (res == 5) setRecordingQuantizeMode(RecordingQuantizeMode::HalfBar);
+        else if (res == 6) setRecordingQuantizeMode(RecordingQuantizeMode::Bar);
+    });
+}
+
 void ArrangementTimelineComponent::togglePlayback()
 {
     if (isTimelinePlaying)
@@ -794,23 +867,49 @@ void ArrangementTimelineComponent::togglePlayback()
         // Stopping playback: commit any live recordings
         if (wasPlayingPreviousPass && !trackRecordingBuffers.empty())
         {
-            double recDur = std::max(0.5, playheadTimeSec - recordingStartPlayheadTime);
+            double rawStart = recordingStartPlayheadTime;
+            double rawDur = std::max(0.1, playheadTimeSec - recordingStartPlayheadTime);
             static int recClipCounter = 1;
+
             for (const auto& [trackIdx, samples] : trackRecordingBuffers)
             {
-                if (samples.size() >= 512)
+                if (samples.size() >= 256)
                 {
+                    RecordingQuantizeMode qMode = globalRecQuantize;
+                    if (trackIdx >= 0 && trackIdx < static_cast<int>(tracks.size()) && tracks[static_cast<size_t>(trackIdx)].useTrackQuantizeOverride)
+                    {
+                        qMode = tracks[static_cast<size_t>(trackIdx)].quantizeOverride;
+                    }
+
+                    double quantizedStart = quantizeTime(rawStart, qMode, bpm);
+                    double quantizedDur = quantizeDuration(rawDur, qMode, bpm);
+
+                    int targetSampleCount = (qMode == RecordingQuantizeMode::None) ? static_cast<int>(samples.size()) : static_cast<int>(quantizedDur * 96000.0);
+                    targetSampleCount = std::max(512, targetSampleCount);
+
                     std::string tblName = "rec_t" + std::to_string(trackIdx + 1) + "_" + std::to_string(recClipCounter);
-                    juce::AudioBuffer<float> finalBuf(1, static_cast<int>(samples.size()));
-                    finalBuf.copyFrom(0, 0, samples.data(), static_cast<int>(samples.size()));
+                    juce::AudioBuffer<float> finalBuf(1, targetSampleCount);
+                    finalBuf.clear();
+
+                    int copyLen = std::min(targetSampleCount, static_cast<int>(samples.size()));
+                    finalBuf.copyFrom(0, 0, samples.data(), copyLen);
+
+                    // Smooth edge fades (3ms) to prevent audio clicks
+                    int fadeSamples = std::min(288, targetSampleCount / 8);
+                    if (fadeSamples > 0)
+                    {
+                        finalBuf.applyGainRamp(0, 0, fadeSamples, 0.0f, 1.0f);
+                        finalBuf.applyGainRamp(0, copyLen - fadeSamples, fadeSamples, 1.0f, 0.0f);
+                    }
+
                     TableManager::getInstance().registerBuffer(tblName, finalBuf, 96000.0);
 
                     TimelineClip c;
                     c.clipId = 1000 + recClipCounter++;
                     c.trackIndex = trackIdx;
-                    c.startTimeSec = recordingStartPlayheadTime;
-                    c.durationSec = recDur;
-                    c.name = "Audio Rec " + juce::String(trackIdx + 1);
+                    c.startTimeSec = quantizedStart;
+                    c.durationSec = quantizedDur;
+                    c.name = "Audio Rec " + juce::String(trackIdx + 1) + " [" + getQuantizeModeName(qMode) + "]";
                     c.type = ClipType::AudioSample;
                     c.sampleTableName = tblName;
                     c.color = juce::Colour(0xffd02040);
@@ -1727,7 +1826,8 @@ void ArrangementTimelineComponent::resized()
     rewindButton.setBounds(85, y, 75, btnH);
     loopButton.setBounds(165, y, 80, btnH);
     addClipButton.setBounds(250, y, 85, btnH);
-    togglePianoRollBtn.setBounds(340, y, 105, btnH);
+    recQuantizeButton.setBounds(340, y, 95, btnH);
+    togglePianoRollBtn.setBounds(440, y, 105, btnH);
 
     timeDisplayLabel.setBounds(getWidth() - 240, y, 230, btnH);
 
@@ -1741,7 +1841,6 @@ void ArrangementTimelineComponent::resized()
         tidalPatternEditor.setVisible(true);
 
         int bx = 12 + edW + 6;
-        int sW = 48;
 
         wrapBracketBtn.setBounds(bx, py, 56, 28); wrapBracketBtn.setVisible(true); bx += 60;
         subdivideBtn.setBounds(bx, py, 46, 28); subdivideBtn.setVisible(true); bx += 50;
